@@ -1,0 +1,203 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// AUTH.JS REQUIRED MODELS
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  role          Role      @default(STUDENT)
+
+  accounts    Account[]
+  sessions    Session[]
+  enrollments Enrollment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum Role {
+  STUDENT
+  ADMIN
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ============================================
+// TRAINING PROGRAMS
+// ============================================
+
+model Program {
+  id               String       @id @default(cuid())
+  slug             String       @unique
+  title            String
+  shortDescription String
+  description      String       @db.Text
+  level            ProgramLevel @default(BEGINNER)
+  mode             ProgramMode  @default(ONLINE)
+  durationWeeks    Int
+  price            Int // smallest currency unit (paise)
+  currency         String       @default("INR")
+  startDate        DateTime?
+  syllabus         Json // structured module/topic list
+  outcomes         String[]
+  featuredImageUrl String?
+  seoTitle         String?
+  seoDescription   String?
+  published        Boolean      @default(false)
+
+  enrollments Enrollment[]
+  leads       Lead[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum ProgramLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum ProgramMode {
+  ONLINE
+  OFFLINE
+  HYBRID
+}
+
+model Enrollment {
+  id         String           @id @default(cuid())
+  userId     String
+  programId  String
+  status     EnrollmentStatus @default(PENDING)
+  amountPaid Int
+  paymentRef String? // gateway-agnostic external reference (Razorpay order/payment id)
+  enrolledAt DateTime         @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  program Program @relation(fields: [programId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, programId])
+}
+
+enum EnrollmentStatus {
+  PENDING
+  PAID
+  COMPLETED
+  CANCELLED
+}
+
+// ============================================
+// LEAD CAPTURE (unified: contact, program interest, careers, newsletter popup)
+// ============================================
+
+model Lead {
+  id      String @id @default(cuid())
+  name    String
+  email   String
+  phone   String?
+  message String?    @db.Text
+  source  LeadSource
+  status  LeadStatus @default(NEW)
+
+  programId String?
+  program   Program? @relation(fields: [programId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+}
+
+enum LeadSource {
+  CONTACT_FORM
+  PROGRAM_INTEREST
+  CAREERS
+  NEWSLETTER_POPUP
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  CONVERTED
+  CLOSED
+}
+
+// ============================================
+// NEWSLETTER
+// ============================================
+
+model NewsletterSubscriber {
+  id             String           @id @default(cuid())
+  email          String           @unique
+  status         SubscriberStatus @default(ACTIVE)
+  source         String?
+  subscribedAt   DateTime         @default(now())
+  unsubscribedAt DateTime?
+}
+
+enum SubscriberStatus {
+  ACTIVE
+  UNSUBSCRIBED
+}
+
+// ============================================
+// TESTIMONIALS
+// ============================================
+
+model Testimonial {
+  id          String  @id @default(cuid())
+  studentName String
+  studentRole String?
+  avatarUrl   String?
+  quote       String  @db.Text
+  rating      Int?
+  programId   String?
+  published   Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  createdAt DateTime @default(now())
+}
