@@ -18,3 +18,22 @@ export async function getFeaturedTestimonials(limit = 6): Promise<Testimonial[]>
     return [];
   }
 }
+
+/**
+ * Testimonials scoped to a single program, for Program Detail - per Phase E,
+ * shown as a static grid there, not the carousel Home uses. Same
+ * catch-and-degrade pattern as the list query above: a program page missing
+ * its testimonials section is a minor, acceptable degradation, unlike the
+ * program itself failing to load.
+ */
+export async function getTestimonialsByProgramId(programId: string): Promise<Testimonial[]> {
+  try {
+    return await prisma.testimonial.findMany({
+      where: { programId, published: true },
+      orderBy: { sortOrder: "asc" },
+    });
+  } catch (error) {
+    console.error("getTestimonialsByProgramId failed:", error);
+    return [];
+  }
+}

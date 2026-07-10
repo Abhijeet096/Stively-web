@@ -19,7 +19,7 @@ const MODE_LABEL: Record<Program["mode"], string> = {
 
 function ProgramCard({ program }: { program: Program }) {
   return (
-    <Link href={`/programs/${program.slug}`} className="block">
+    <Link href={`/training/${program.slug}`} className="block">
       <Card variant="interactive" className="h-full">
         <CardHeader>
           <div className="mb-1 flex gap-2">
