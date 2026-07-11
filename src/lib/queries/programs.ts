@@ -45,7 +45,7 @@ export async function getProgramBySlug(slug: string): Promise<Program | null> {
 /**
  * All published slugs, for generateStaticParams - lets Program Detail
  * pages be statically generated at build time per the Phase B/D pattern,
- * rather than rendered on every request.
+ * rather than rendered on every request. Also used by sitemap.ts.
  */
 export async function getAllProgramSlugs(): Promise<string[]> {
   try {
@@ -58,4 +58,91 @@ export async function getAllProgramSlugs(): Promise<string[]> {
     console.error("getAllProgramSlugs failed:", error);
     return [];
   }
+}
+
+export const PROGRAM_LEVELS = ["BEGINNER", "INTERMEDIATE", "ADVANCED"] as const;
+export const PROGRAM_MODES = ["ONLINE", "OFFLINE", "HYBRID"] as const;
+export const DURATION_BUCKETS = ["under-4", "4-8", "8-plus"] as const;
+
+export type DurationBucket = (typeof DURATION_BUCKETS)[number];
+
+export function isValidProgramLevel(value: string | undefined): value is Program["level"] {
+  return !!value && (PROGRAM_LEVELS as readonly string[]).includes(value);
+}
+
+export function isValidProgramMode(value: string | undefined): value is Program["mode"] {
+  return !!value && (PROGRAM_MODES as readonly string[]).includes(value);
+}
+
+export function isValidDurationBucket(value: string | undefined): value is DurationBucket {
+  return !!value && (DURATION_BUCKETS as readonly string[]).includes(value);
+}
+
+export const PROGRAM_PAGE_SIZE = 9;
+
+export interface ProgramFilters {
+  search?: string;
+  level?: Program["level"];
+  mode?: Program["mode"];
+  duration?: DurationBucket;
+  page?: number;
+}
+
+export interface PaginatedPrograms {
+  programs: Program[];
+  totalCount: number;
+  totalPages: number;
+  page: number;
+}
+
+function durationBucketToRange(bucket: DurationBucket): { gte?: number; lte?: number } {
+  switch (bucket) {
+    case "under-4":
+      return { lte: 3 };
+    case "4-8":
+      return { gte: 4, lte: 8 };
+    case "8-plus":
+      return { gte: 9 };
+  }
+}
+
+/**
+ * The Training listing page's core query - search, level/mode/duration
+ * filters, and server-side pagination, all translated into a single Prisma
+ * `where` clause. Deliberately does NOT catch-and-degrade errors the way
+ * getFeaturedPrograms does above: on this page the program list IS the
+ * page's entire content, not a supplementary section, so a real DB failure
+ * needs to reach the error boundary rather than be indistinguishable from
+ * "your filters matched nothing" - same reasoning as getProgramBySlug not
+ * swallowing errors either.
+ */
+export async function getPaginatedPrograms(filters: ProgramFilters): Promise<PaginatedPrograms> {
+  const page = filters.page && filters.page > 0 ? filters.page : 1;
+
+  const where = {
+    published: true,
+    ...(filters.search
+      ? { title: { contains: filters.search, mode: "insensitive" as const } }
+      : {}),
+    ...(filters.level ? { level: filters.level } : {}),
+    ...(filters.mode ? { mode: filters.mode } : {}),
+    ...(filters.duration ? { durationWeeks: durationBucketToRange(filters.duration) } : {}),
+  };
+
+  const [programs, totalCount] = await Promise.all([
+    prisma.program.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * PROGRAM_PAGE_SIZE,
+      take: PROGRAM_PAGE_SIZE,
+    }),
+    prisma.program.count({ where }),
+  ]);
+
+  return {
+    programs,
+    totalCount,
+    totalPages: Math.max(1, Math.ceil(totalCount / PROGRAM_PAGE_SIZE)),
+    page,
+  };
 }
