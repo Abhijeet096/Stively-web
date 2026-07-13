@@ -11,6 +11,13 @@ export const siteConfig = {
     instagram: "https://instagram.com/stively",
   },
   contactEmail: "hello@stively.com",
+  // Optional - undefined until the business provides real values. The Contact
+  // page renders each of these conditionally rather than showing a fabricated
+  // placeholder (see docs/phase-e-visual-ux-planning.md's "no fabricated
+  // content" discipline, applied here to contact info, not just testimonials).
+  contactPhone: undefined as string | undefined,
+  businessHours: undefined as string | undefined,
+  officeLocation: "Remote-first — India" as string | undefined,
 } as const;
 
 export type SiteConfig = typeof siteConfig;
