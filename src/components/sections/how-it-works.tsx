@@ -7,13 +7,21 @@ export interface HowItWorksStep {
 }
 
 export interface HowItWorksProps {
+  id?: string;
   heading?: string;
   steps: HowItWorksStep[];
 }
 
-function HowItWorks({ heading = "How it works", steps }: HowItWorksProps) {
+/**
+ * `id` defaults to "how-it-works" - the value this component always
+ * hardcoded before this prop existed - so every existing usage (Home,
+ * Services) keeps its current anchor-link behavior unchanged. Added
+ * because the About page needs two instances on one page (Student and
+ * Business journeys), which would otherwise collide on a duplicate id.
+ */
+function HowItWorks({ id = "how-it-works", heading = "How it works", steps }: HowItWorksProps) {
   return (
-    <Section id="how-it-works" background="muted">
+    <Section id={id} background="muted">
       <Container className="flex flex-col gap-10">
         <h2 className="text-center text-3xl font-semibold tracking-tight md:text-4xl">{heading}</h2>
         <ol className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
