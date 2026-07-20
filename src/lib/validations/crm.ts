@@ -38,6 +38,12 @@ export const updateLeadSchema = z
       .optional(),
     priority: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
     nextFollowUpAt: z.string().optional(), // date input value (yyyy-mm-dd) or empty string to clear
+    // Reclassification for leads the Contact form's earlier bug mis-typed
+    // (every enquiry defaulted to STUDENT regardless of what the submitter
+    // chose) - new submissions no longer need this, but existing
+    // already-created leads do.
+    leadType: z.enum(["STUDENT", "BUSINESS"]).optional(),
+    companyName: z.string().trim().optional(),
     lostReason: z
       .enum([
         "FINANCIAL_ISSUE",

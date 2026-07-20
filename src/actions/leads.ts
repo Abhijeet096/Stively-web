@@ -36,14 +36,13 @@ export type ContactFormState = ActionResult | null;
  * it down into the flat LeadInput shape `submitLead` already accepts and
  * calls that function directly - no duplicated create/error-handling logic.
  *
- * This composition step exists purely because the database doesn't have
- * `leadType`/`companyName` columns yet (Lead Intake v1.2 is a design
- * document, not implemented schema - see docs/architecture/
- * lead-intake-system.md). Business-specific fields get folded into the
- * `message` text with a clear structure so the information isn't lost, not
- * silently dropped. When v1.2's schema fields actually exist, only this
- * function's body needs to change - the form component and its validation
- * schema already collect the right shape.
+ * `leadType`/`companyName` are passed straight through to the real Lead
+ * columns of the same name (fixed from an earlier version of this function
+ * that only folded them into the message text, which left every enquiry -
+ * student or business - defaulting to leadType STUDENT and never showing
+ * up under /admin/businesses). `programInterest` still has nowhere real to
+ * land (no free-text column, and matching it to a real Program without a
+ * live dropdown is out of scope), so that one stays folded into the message.
  */
 export async function submitContactEnquiry(
   _prevState: ContactFormState,
@@ -70,17 +69,13 @@ export async function submitContactEnquiry(
 
   const data = parsed.data;
 
-  // Compose the richer shape down into today's flat LeadInput - the bridge
-  // described above. programId stays unset: there's no reliable way to
-  // match free-text "program interest" to a real Program row without
-  // reintroducing a dropdown backed by a live query, which is out of scope
-  // for "only prepare the form structure."
+  // programId stays unset: there's no reliable way to match free-text
+  // "program interest" to a real Program row without reintroducing a
+  // dropdown backed by a live query, which is out of scope here.
   const message =
-    data.enquiryType === "BUSINESS"
-      ? `[Business enquiry]\nCompany: ${data.companyName}\n\n${data.message}`
-      : data.programInterest
-        ? `[Student enquiry]\nProgram of interest: ${data.programInterest}\n\n${data.message}`
-        : `[Student enquiry]\n\n${data.message}`;
+    data.enquiryType === "STUDENT" && data.programInterest
+      ? `Program of interest: ${data.programInterest}\n\n${data.message}`
+      : data.message;
 
   return submitLead({
     name: data.name,
@@ -88,5 +83,7 @@ export async function submitContactEnquiry(
     phone: data.phone,
     message,
     source: "CONTACT_FORM",
+    leadType: data.enquiryType,
+    companyName: data.enquiryType === "BUSINESS" ? data.companyName : undefined,
   });
 }

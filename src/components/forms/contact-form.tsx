@@ -85,8 +85,8 @@ function ContactForm({
         <Input name="email" type="email" required autoComplete="email" />
       </FormField>
 
-      <FormField id="phone" label="Phone" optional>
-        <Input name="phone" type="tel" autoComplete="tel" />
+      <FormField id="phone" label="Phone">
+        <Input name="phone" type="tel" required autoComplete="tel" />
       </FormField>
 
       {enquiryType === "BUSINESS" ? (

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { updateLeadSchema, addNoteSchema, reassignOwnerSchema } from "@/lib/validations/crm";
 import { getDefaultOwner } from "@/lib/queries/team-members";
 import { auth } from "@/lib/auth";
@@ -48,6 +48,8 @@ export async function updateLead(
     priority: formData.get("priority") || undefined,
     nextFollowUpAt: formData.get("nextFollowUpAt") || undefined,
     lostReason: formData.get("lostReason") || undefined,
+    leadType: formData.get("leadType") || undefined,
+    companyName: formData.get("companyName") || undefined,
   };
 
   const parsed = updateLeadSchema.safeParse(raw);
@@ -74,8 +76,21 @@ export async function updateLead(
             ? { nextFollowUpAt: data.nextFollowUpAt ? new Date(data.nextFollowUpAt) : null }
             : {}),
           ...(data.lostReason ? { lostReason: data.lostReason } : {}),
+          ...(data.leadType ? { leadType: data.leadType } : {}),
+          ...(data.companyName !== undefined ? { companyName: data.companyName || null } : {}),
         },
       });
+
+      if (data.leadType && data.leadType !== current.leadType) {
+        await tx.leadHistory.create({
+          data: {
+            leadId,
+            eventType: "STATUS_CHANGED",
+            description: `Type changed from ${current.leadType.toLowerCase()} to ${data.leadType.toLowerCase()}`,
+            performedBy: actorId,
+          },
+        });
+      }
 
       if (data.status && data.status !== current.status) {
         await tx.leadHistory.create({
@@ -119,6 +134,9 @@ export async function updateLead(
     revalidatePath("/admin/leads");
     return { success: true };
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return { success: false, error: "This email already has a lead of that type - merge or update the existing one instead." };
+    }
     console.error("updateLead failed:", error);
     return { success: false, error: "Something went wrong. Please try again." };
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import type { Lead, LeadStatus, LeadPriority, LostReason } from "@prisma/client";
+import type { Lead, LeadStatus, LeadPriority, LostReason, LeadType } from "@prisma/client";
 
 import { updateLead } from "@/actions/crm";
 import type { ActionResult } from "@/actions/leads";
@@ -44,6 +44,7 @@ const STATUS_OPTIONS = Object.keys(STATUS_LABEL) as LeadStatus[];
  */
 function LeadUpdateForm({ lead }: { lead: Lead }) {
   const [status, setStatus] = useState<LeadStatus>(lead.status);
+  const [leadType, setLeadType] = useState<LeadType>(lead.leadType);
   const updateWithId = updateLead.bind(null, lead.id);
   const [state, formAction, isPending] = useActionState<ActionResult | null, FormData>(
     updateWithId,
@@ -54,6 +55,30 @@ function LeadUpdateForm({ lead }: { lead: Lead }) {
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="leadType">Type</Label>
+        <Select
+          name="leadType"
+          defaultValue={lead.leadType}
+          onValueChange={(v: string) => setLeadType(v as LeadType)}
+        >
+          <SelectTrigger id="leadType">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="STUDENT">Student</SelectItem>
+            <SelectItem value="BUSINESS">Business</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {leadType === "BUSINESS" && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="companyName">Company name</Label>
+          <Input id="companyName" name="companyName" defaultValue={lead.companyName ?? ""} />
+        </div>
+      )}
+
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="status">Status</Label>
         <Select
