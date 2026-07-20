@@ -45,7 +45,7 @@ function SheetContent({
       <SheetOverlay />
       <SheetPrimitive.Content
         className={cn(
-          "bg-background fixed z-50 flex flex-col gap-4 p-6 shadow-lg outline-none",
+          "bg-background fixed z-50 flex flex-col gap-4 overflow-y-auto p-6 shadow-lg outline-none",
           "transition duration-300 ease-out",
           "data-[state=open]:animate-in data-[state=closed]:animate-out",
           side === "right" &&
@@ -57,8 +57,8 @@ function SheetContent({
         {...props}
       >
         {children}
-        <SheetPrimitive.Close className="focus-visible:ring-ring absolute top-4 right-4 rounded-md opacity-70 transition-opacity outline-none hover:opacity-100 focus-visible:ring-2">
-          <X className="size-4" />
+        <SheetPrimitive.Close className="focus-visible:ring-ring text-muted-foreground absolute top-4 right-4 rounded-md p-1.5 outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2">
+          <X className="size-4" aria-hidden="true" />
           <span className="sr-only">Close</span>
         </SheetPrimitive.Close>
       </SheetPrimitive.Content>

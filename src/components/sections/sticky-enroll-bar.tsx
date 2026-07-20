@@ -23,7 +23,9 @@ function StickyEnrollBar({ program }: { program: Program }) {
     if (!hero) return;
 
     const observer = new IntersectionObserver(([entry]) => setVisible(!entry.isIntersecting), {
-      rootMargin: "-64px 0px 0px 0px",
+      // -72px matches the navbar's h-18 (4.5rem) height set in
+      // src/components/shared/navbar.tsx - keep these in sync.
+      rootMargin: "-72px 0px 0px 0px",
     });
     observer.observe(hero);
     return () => observer.disconnect();
@@ -34,20 +36,20 @@ function StickyEnrollBar({ program }: { program: Program }) {
       aria-hidden={!visible}
       className={cn(
         "border-border bg-background/95 fixed inset-x-0 bottom-0 z-30 border-t backdrop-blur-md",
-        "md:top-16 md:bottom-auto md:border-t-0 md:border-b",
+        "md:top-18 md:bottom-auto md:border-t-0 md:border-b",
         "transition-transform duration-200 ease-out",
         visible ? "translate-y-0" : "translate-y-full md:translate-y-[-100%]"
       )}
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-3 md:px-8">
-        <div className="flex flex-col leading-tight">
+        <div className="flex min-w-0 flex-col leading-tight">
           <span className="text-foreground truncate text-sm font-medium">{program.title}</span>
           <span className="text-muted-foreground text-sm">
             {formatPrice(program.price, program.currency)}
           </span>
         </div>
-        <Button asChild tabIndex={visible ? 0 : -1}>
-          <Link href={enrollHref}>Enroll Now</Link>
+        <Button asChild tabIndex={visible ? 0 : -1} className="shrink-0">
+          <Link href={enrollHref}>Enroll now</Link>
         </Button>
       </div>
     </div>

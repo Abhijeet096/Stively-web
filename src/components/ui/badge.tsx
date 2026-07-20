@@ -14,6 +14,13 @@ const badgeVariants = cva(
         warning: "bg-warning/10 text-warning",
         destructive: "bg-destructive/10 text-destructive",
         outline: "border border-border text-foreground",
+        // Legible on the --ink surface (Hero eyebrow chips, ink cards) where
+        // the light-mode `default`/`outline` variants would go invisible.
+        ink: "border border-ink-border-strong bg-white/[0.06] text-ink-foreground",
+        // The signal-path brand gradient as a solid fill - reserved for the
+        // single "Recommended" moment on the pricing page (see pricing-
+        // tiers.tsx), never a default choice for ordinary tags.
+        gradient: "from-primary via-brand-iris to-brand-teal bg-linear-to-r text-white",
       },
     },
     defaultVariants: {

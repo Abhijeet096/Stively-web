@@ -61,13 +61,25 @@ const FAQ_ITEMS: FAQItem[] = [
   },
 ];
 
+interface ContactPageProps {
+  searchParams: Promise<{ type?: string; offering?: string }>;
+}
+
 /**
  * No Prisma queries on this page - entirely static content plus one client
  * form island, same pattern as the Services page. No loading.tsx needed for
  * the same reason (design-system.md §21 - loading states are for content
  * that's about to appear; nothing here is fetched).
+ *
+ * Reads `?type=business` so the Home page's business-first CTAs can land
+ * here with the form already on the right mode - a visitor who just read
+ * "Start a project" shouldn't have to notice and fix a form defaulted to
+ * "Student" before they can act on the CTA they just clicked.
  */
-export default function ContactPage() {
+export default async function ContactPage({ searchParams }: ContactPageProps) {
+  const { type, offering } = await searchParams;
+  const defaultType = type === "business" ? "BUSINESS" : "STUDENT";
+
   return (
     <>
       <JsonLd
@@ -110,7 +122,7 @@ export default function ContactPage() {
         <Container className="flex justify-center">
           <Card className="w-full max-w-xl">
             <CardContent>
-              <ContactForm />
+              <ContactForm defaultType={defaultType} offeringTitle={offering} />
             </CardContent>
           </Card>
         </Container>

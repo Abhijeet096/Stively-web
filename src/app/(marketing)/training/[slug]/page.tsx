@@ -40,10 +40,22 @@ export async function generateMetadata({ params }: ProgramPageProps): Promise<Me
   return {
     title: program.seoTitle ?? program.title,
     description: program.seoDescription ?? program.shortDescription,
+    alternates: { canonical: `/training/${program.slug}` },
+    // Falls back to the generated /opengraph-image when a program has no
+    // featuredImageUrl - a page-level openGraph/twitter block replaces the
+    // root layout's instead of merging, so it must supply its own image
+    // rather than relying on opengraph-image.tsx being auto-attached.
     openGraph: {
       title: program.seoTitle ?? program.title,
       description: program.seoDescription ?? program.shortDescription,
-      images: program.featuredImageUrl ? [program.featuredImageUrl] : undefined,
+      url: `${siteConfig.url}/training/${program.slug}`,
+      images: [program.featuredImageUrl ?? "/opengraph-image"],
+    },
+    twitter: {
+      card: "summary_large_image",
+      images: [program.featuredImageUrl ?? "/opengraph-image"],
+      title: program.seoTitle ?? program.title,
+      description: program.seoDescription ?? program.shortDescription,
     },
   };
 }
@@ -89,7 +101,7 @@ export default async function ProgramDetailPage({ params }: ProgramPageProps) {
       <CTASection
         heading="Ready to start?"
         description={`Enroll in ${program.title} and start building toward something real.`}
-        actionLabel="Enroll Now"
+        actionLabel="Enroll now"
         actionHref={`/signup?callbackUrl=/training/${program.slug}`}
         inverted
       />

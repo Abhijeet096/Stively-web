@@ -1,5 +1,6 @@
 import { Section } from "@/components/shared/section";
 import { Container } from "@/components/shared/container";
+import { Eyebrow } from "@/components/shared/eyebrow";
 import {
   Accordion,
   AccordionItem,
@@ -26,8 +27,11 @@ export interface FAQSectionProps {
 function FAQSection({ heading = "Frequently asked questions", items }: FAQSectionProps) {
   return (
     <Section background="default">
-      <Container className="flex flex-col gap-8">
-        <h2 className="text-center text-3xl font-semibold tracking-tight md:text-4xl">{heading}</h2>
+      <Container className="flex flex-col items-center gap-8">
+        <Eyebrow>FAQ</Eyebrow>
+        <h2 className="font-display text-center text-3xl font-semibold tracking-[-0.02em] text-balance md:text-4xl">
+          {heading}
+        </h2>
         <Accordion type="single" collapsible className="mx-auto w-full max-w-2xl">
           {items.map((item, index) => (
             <AccordionItem key={item.question} value={`faq-${index}`}>

@@ -1,30 +1,65 @@
 import { NextResponse } from "next/server";
+
 import { auth } from "@/lib/auth";
+import { findProtectedRoute, ROLE_HOME, GUEST_ONLY_ROUTES } from "@/config/rbac";
 
 /**
- * Route protection for authenticated areas. Runs before any /dashboard
- * page exists yet - so once Step 5 builds those pages, access control
- * is already in place rather than being bolted on afterward.
+ * The real route guard that src/proxy.ts's previous version explicitly
+ * flagged as "A REAL, CURRENT SECURITY GAP" while disabled - now live.
+ * Runs at the edge via Auth.js's `auth()` wrapper, which decodes the JWT
+ * session cookie locally (no Prisma call - see src/lib/auth.ts's session
+ * strategy comment for why that matters here).
  *
- * Named `proxy` (not `middleware`) per the Next.js 16 convention - the
- * file itself was also renamed from middleware.ts. The proxy runtime is
- * always nodejs (edge is no longer an option here), which works in our
- * favor: Auth.js's database session strategy goes through Prisma, which
- * needs the nodejs runtime anyway.
+ * Every protected prefix and who may enter it lives in src/config/rbac.ts,
+ * not here - this file only enforces that map, so a new portal never needs
+ * a change to this logic, just one more entry in rbac.ts plus a route
+ * folder.
  */
 export const proxy = auth((req) => {
-  const isLoggedIn = !!req.auth;
-  const isDashboardRoute = req.nextUrl.pathname.startsWith("/dashboard");
+  const { pathname } = req.nextUrl;
+  const session = req.auth;
+  const role = session?.user?.role;
 
-  if (isDashboardRoute && !isLoggedIn) {
+  const isGuestOnlyRoute = GUEST_ONLY_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`)
+  );
+  if (isGuestOnlyRoute && role) {
+    return NextResponse.redirect(new URL(ROLE_HOME[role], req.nextUrl.origin));
+  }
+
+  const protectedRoute = findProtectedRoute(pathname);
+  if (!protectedRoute) {
+    return NextResponse.next();
+  }
+
+  if (!role) {
     const loginUrl = new URL("/login", req.nextUrl.origin);
-    loginUrl.searchParams.set("callbackUrl", req.nextUrl.pathname);
+    loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  if (!protectedRoute.roles.includes(role)) {
+    // Wrong role, not unauthenticated - bounce straight to where they
+    // actually belong rather than an error page (see src/lib/session.ts's
+    // requireRole for the slower, explanatory fallback used when a page's
+    // own defense-in-depth check catches something this matcher didn't).
+    return NextResponse.redirect(new URL(ROLE_HOME[role], req.nextUrl.origin));
   }
 
   return NextResponse.next();
 });
 
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: [
+    "/student/:path*",
+    "/mentor/:path*",
+    "/client/:path*",
+    "/company/:path*",
+    "/intern/:path*",
+    "/team/:path*",
+    "/admin/:path*",
+    "/ceo/:path*",
+    "/login",
+    "/register",
+  ],
 };

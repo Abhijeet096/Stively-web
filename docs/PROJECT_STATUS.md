@@ -19,7 +19,7 @@
 - [ ] About
 - [ ] Services
 - [ ] Training
-- [ ] Pricing
+- [x] Pricing
 - [ ] Contact
 - [ ] Mentors
 

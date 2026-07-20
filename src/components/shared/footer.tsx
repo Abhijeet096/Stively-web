@@ -7,17 +7,27 @@ import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
+// "/careers" omitted - planned (see docs/phase-a-product-plan.md) but not
+// built yet, and a live footer link pointing at a 404 is worse than no
+// link. "/pricing" shipped, so it's back in Product below. The Legal
+// group's targets don't exist yet either, but those links are left in
+// place deliberately - see the note on the Legal group below.
 const FOOTER_LINKS = {
   Product: [
-    { href: "/training", label: "Training" },
-    { href: "/pricing", label: "Pricing" },
     { href: "/services", label: "Services" },
+    { href: "/pricing", label: "Pricing" },
+    { href: "/training", label: "Training" },
   ],
   Company: [
     { href: "/about", label: "About" },
-    { href: "/careers", label: "Careers" },
     { href: "/contact", label: "Contact" },
   ],
+  // Unlike Pricing/Careers, these links stay even though the pages don't
+  // exist yet: this site collects real PII (Contact form, newsletter
+  // signup) with no linked privacy policy anywhere, which is a compliance
+  // gap, not just a dead link. Deleting the links would hide that gap
+  // instead of surfacing it - flagged here and in the Phase 5 report as a
+  // pre-launch blocker, not something to quietly remove.
   Legal: [
     { href: "/legal/privacy-policy", label: "Privacy Policy" },
     { href: "/legal/terms-of-service", label: "Terms of Service" },
@@ -26,22 +36,49 @@ const FOOTER_LINKS = {
 } as const;
 
 /**
- * Deliberately quiet - the footer is a utility, not a place to reintroduce
- * visual flourish (see design-system.md §17). Newsletter form here is
- * presentational only; wire it to the `subscribeNewsletter` action when
- * this renders in a real page.
+ * Closes the page on the same --ink surface as Hero/Process/the closing
+ * CTA - the third of three deliberately dark bookends (see globals.css's
+ * --ink token block), not a one-off dark treatment. Still structurally
+ * quiet (no new content, same link groups, same newsletter form) - only
+ * the surface changed, per this phase's visual-only scope. Newsletter form
+ * is still presentational only; wire it to the `subscribeNewsletter`
+ * action when this renders in a real page.
  */
 function Footer() {
   return (
-    <footer className="border-border border-t">
-      <Container className="py-16">
-        <div className="grid grid-cols-2 gap-10 md:grid-cols-5">
-          <div className="col-span-2 flex flex-col gap-4">
-            <Logo />
-            <p className="text-muted-foreground max-w-xs text-sm">{siteConfig.description}</p>
+    <footer className="bg-ink text-ink-foreground texture-noise relative overflow-hidden">
+      {/* Hairline gradient seam at the top edge, both brand colors - the
+          "accent line" that announces this surface change instead of a
+          plain border. */}
+      <div
+        aria-hidden="true"
+        className="from-primary via-brand-iris to-brand-teal absolute inset-x-0 top-0 h-px bg-linear-to-r opacity-70"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 700px 420px at 8% 0%, oklch(0.541 0.216 265.75 / 0.16), transparent 60%)," +
+            "radial-gradient(ellipse 600px 380px at 95% 100%, oklch(0.746 0.127 200.01 / 0.1), transparent 60%)",
+        }}
+      />
+      <Container className="relative py-20">
+        <div className="grid grid-cols-1 gap-12 md:grid-cols-5 md:gap-10">
+          <div className="md:col-span-2 flex flex-col gap-4">
+            <Logo className="text-ink-foreground" />
+            <p className="text-ink-muted-foreground max-w-xs text-sm text-pretty">
+              {siteConfig.description}
+            </p>
             <form className="flex max-w-sm gap-2" aria-label="Subscribe to the newsletter">
-              <Input type="email" placeholder="you@email.com" aria-label="Email address" />
-              <Button type="submit" variant="secondary">
+              <Input
+                type="email"
+                placeholder="you@email.com"
+                aria-label="Email address"
+                autoComplete="email"
+                className="border-ink-border-strong bg-white/[0.04] text-ink-foreground placeholder:text-ink-muted-foreground/60 focus-visible:border-ink-foreground/40 rounded-full px-4"
+              />
+              <Button type="submit" variant="inverse">
                 Subscribe
               </Button>
             </form>
@@ -49,12 +86,14 @@ function Footer() {
 
           {Object.entries(FOOTER_LINKS).map(([group, links]) => (
             <div key={group} className="flex flex-col gap-3">
-              <p className="text-foreground text-sm font-medium">{group}</p>
+              <p className="text-ink-muted-foreground/70 text-xs font-medium tracking-wide uppercase">
+                {group}
+              </p>
               {links.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="text-muted-foreground hover:text-foreground text-sm transition-colors duration-150"
+                  className="text-ink-muted-foreground hover:text-ink-foreground text-sm transition-colors duration-150"
                 >
                   {link.label}
                 </Link>
@@ -63,16 +102,16 @@ function Footer() {
           ))}
         </div>
 
-        <Separator className="my-10" />
+        <Separator className="bg-ink-border my-10" />
 
         <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-          <p className="text-muted-foreground text-sm">
+          <p className="text-ink-muted-foreground/80 text-sm">
             © {new Date().getFullYear()} {siteConfig.name}. All rights reserved.
           </p>
           <div className="flex gap-6">
             <a
               href={siteConfig.links.twitter}
-              className="text-muted-foreground hover:text-foreground text-sm"
+              className="text-ink-muted-foreground hover:text-ink-foreground text-sm transition-colors duration-150"
               target="_blank"
               rel="noreferrer"
             >
@@ -80,7 +119,7 @@ function Footer() {
             </a>
             <a
               href={siteConfig.links.linkedin}
-              className="text-muted-foreground hover:text-foreground text-sm"
+              className="text-ink-muted-foreground hover:text-ink-foreground text-sm transition-colors duration-150"
               target="_blank"
               rel="noreferrer"
             >
@@ -88,7 +127,7 @@ function Footer() {
             </a>
             <a
               href={siteConfig.links.instagram}
-              className="text-muted-foreground hover:text-foreground text-sm"
+              className="text-ink-muted-foreground hover:text-ink-foreground text-sm transition-colors duration-150"
               target="_blank"
               rel="noreferrer"
             >

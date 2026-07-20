@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Section } from "@/components/shared/section";
 import { Container } from "@/components/shared/container";
+import { Eyebrow } from "@/components/shared/eyebrow";
 
 interface RoadmapItem {
   label: string;
@@ -28,7 +29,10 @@ function LookingAhead() {
   return (
     <Section background="muted">
       <Container className="flex flex-col items-center gap-6 text-center">
-        <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">Looking ahead</h2>
+        <Eyebrow>Roadmap</Eyebrow>
+        <h2 className="font-display text-3xl font-semibold tracking-[-0.02em] text-balance md:text-4xl">
+          Looking ahead
+        </h2>
         <p className="text-muted-foreground max-w-2xl">
           Training and software development are what we deliver today. The direction we&apos;re
           building toward goes further - connecting learning, real work, and hiring into one

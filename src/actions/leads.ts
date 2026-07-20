@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 import { leadSchema, contactEnquirySchema, type LeadInput } from "@/lib/validations/lead";
 
 export type ActionResult = { success: true } | { success: false; error: string };
@@ -18,7 +19,7 @@ export async function submitLead(input: LeadInput): Promise<ActionResult> {
   }
 
   try {
-    await prisma.lead.create({ data: parsed.data });
+    await prisma.lead.create({ data: parsed.data as Prisma.LeadUncheckedCreateInput });
     return { success: true };
   } catch (error) {
     console.error("submitLead failed:", error);

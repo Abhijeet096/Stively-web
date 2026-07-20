@@ -19,17 +19,120 @@ model User {
   image         String?
   role          Role      @default(STUDENT)
 
-  accounts    Account[]
-  sessions    Session[]
-  enrollments Enrollment[]
+  /// Only meaningful for role CLIENT - collected on the Business
+  /// registration form (src/lib/validations/auth.ts's registerSchema).
+  /// Null for every other role.
+  companyName String?
+
+  /// Null for OAuth-only accounts (Google). Set for anyone who registered
+  /// or set a password via the Credentials provider - see src/lib/auth.ts.
+  password String?
+
+  /// Account-lockout pair (see src/lib/auth.ts's Credentials `authorize()`):
+  /// incremented on each failed password attempt, reset on success.
+  /// `lockedUntil` is set once the threshold is hit and checked before any
+  /// password comparison runs, so a locked account never reaches bcrypt.
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+
+  /// Bumped on every successful password change (registration counts as
+  /// the first "change"). The `jwt` callback in src/lib/auth.ts rejects any
+  /// token minted before this timestamp, which is how a stateless JWT
+  /// session gets invalidated after a password reset without a session
+  /// table to delete rows from.
+  passwordChangedAt DateTime?
+  lastLoginAt       DateTime?
+
+  accounts                Account[]
+  sessions                Session[]
+  enrollments             Enrollment[]
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+
+  /// Optional link to a CRM staff identity - see TeamMember below for why
+  /// this is a link, not a merge.
+  teamMember TeamMember?
+
+  /// Offerings audit trail - see Offering below. Nullable/SetNull like every
+  /// other audit FK in this file: the offering must survive its creator's
+  /// account being deleted.
+  createdOfferings Offering[] @relation("OfferingCreatedBy")
+  updatedOfferings Offering[] @relation("OfferingUpdatedBy")
+
+  /// Every request this user has ever made (Draft through Completed) - see
+  /// OfferingRequest below.
+  offeringRequests OfferingRequest[]
+
+  /// Every direct-purchase order this user has made - see Order below.
+  orders Order[]
+
+  /// Every Offering-based enrollment this user has, regardless of how it
+  /// originated - see OfferingEnrollment below. Named distinctly from the
+  /// `enrollments` field above (the legacy Program-tied Enrollment) -
+  /// same parallel-systems reasoning as Offering/Program themselves.
+  offeringEnrollments OfferingEnrollment[]
+
+  /// Phase 10 (Mentor & Learning Delivery) - a MENTOR-role user's rich
+  /// profile, if they have one. See Mentor below for why this is a
+  /// dedicated model, not TeamMember.
+  mentor Mentor?
+
+  /// Every mentor this user has ever been assigned, as a student - see
+  /// MentorAssignment below.
+  mentorAssignments   MentorAssignment[]
+  mentorConversations MentorConversation[]
+  sentMessages        MentorMessage[]
+  sessionAttendance   MentorSessionAttendee[]
+  notifications       Notification[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
+/// Portal-level access role. STUDENT and CLIENT are the only two exposed on
+/// the public registration form (see src/lib/validations/auth.ts's
+/// registerSchema) - every other role is assigned internally by an admin.
+/// Adding a future role (Recruiter, Investor, Partner, ...) is: one value
+/// here + a migration + one line in each map in src/config/rbac.ts + a
+/// route folder - nothing else in the auth system changes.
 enum Role {
   STUDENT
+  MENTOR
+  CLIENT
+  COMPANY
+  INTERN
+  TEAM_MEMBER
   ADMIN
+  SUPER_ADMIN
+}
+
+/// Single-use token backing the "forgot password" flow
+/// (src/actions/auth.ts's requestPasswordReset/resetPassword). Kept as its
+/// own table rather than reusing Auth.js's VerificationToken below, which
+/// is shaped for the adapter's own passwordless-provider flow, not an
+/// arbitrary app-issued token.
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Single-use token backing post-registration email verification
+/// (src/actions/auth.ts's registerUser/resendVerificationEmail). See
+/// PasswordResetToken above for why this isn't the adapter's
+/// VerificationToken table.
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Account {
@@ -60,6 +163,11 @@ model Session {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+/// Required by the Auth.js Prisma adapter's shape even though no configured
+/// provider currently issues tokens into it (the Resend passwordless
+/// provider that used this table was removed in favor of Credentials +
+/// Google - see src/lib/auth.ts). Left in place rather than dropped, since
+/// the adapter's type contract expects it to exist.
 model VerificationToken {
   identifier String
   token      String   @unique
@@ -137,18 +245,66 @@ enum EnrollmentStatus {
 // ============================================
 
 model Lead {
-  id      String @id @default(cuid())
-  name    String
-  email   String
-  phone   String?
-  message String?    @db.Text
-  source  LeadSource
-  status  LeadStatus @default(NEW)
+  id       String       @id @default(cuid())
+  leadType LeadType     @default(STUDENT)
+  name     String
+  email    String
+  phone    String?
+  message  String?      @db.Text
+  source   LeadSource
+  status   LeadStatus   @default(NEW)
+  priority LeadPriority @default(MEDIUM)
+
+  companyName    String?
+  metadata       Json?
+  estimatedValue Int? // paise, Business-only in practice
+  lostReason     LostReason?
+  nextFollowUpAt DateTime?
+  lastEnquiryAt  DateTime    @default(now())
+
+  acquisitionChannel AcquisitionChannel?
+  utmSource          String?
+  utmMedium          String?
+  utmCampaign        String?
+
+  currentOwnerId String?
+  currentOwner   TeamMember? @relation(fields: [currentOwnerId], references: [id], onDelete: SetNull)
 
   programId String?
   program   Program? @relation(fields: [programId], references: [id], onDelete: SetNull)
 
+  history     LeadHistory[]
+  notes       LeadNote[]
+  assignments LeadAssignment[]
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([email, leadType])
+  @@index([email])
+  @@index([phone])
+  @@index([nextFollowUpAt])
+}
+
+enum LeadType {
+  STUDENT
+  BUSINESS
+}
+
+enum AcquisitionChannel {
+  WEBSITE
+  GOOGLE_SEARCH
+  GOOGLE_ADS
+  INSTAGRAM
+  FACEBOOK
+  LINKEDIN
+  REFERRAL
+  DIRECT
+  INTERNSHALA
+  NAUKRI
+  INDEED
+  MANUAL_ENTRY
+  OTHER
 }
 
 enum LeadSource {
@@ -161,9 +317,179 @@ enum LeadSource {
 
 enum LeadStatus {
   NEW
-  CONTACTED
+  ASSIGNED
+  FIRST_CALL
+  INTERESTED
+  CALLBACK_REQUESTED
+  NOT_RESPONDED
+  NOT_INTERESTED
+  COUNSELLING
+  ENROLLMENT
+  PAYMENT
+  INITIAL_CONTACT
+  WHATSAPP_DISCUSSION
+  DISCOVERY_CALL
+  REQUIREMENTS_GATHERING
+  PROPOSAL_SENT
+  NEGOTIATION
+  PROJECT_APPROVED
+  DEVELOPMENT_STARTED
   CONVERTED
-  CLOSED
+  LOST
+}
+
+enum LeadPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum LostReason {
+  FINANCIAL_ISSUE
+  PARENTS_REJECTED
+  JOINED_ANOTHER_INSTITUTE
+  NO_TIME
+  NOT_ELIGIBLE
+  BUDGET_ISSUE
+  COMPETITOR_WON
+  ALREADY_HIRED_AGENCY
+  INTERNAL_TEAM
+  POSTPONED
+  CANCELLED
+  NO_RESPONSE
+}
+
+// ============================================
+// TEAM / OWNERSHIP (not authentication - see TeamMember below)
+// ============================================
+
+/// Not itself an authentication identity - no password, no session. Exists
+/// so lead ownership can be a real foreign key instead of free-text.
+/// `userId` optionally links a staff member's real login (`User`, typically
+/// role TEAM_MEMBER/ADMIN/SUPER_ADMIN) to their CRM ownership record - see
+/// src/actions/crm.ts's resolveActorId(), which now reads this link instead
+/// of guessing an actor. Deliberately a link, not a merge into User: CRM
+/// ownership semantics (FOUNDER/SALESPERSON/ADMIN below) are a distinct
+/// concept from portal access role, and merging would force every future
+/// staff hire through a CRM-specific onboarding step just to get a login.
+model TeamMember {
+  id     String         @id @default(cuid())
+  name   String
+  email  String         @unique
+  role   TeamMemberRole
+  userId String?        @unique
+  user   User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  ownedLeads  Lead[]
+  assignments LeadAssignment[] @relation("AssignmentOwner")
+
+  /// Phase 7 (Operations Engine) - see OperationItem below. Separate from
+  /// `ownedLeads`/`assignments` above (Lead's own CRM) on purpose - the two
+  /// systems are parallel, not merged, per OperationItem's model comment.
+  assignedOperationItems OperationItem[]       @relation("OperationAssignee")
+  operationAssignments   OperationAssignment[] @relation("OperationAssignmentAssignee")
+  assignmentsMade        OperationAssignment[] @relation("OperationAssignmentAssignedBy")
+  activityLogs           ActivityLog[]
+  internalComments       InternalComment[]
+  scheduledMeetings      Meeting[]
+  accessGrantsGiven      AccessGrant[]
+
+  /// Phase 9 (Learning Platform) - instructor/reviewer prep, not a full instructor portal yet.
+  ledLearningExperiences LearningExperience[]
+  hostedLiveSessions     LiveSession[]
+  reviewedSubmissions    AssessmentSubmission[]
+  createdResources       Resource[]
+
+  /// Offering Request assignment - see OfferingRequest below. A counsellor
+  /// and a salesperson are distinct assignment slots on the same request
+  /// (a Student request only ever fills the former, a Business request
+  /// only the latter), not two competing owner concepts.
+  counsellingRequests OfferingRequest[] @relation("RequestCounsellor")
+  salesRequests       OfferingRequest[] @relation("RequestSalesPerson")
+
+  /// Phase 10 (Mentor & Learning Delivery) - set only for staff who are
+  /// *also* an internal mentor (Mentor.affiliatedTeamMemberId below), not
+  /// required for every TeamMember.
+  mentorProfile         Mentor?
+  mentorAssignmentsMade MentorAssignment[]
+
+  createdAt DateTime @default(now())
+}
+
+/// FOUNDER doubles as "CEO" full access and ADMIN as Operations-full-access
+/// in the Phase 7 Operations Engine's RBAC (see OperationItem below) -
+/// COUNSELLOR/SUPPORT added for that phase, additive to the pre-existing
+/// three values Lead's CRM already uses.
+enum TeamMemberRole {
+  FOUNDER
+  SALESPERSON
+  ADMIN
+  COUNSELLOR
+  SUPPORT
+}
+
+/// Append-only event timeline for a Lead - every meaningful action gets an
+/// event (created, re-enquiry, assigned, reassigned, status changed, note
+/// added, converted), not just status changes.
+model LeadHistory {
+  id          String        @id @default(cuid())
+  leadId      String
+  lead        Lead          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  eventType   LeadEventType
+  fromStatus  LeadStatus?
+  toStatus    LeadStatus?
+  description String?       @db.Text
+  performedBy String?
+
+  createdAt DateTime @default(now())
+}
+
+enum LeadEventType {
+  LEAD_CREATED
+  RE_ENQUIRY
+  ASSIGNED
+  REASSIGNED
+  CALL_ATTEMPTED
+  WHATSAPP_SENT
+  FOLLOW_UP_SCHEDULED
+  STATUS_CHANGED
+  NOTE_ADDED
+  CONVERTED
+}
+
+/// Manual, human notes - kept structurally separate from LeadHistory
+/// (automatic system events) on purpose. Create-only, no edit/delete.
+model LeadNote {
+  id       String  @id @default(cuid())
+  leadId   String
+  lead     Lead    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  content  String  @db.Text
+  authorId String?
+
+  createdAt DateTime @default(now())
+}
+
+/// Append-only ownership log. Every lead always has exactly one active
+/// assignment at a time; reassigning marks the current one inactive and
+/// creates a new one rather than overwriting it.
+model LeadAssignment {
+  id           String             @id @default(cuid())
+  leadId       String
+  lead         Lead               @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  ownerId      String
+  owner        TeamMember         @relation("AssignmentOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  assignedById String?
+  reason       ReassignmentReason @default(INITIAL)
+  isActive     Boolean            @default(true)
+
+  createdAt DateTime @default(now())
+}
+
+enum ReassignmentReason {
+  INITIAL
+  SLA_BREACH
+  UNAVAILABLE
+  MANUAL_OVERRIDE
 }
 
 // ============================================
@@ -200,4 +526,1437 @@ model Testimonial {
   sortOrder   Int     @default(0)
 
   createdAt DateTime @default(now())
+}
+
+// ============================================
+// OFFERINGS PLATFORM (Phase 4 - core product catalog)
+// ============================================
+//
+// The single reusable business entity every product line sells through -
+// Training, Internships, Software Development, AI Solutions, Digital
+// Marketing, Career Guidance, Corporate Training, and future SaaS products
+// all live here as one Offering with a different `category`, rather than a
+// bespoke table per product line. Modeled after Shopify's single Product
+// entity spanning wildly different product types.
+//
+// Deliberately independent from Program/Enrollment/Lead above: this is a
+// new, additive system, not a migration of Training onto a new table.
+// Program keeps powering /training and the existing CRM relations
+// (Lead.programId, Enrollment.programId) untouched. Migrating that legacy
+// data into Offering and redirecting /training -> /offerings/training is
+// planned as a deliberate follow-up phase, not a big-bang rename bundled
+// into this one - see docs/PROJECT_STATUS.md.
+//
+// Future relations intentionally NOT modeled as real tables yet (per the
+// brief: "prepare scalable relations, do not fully implement future
+// tables") - added here as a real FK/join table only once each concept
+// needs to be more than a display string:
+//   - Instructor / Mentor as a formal entity (today: Offering.instructorName,
+//     a plain string)
+//   - Testimonial FK'd to Offering (today: a placeholder UI section, no
+//     fabricated content - see OfferingTestimonialsPlaceholder)
+//   - FAQ / Module / Resource / Document as first-class tables (today:
+//     Offering.faqs / Offering.curriculum as validated Json, same
+//     convention as Program.syllabus)
+//   - Tag as a many-to-many join table (today: Offering.tags, a plain
+//     String[], same convention as Program.outcomes)
+model Offering {
+  id   String @id @default(cuid())
+  slug String @unique
+
+  // Basic information
+  title            String
+  shortDescription String
+  longDescription  String           @db.Text
+  category         OfferingCategory
+  audience         OfferingAudience
+  status           OfferingStatus   @default(DRAFT)
+  featured         Boolean          @default(false)
+  /// Distinct from `status`: a Published offering can still be hidden from
+  /// browse/search (e.g. shared only via direct link) without archiving it.
+  visible          Boolean          @default(true)
+  /// Which CTA(s) this offering shows (Phase 6) - a well-understood, fixed-
+  /// price offering (a course, a starter website package) can skip the
+  /// request-engine wizard entirely via DIRECT_PAYMENT; something that
+  /// needs scoping (AI Automation, custom software) stays CONSULTATION;
+  /// BOTH shows a "Buy Now" alongside the guidance path, e.g. a course
+  /// with an optional "talk to an advisor first" out. Defaults to
+  /// CONSULTATION so every offering seeded before this field existed keeps
+  /// behaving exactly as it did in Phase 5.
+  purchaseFlow     PurchaseFlow     @default(CONSULTATION)
+
+  // Business information
+  /// Smallest currency unit (paise), same convention as Program.price.
+  /// Null for Free and Custom Quote pricing types, where a fixed number
+  /// doesn't apply.
+  price         Int?
+  currency      String      @default("INR")
+  discountPrice Int?
+  pricingType   PricingType @default(FIXED)
+  /// Free-text display duration ("6 Months", "4 Weeks", "Ongoing") - values
+  /// vary too widely across categories (a training cohort vs. a dev project
+  /// timeline) for one numeric bucket to fit both.
+  duration      String?
+  mode          Mode        @default(ONLINE)
+  difficulty    Difficulty?
+  capacity      Int?
+
+  // Content blocks - mirrors Program's Json/String[] convention rather than
+  // inventing a new pattern for structured-but-flexible content.
+  whatYoullLearn String[]
+  benefits       String[]
+  whoItsFor      String[]
+  requirements   String[]
+  /// Array of {question, answer} - validated by
+  /// src/features/offerings/lib/faq.ts, same pattern as Program.syllabus's
+  /// parseSyllabus.
+  faqs           Json?
+  /// {modules: [{title, topics}]} - reuses Program.syllabus's exact shape.
+  curriculum     Json?
+
+  // Media
+  thumbnailUrl String?
+  bannerUrl    String?
+  gallery      String[]
+
+  // Lightweight future-relation fields - see the model-level comment above.
+  instructorName String?
+  tags           String[]
+
+  // SEO
+  metaTitle       String?
+  metaDescription String?
+  keywords        String[]
+
+  // Publishing / audit
+  publishedAt DateTime?
+  createdById String?
+  updatedById String?
+  createdBy   User?     @relation("OfferingCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?     @relation("OfferingUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  /// Incremented on each detail-page render - a real, cheap "Popular" sort
+  /// signal. Naive (counts crawler hits too) but honest: no fabricated
+  /// popularity score. Revisit once real analytics exist.
+  viewCount Int @default(0)
+
+  /// Every Enroll/Request Proposal ever started against this offering -
+  /// see OfferingRequest below.
+  requests OfferingRequest[]
+
+  /// Every direct-purchase order made against this offering - see Order below.
+  orders Order[]
+
+  /// Every enrollment created against this offering - see OfferingEnrollment below.
+  offeringEnrollments OfferingEnrollment[]
+
+  /// The curriculum behind this offering, if it has one - see
+  /// LearningExperience below. Optional 1:1: only some categories
+  /// (Training, Internship, Corporate Training) ever have curriculum: a
+  /// Custom Software Development offering never will.
+  learningExperience LearningExperience?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([audience])
+  @@index([status])
+  @@index([featured])
+}
+
+enum OfferingCategory {
+  TRAINING
+  INTERNSHIP
+  SOFTWARE_DEVELOPMENT
+  WEBSITE_DEVELOPMENT
+  MOBILE_DEVELOPMENT
+  AI_SOLUTIONS
+  DIGITAL_MARKETING
+  CAREER_GUIDANCE
+  CORPORATE_TRAINING
+  SAAS
+}
+
+enum OfferingAudience {
+  STUDENT
+  BUSINESS
+  BOTH
+}
+
+enum OfferingStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+  COMING_SOON
+}
+
+enum PricingType {
+  FREE
+  FIXED
+  SUBSCRIPTION
+  CUSTOM_QUOTE
+}
+
+enum Difficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum Mode {
+  ONLINE
+  OFFLINE
+  HYBRID
+}
+
+enum PurchaseFlow {
+  DIRECT_PAYMENT
+  CONSULTATION
+  BOTH
+}
+
+// ============================================
+// OFFERING REQUEST ENGINE (Phase 5)
+// ============================================
+//
+// The one workflow engine connecting an Offering to a customer becoming a
+// customer. A Student clicking "Enroll" and a Business clicking "Request
+// Proposal" both create an OfferingRequest, differing only by
+// `requestType` - not two separate Enrollment/Proposal tables. Both flow
+// through the same RequestStatus lifecycle until they naturally diverge
+// into (future, not built here) Enrollment/Project territory.
+//
+// Deliberately NOT Payments/CRM/Enrollment/Projects - this model only
+// carries the request itself plus the extension points those future
+// phases plug into: assignedCounsellorId/assignedSalesPersonId (empty FKs
+// today), paymentStatus (tracked, never charged), and
+// src/features/offering-requests/lib/events.ts's emitOfferingRequestEvent
+// stub (the one call site real email/notifications will eventually wire
+// into, so that's a body-only change later, not a new call-site hunt).
+model OfferingRequest {
+  id String @id @default(cuid())
+
+  /// Backs the human-friendly requestNumber (formatRequestNumber() in
+  /// src/features/offering-requests/lib/request-number.ts) - derived from
+  /// this at render time rather than stored as its own redundant text
+  /// column. One sequence for both request types on purpose: one engine,
+  /// one numbering scheme, not a Student counter and a Business counter.
+  sequence Int @unique @default(autoincrement())
+
+  offeringId String
+  offering   Offering @relation(fields: [offeringId], references: [id], onDelete: Restrict)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  requestType RequestType
+  status      RequestStatus   @default(DRAFT)
+  priority    RequestPriority @default(MEDIUM)
+
+  /// The wizard's resume point (src/features/offering-requests/components/
+  /// wizard/request-wizard.tsx) and what a request list card shows for a
+  /// still-Draft request ("Current Step").
+  currentStep Int @default(1)
+
+  /// Future CRM assignment - both nullable/SetNull, both unset until
+  /// Phase 6 builds the CRM surface that assigns them.
+  assignedCounsellorId  String?
+  assignedCounsellor    TeamMember? @relation("RequestCounsellor", fields: [assignedCounsellorId], references: [id], onDelete: SetNull)
+  assignedSalesPersonId String?
+  assignedSalesPerson   TeamMember? @relation("RequestSalesPerson", fields: [assignedSalesPersonId], references: [id], onDelete: SetNull)
+
+  paymentStatus PaymentStatus @default(NOT_REQUIRED)
+
+  /// Requestype-specific wizard step data - one flexible field rather than
+  /// a studentDetails/businessDetails pair that's always half-empty. Shape
+  /// validated by src/features/offering-requests/validation/step-schemas.ts,
+  /// same Json+Zod convention as Offering.faqs/curriculum (Phase 4).
+  details Json?
+
+  notes                  String?                 @db.Text
+  /// Staff-only - never rendered on any user-facing surface. Future CRM.
+  internalNotes          String?                 @db.Text
+  preferredContactMethod PreferredContactMethod?
+  preferredMeetingTime   String?
+
+  /// Where this request originated - "offering-detail", "dashboard", etc.
+  /// Plain string, not an enum: an open-ended, low-cardinality tag, not a
+  /// closed set the schema needs to enforce.
+  source String?
+
+  submittedAt DateTime?
+  approvedAt  DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  history OfferingRequestHistory[]
+
+  /// Set once this request is Submitted - see OperationItem below and
+  /// createOperationItemForRequest() (src/features/operations/server/creation.ts).
+  /// Null while still a Draft.
+  operationItem OperationItem?
+
+  /// Set once this request is Approved - see OfferingEnrollment below and
+  /// createEnrollmentFromRequest() (src/features/enrollments/server/creation.ts).
+  enrollment OfferingEnrollment?
+
+  @@index([userId])
+  @@index([offeringId])
+  @@index([status])
+  @@index([requestType])
+}
+
+enum RequestType {
+  STUDENT
+  BUSINESS
+}
+
+enum RequestStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  COUNSELLING_SCHEDULED
+  WAITING_FOR_PAYMENT
+  APPROVED
+  REJECTED
+  CANCELLED
+  COMPLETED
+}
+
+/// Named RequestPriority, not bare "Priority" - LeadPriority already exists
+/// above in this file for a different concept, and the Request- prefix
+/// matches RequestType/RequestStatus for consistency.
+enum RequestPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum PaymentStatus {
+  NOT_REQUIRED
+  PENDING
+  PAID
+  REFUNDED
+}
+
+enum PreferredContactMethod {
+  EMAIL
+  PHONE
+  WHATSAPP
+  GOOGLE_MEET
+  ZOOM
+}
+
+/// Append-only event timeline for an OfferingRequest - the Status Timeline
+/// every request detail page renders. Mirrors LeadHistory above exactly:
+/// every meaningful action gets its own event, not just status changes.
+model OfferingRequestHistory {
+  id          String           @id @default(cuid())
+  requestId   String
+  request     OfferingRequest  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  eventType   RequestEventType
+  fromStatus  RequestStatus?
+  toStatus    RequestStatus?
+  description String?
+  performedBy String?
+
+  createdAt DateTime @default(now())
+
+  @@index([requestId])
+}
+
+enum RequestEventType {
+  CREATED
+  STEP_SAVED
+  SUBMITTED
+  STATUS_CHANGED
+  COUNSELLOR_ASSIGNED
+  SALESPERSON_ASSIGNED
+  NOTE_ADDED
+  APPROVED
+  REJECTED
+  CANCELLED
+  COMPLETED
+}
+
+// ============================================
+// ORDERS (Phase 6 - direct-purchase checkout)
+// ============================================
+//
+// The "pay right now" counterpart to OfferingRequest above - deliberately
+// a separate model, not a repurposing of it. OfferingRequest stays the
+// human-assisted, multi-step guidance path (Enroll/Request Proposal on a
+// CONSULTATION offering); Order is the one-click Razorpay checkout path
+// (Buy Now on a DIRECT_PAYMENT/BOTH offering - see Offering.purchaseFlow).
+// A single BOTH-flow offering can accumulate both an OfferingRequest (from
+// someone who asked for guidance first) and an Order (from someone who
+// just bought it) - that's expected, not a conflict.
+//
+// No formal Enrollment/Project record is created on payment yet - that's
+// Phase 8 (Enrollment Engine) / Phase 10 (Business Project Management) on
+// the roadmap. A PAID Order is the access/ownership signal for now; when
+// those phases land, they read `Order.status = PAID` to know what to
+// materialize into a real Enrollment/Project.
+model Order {
+  id String @id @default(cuid())
+
+  /// Backs the human-friendly orderNumber (formatOrderNumber() in
+  /// src/features/orders/lib/order-number.ts), derived rather than stored -
+  /// same convention as OfferingRequest.sequence.
+  sequence Int @unique @default(autoincrement())
+
+  offeringId String
+  offering   Offering @relation(fields: [offeringId], references: [id], onDelete: Restrict)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Paise, snapshotted at purchase time - an Offering's price changing
+  /// later must never retroactively change what a paid order actually
+  /// cost. Zero for a FREE + DIRECT_PAYMENT offering (see createOrder()'s
+  /// free-offering short-circuit - no Razorpay order exists for those).
+  amount   Int
+  currency String      @default("INR")
+  status   OrderStatus @default(PENDING)
+
+  razorpayOrderId   String? @unique
+  razorpayPaymentId String?
+  razorpaySignature String?
+
+  /// Minimal contact capture at checkout, only ever asked for if not
+  /// otherwise known - see the checkout page's phone-prompt logic.
+  phone String?
+  notes String? @db.Text
+
+  paidAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  /// Set once this order is Paid - see OperationItem below and
+  /// createOperationItemForOrder() (src/features/operations/server/creation.ts).
+  /// Null while still Pending/Failed - an unpaid order shouldn't clutter Operations.
+  operationItem OperationItem?
+
+  /// Set once this order is Paid - see OfferingEnrollment below and
+  /// createEnrollmentFromOrder() (src/features/enrollments/server/creation.ts).
+  enrollment OfferingEnrollment?
+
+  @@index([userId])
+  @@index([offeringId])
+  @@index([status])
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+// ============================================
+// OPERATIONS ENGINE (Phase 7 - internal CRM/ops layer)
+// ============================================
+//
+// The internal team's operating layer over OfferingRequest and Order - not
+// a second status system. OfferingRequest.status/Order.status remain the
+// real, actively-written source of truth (Phase 5/6's own actions
+// maintain them, with their own history tables); OperationItem is a thin
+// unifying pointer + operational metadata row (assignment, priority, due
+// date, activity log, notes, meetings) that both types share, so staff
+// have one queue instead of two.
+//
+// Deliberately does NOT absorb Lead (the pre-existing contact-form CRM at
+// /admin/leads, with its own LeadHistory/LeadNote/LeadAssignment) - that's
+// a second, deliberate instance of the Program/Offering-style parallel-
+// systems call from Phase 4. Retrofitting a live, working CRM into this
+// new model is exactly the kind of unasked-for, high-risk change the
+// "don't modify previous phases" rule exists to prevent.
+model OperationItem {
+  id String @id @default(cuid())
+
+  /// Backs the human-friendly OPS-000123 reference
+  /// (src/features/operations/lib/operation-number.ts), derived rather
+  /// than stored - same convention as Order/OfferingRequest.sequence.
+  sequence Int @unique @default(autoincrement())
+
+  type OperationItemType
+
+  /// Exactly one of requestId/orderId is set - enforced by
+  /// createOperationItemForRequest()/createOperationItemForOrder()
+  /// (src/features/operations/server/creation.ts), not a DB constraint.
+  requestId String?          @unique
+  request   OfferingRequest? @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  orderId   String?          @unique
+  order     Order?           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  assignedToId String?
+  assignedTo   TeamMember? @relation("OperationAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  priority   OperationPriority @default(MEDIUM)
+  dueDate    DateTime?
+  /// Free-text "what happens next" note staff set for themselves/each other - not a formal workflow state.
+  nextAction String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignments OperationAssignment[]
+  activities  ActivityLog[]
+  comments    InternalComment[]
+  meetings    Meeting[]
+
+  @@index([assignedToId])
+  @@index([type])
+}
+
+enum OperationItemType {
+  REQUEST
+  ORDER
+}
+
+enum OperationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+/// Append-only, one active assignee at a time - mirrors LeadAssignment
+/// exactly (see that model's comment for the full reasoning), just scoped
+/// to OperationItem instead of Lead.
+model OperationAssignment {
+  id String @id @default(cuid())
+
+  operationItemId String
+  operationItem   OperationItem @relation(fields: [operationItemId], references: [id], onDelete: Cascade)
+
+  assigneeId   String
+  assignee     TeamMember  @relation("OperationAssignmentAssignee", fields: [assigneeId], references: [id], onDelete: Cascade)
+  assignedById String?
+  assignedBy   TeamMember? @relation("OperationAssignmentAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  role     AssignmentRole
+  /// Reused from Lead's CRM (see ReassignmentReason above) - the same three reasons apply to reassigning ops work.
+  reason   ReassignmentReason @default(INITIAL)
+  isActive Boolean            @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@index([operationItemId])
+}
+
+/// MENTOR is deliberately unimplemented today - no TeamMemberRole exists
+/// for it (the brief explicitly excludes building a Mentor System this
+/// phase). Kept in the enum as an honest, documented extension point:
+/// assigning one would fail validation until a real Mentor staff role exists.
+enum AssignmentRole {
+  COUNSELLOR
+  SALES
+  SUPPORT
+  MENTOR
+}
+
+/// The unified timeline every OperationItem detail page renders - every
+/// meaningful action gets an entry, same "real event log, not just status
+/// changes" discipline as LeadHistory.
+model ActivityLog {
+  id String @id @default(cuid())
+
+  operationItemId String
+  operationItem   OperationItem @relation(fields: [operationItemId], references: [id], onDelete: Cascade)
+
+  type        ActivityType
+  description String?
+  /// Structured extra detail (e.g. {fromStatus, toStatus}) - kept flexible per activity type rather than a column per possible detail.
+  metadata    Json?
+
+  performedById String?
+  performedBy   TeamMember? @relation(fields: [performedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([operationItemId])
+}
+
+enum ActivityType {
+  CREATED
+  ASSIGNED
+  REASSIGNED
+  STATUS_CHANGED
+  PRIORITY_CHANGED
+  DUE_DATE_CHANGED
+  MEETING_SCHEDULED
+  PAYMENT_RECEIVED
+  NOTE_ADDED
+  COMPLETED
+}
+
+/// Staff-only notes - never shown to the customer. Plain text today;
+/// rendering it through a markdown formatter later is a display-only
+/// upgrade, not a schema change ("rich text ready" without building an
+/// editor this phase).
+model InternalComment {
+  id String @id @default(cuid())
+
+  operationItemId String
+  operationItem   OperationItem @relation(fields: [operationItemId], references: [id], onDelete: Cascade)
+
+  authorId String?
+  author   TeamMember? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  content String @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([operationItemId])
+}
+
+/// A real, lightweight scheduling record - no calendar sync, no video-link
+/// generation. The brief explicitly excludes building Calendar/Video
+/// Meetings; this is just the data staff need to know a meeting exists.
+model Meeting {
+  id String @id @default(cuid())
+
+  operationItemId String
+  operationItem   OperationItem @relation(fields: [operationItemId], references: [id], onDelete: Cascade)
+
+  scheduledAt DateTime
+  /// Reused from Phase 5 (see PreferredContactMethod above) - Google Meet/Zoom/Phone/WhatsApp/Email already covers meeting method, no need for a duplicate enum.
+  method      PreferredContactMethod?
+  notes       String?
+  status      MeetingStatus           @default(SCHEDULED)
+
+  scheduledById String?
+  scheduledBy   TeamMember? @relation(fields: [scheduledById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([operationItemId])
+  @@index([scheduledAt])
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+// ============================================
+// ENROLLMENT & ACCESS ENGINE (Phase 8)
+// ============================================
+//
+// Turns a Paid Order or an Approved OfferingRequest into actual student
+// access - the one thing Phase 7 didn't close the loop on (staff could act
+// on a request/order, but nothing unlocked anything for the customer).
+// Explicitly not an LMS: no lessons, no modules, no real certificates -
+// just the access record and audit trail every future learning feature
+// will check against (see the Access Policy comment below).
+//
+// Origin-agnostic by design: `orderId` and `offeringRequestId` are both
+// nullable and mutually exclusive in practice (enforced in
+// createEnrollmentFromOrder()/createEnrollmentFromRequest(), not a DB
+// constraint - same pattern as OperationItem's requestId/orderId), with
+// room for a third, admin-created-directly origin (both null) that no
+// Order or OfferingRequest backs at all.
+//
+// A request-originated Enrollment intentionally does NOT always start
+// ACTIVE: the brief's own Consultation flow lists "Approved -> Payment
+// (future) -> Enrollment" - online payment for requests isn't built.
+// createEnrollmentFromRequest() starts PENDING (accessGranted: false) for
+// any paid offering, and only auto-activates a FREE one immediately
+// (nothing left to wait for). An admin activates the PENDING kind once
+// payment is confirmed offline - see actions/admin-enrollment-actions.ts.
+model OfferingEnrollment {
+  id String @id @default(cuid())
+
+  /// Backs the human-friendly ENR-000123 reference
+  /// (src/features/enrollments/lib/enrollment-number.ts), derived rather
+  /// than stored - same convention as every other sequence in this schema.
+  sequence Int @unique @default(autoincrement())
+
+  studentId  String
+  student    User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  offeringId String
+  offering   Offering @relation(fields: [offeringId], references: [id], onDelete: Restrict)
+
+  orderId           String?          @unique
+  order             Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  offeringRequestId String?          @unique
+  offeringRequest   OfferingRequest? @relation(fields: [offeringRequestId], references: [id], onDelete: SetNull)
+
+  status OfferingEnrollmentStatus @default(PENDING)
+
+  startDate      DateTime?
+  endDate        DateTime?
+  completionDate DateTime?
+
+  /// Denormalized "current value" fields the dashboard/My Learning page
+  /// read cheaply - derived, not hand-set: recalculateEnrollmentProgress()
+  /// (src/features/learning/server/progression.ts) is the only writer,
+  /// recomputing both from real LessonProgress rows every time a lesson's
+  /// progress changes. ProgressSnapshot below is the historical log.
+  currentModule      String?
+  progressPercentage Int     @default(0)
+
+  accessGranted   Boolean   @default(false)
+  accessGrantedAt DateTime?
+  accessRevokedAt DateTime?
+
+  notes String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  history           EnrollmentHistory[]
+  accessGrants      AccessGrant[]
+  progressSnapshots ProgressSnapshot[]
+
+  /// Phase 9 (Learning Platform) - see LessonProgress/AssessmentSubmission/
+  /// Certificate below.
+  lessonProgress        LessonProgress[]
+  assessmentSubmissions AssessmentSubmission[]
+  certificate           Certificate?
+
+  /// Phase 10 (Mentor & Learning Delivery) - program-specific mentor
+  /// assignments scoped to this enrollment. See MentorAssignment below.
+  mentorAssignments MentorAssignment[]
+
+  @@index([studentId])
+  @@index([offeringId])
+  @@index([status])
+}
+
+/// Named distinctly from the legacy Program-tied `EnrollmentStatus` above -
+/// same parallel-systems reasoning as OfferingEnrollment itself.
+enum OfferingEnrollmentStatus {
+  PENDING
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+  EXPIRED
+}
+
+/// The Enrollment Timeline - mirrors LeadHistory/OfferingRequestHistory
+/// exactly, just scoped to OfferingEnrollment.
+model EnrollmentHistory {
+  id String @id @default(cuid())
+
+  enrollmentId String
+  enrollment   OfferingEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  eventType   EnrollmentEventType
+  fromStatus  OfferingEnrollmentStatus?
+  toStatus    OfferingEnrollmentStatus?
+  description String?
+  performedBy String?
+
+  createdAt DateTime @default(now())
+
+  @@index([enrollmentId])
+}
+
+enum EnrollmentEventType {
+  CREATED
+  ACTIVATED
+  PAUSED
+  RESUMED
+  COMPLETED
+  CANCELLED
+  EXPIRED
+  EXTENDED
+  ACCESS_GRANTED
+  ACCESS_REVOKED
+  PROGRESS_UPDATED
+}
+
+/// The CEO's Access Policy recommendation made concrete as data: an audit
+/// trail of *why* access changed, not just a boolean flip on Enrollment.
+/// AccessGrantReason already carries reason codes for non-payment access
+/// models (SUBSCRIPTION_ENDED etc.) that don't exist yet - extending
+/// access policy later is new reason codes read by the same function
+/// (src/features/enrollments/server/access-policy.ts), not new boolean
+/// fields scattered across models.
+model AccessGrant {
+  id String @id @default(cuid())
+
+  enrollmentId String
+  enrollment   OfferingEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  /// true = this event granted access, false = this event revoked it.
+  granted Boolean
+  reason  AccessGrantReason
+
+  grantedById String?
+  grantedBy   TeamMember? @relation(fields: [grantedById], references: [id], onDelete: SetNull)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+
+  @@index([enrollmentId])
+}
+
+enum AccessGrantReason {
+  PAYMENT_CONFIRMED
+  ADMIN_APPROVED
+  FREE_OFFERING
+  MANUAL_OVERRIDE
+  POLICY_VIOLATION
+  EXPIRED
+  SUBSCRIPTION_ENDED
+}
+
+/// Historical record for a future progress chart - Enrollment.progressPercentage/
+/// currentModule stay the cheap "current value" columns every card reads;
+/// this is the append-only log a future LMS writes into as real lesson
+/// completion happens. One snapshot (0%) is written at enrollment creation
+/// so the timeline has something real to show, not a fabricated history.
+model ProgressSnapshot {
+  id String @id @default(cuid())
+
+  enrollmentId String
+  enrollment   OfferingEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  progressPercentage Int
+  currentModule      String?
+  recordedAt         DateTime @default(now())
+
+  @@index([enrollmentId])
+}
+
+// ============================================
+// LEARNING PLATFORM (Phase 9)
+// ============================================
+//
+// The reusable learning domain behind OfferingEnrollment - designed to
+// support self-paced programs, live cohorts, corporate training, and
+// internships without a future redesign, not "a video course table."
+//
+// Structure: Module -> Lesson -> LessonBlock. Two grouping levels plus the
+// actual content unit - deliberately not the deeper Section/Module/Lesson/
+// Learning-Unit nesting a naive reading might suggest; every real LMS
+// (Coursera, Teachable, LinkedIn Learning) gets by on two grouping levels,
+// and a third would only add query/UI complexity with nothing gained.
+//
+// LearningExperience is an optional 1:1 extension of Offering - same
+// nullable-back-relation pattern already used three times in this file
+// (Offering<->OperationItem via Request/Order, Offering<->OfferingEnrollment):
+// only some OfferingCategory values (Training, Internship, Corporate
+// Training) ever have curriculum.
+model LearningExperience {
+  id String @id @default(cuid())
+
+  offeringId String   @unique
+  offering   Offering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+
+  /// Both optional - default to the Offering's own title/description in the
+  /// UI when unset, only override here if the curriculum needs different framing.
+  title       String?
+  description String? @db.Text
+
+  /// Instructor-of-record prep (the brief's "Instructor View" section) -
+  /// not a full instructor portal, just who owns this curriculum.
+  leadInstructorId String?
+  leadInstructor   TeamMember? @relation(fields: [leadInstructorId], references: [id], onDelete: SetNull)
+
+  modules      Module[]
+  liveSessions LiveSession[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Ordered top-level grouping within a LearningExperience.
+model Module {
+  id String @id @default(cuid())
+
+  learningExperienceId String
+  learningExperience   LearningExperience @relation(fields: [learningExperienceId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+  order       Int
+
+  lessons Lesson[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([learningExperienceId])
+}
+
+/// Ordered content unit within a Module - the thing a student actually
+/// navigates to and completes.
+model Lesson {
+  id String @id @default(cuid())
+
+  moduleId String
+  module   Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  title   String
+  slug    String
+  order   Int
+  summary String?
+
+  estimatedMinutes Int?
+  /// A previewable lesson is visible to a visitor with no enrollment at
+  /// all - a real conversion lever (see the Offering detail page's future
+  /// "preview this lesson" hook), not built into the UI this phase.
+  isPreviewable    Boolean @default(false)
+
+  /// Simple linear gating, not a prerequisite graph - finish the previous
+  /// lesson (by `order`) in this module before this one unlocks. A full
+  /// DAG-based prerequisite system is real over-engineering for a first
+  /// pass and wasn't asked for ("support future prerequisites *if
+  /// appropriate*"). `unlocksAt` is a separate, genuinely different need -
+  /// drip-fed content for live cohort programs - cheap to include now.
+  requiresPreviousCompletion Boolean   @default(true)
+  unlocksAt                  DateTime?
+
+  blocks   LessonBlock[]
+  progress LessonProgress[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([moduleId, slug])
+  @@index([moduleId])
+}
+
+enum LessonBlockType {
+  RICH_TEXT
+  MARKDOWN
+  VIDEO
+  PDF
+  SLIDES
+  EXTERNAL_LINK
+  EMBED
+  CODE
+  LIVE_SESSION
+  ASSIGNMENT
+  PROJECT
+  QUIZ
+  AI_CONVERSATION
+  DOWNLOAD
+}
+
+/// The polymorphic content unit within a Lesson - the decision that makes
+/// "content types added without redesign" real. Simple, display-only types
+/// (rich text, markdown, video, PDF, slides, external link, embed, code)
+/// use `content: Json`, validated per type by
+/// src/features/learning/lib/block-types.ts, not the database. Types that
+/// need real structure and tracking - not just display - get a nullable FK
+/// to a dedicated model instead of a bigger Json blob: you can attach a
+/// reusable Resource, grade an Assessment, or schedule a LiveSession, but
+/// you can't do any of those to a Json blob.
+model LessonBlock {
+  id String @id @default(cuid())
+
+  lessonId String
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  type  LessonBlockType
+  order Int
+  title String?
+
+  content Json?
+
+  resourceId String?
+  resource   Resource? @relation(fields: [resourceId], references: [id], onDelete: SetNull)
+
+  assessmentId String?
+  assessment   Assessment? @relation(fields: [assessmentId], references: [id], onDelete: SetNull)
+
+  liveSessionId String?
+  liveSession   LiveSession? @relation(fields: [liveSessionId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([lessonId])
+}
+
+enum ResourceType {
+  PDF
+  SLIDES
+  DOWNLOAD
+  LINK
+  VIDEO_FILE
+  DOCUMENT
+}
+
+/// A reusable learning asset - attach the same Resource to many
+/// LessonBlocks across many lessons/courses without ever duplicating the
+/// file or its metadata (the brief's explicit requirement).
+model Resource {
+  id String @id @default(cuid())
+
+  title    String
+  type     ResourceType
+  url      String
+  fileSize Int?
+  mimeType String?
+
+  createdById String?
+  createdBy   TeamMember? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  blocks LessonBlock[]
+
+  createdAt DateTime @default(now())
+}
+
+enum AssessmentType {
+  QUIZ
+  ASSIGNMENT
+  PROJECT
+  SURVEY
+}
+
+/// One reusable "gradeable unit" model covers Quizzes, Assignments, *and*
+/// Projects - not three separate systems. Structurally they're the same
+/// shape (a definition + a student's attempt at it); `type` and the
+/// flexible `config` Json (quiz questions / assignment rubric / project
+/// brief - shape per type, validated in code) are what actually differ.
+model Assessment {
+  id String @id @default(cuid())
+
+  title        String
+  type         AssessmentType
+  instructions String?        @db.Text
+  config       Json?
+  passingScore Int?
+
+  blocks      LessonBlock[]
+  submissions AssessmentSubmission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum SubmissionStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  UNDER_REVIEW
+  /// Phase 10 - a mentor asked for changes; the student resubmitting flows
+  /// back to SUBMITTED via the existing submitAssessment() action, no new
+  /// transition code needed.
+  REVISION_REQUESTED
+  GRADED
+}
+
+/// A student's attempt at an Assessment - `answers` for a QUIZ (scored by
+/// comparing against `Assessment.config`'s answer key, a grading function
+/// not a UI this phase), `content`/`fileUrl` for an ASSIGNMENT/PROJECT
+/// deliverable. `reviewedById` prepares the future mentor-review workflow
+/// (the brief's explicit "do not necessarily implement review workflows
+/// yet") without inventing a second submission system to bolt it onto later.
+model AssessmentSubmission {
+  id String @id @default(cuid())
+
+  assessmentId String
+  assessment   Assessment         @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  enrollmentId String
+  enrollment   OfferingEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  status SubmissionStatus @default(NOT_STARTED)
+
+  answers Json?
+  content String? @db.Text
+  fileUrl String?
+
+  score    Int?
+  feedback String? @db.Text
+
+  reviewedById String?
+  reviewedBy   TeamMember? @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  /// Phase 10 - a mentor-reviewed submission, parallel to reviewedBy/
+  /// reviewedById above (mutually-exclusive-in-practice nullable FKs,
+  /// enforced in gradeSubmission()'s code, not a DB constraint - same
+  /// pattern as every other either/or FK pair in this schema). Added
+  /// instead of repointing reviewedById at Mentor so the existing
+  /// admin-review path keeps working unchanged.
+  reviewedByMentorId String?
+  reviewedByMentor   Mentor? @relation("MentorReviewer", fields: [reviewedByMentorId], references: [id], onDelete: SetNull)
+
+  submittedAt DateTime?
+  reviewedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([assessmentId, enrollmentId])
+  @@index([enrollmentId])
+}
+
+enum LessonProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+/// The real progression engine - one row per student per lesson. Every
+/// "Continue learning", "resume progress", "mark complete", and unlock
+/// decision reads from this table, not from OfferingEnrollment's
+/// denormalized fields (those are written *from* this table - see
+/// recalculateEnrollmentProgress() in src/features/learning/server/progression.ts).
+/// `timeSpentSeconds`/timestamps are also the analytics-readiness data the
+/// brief asks for (completion, drop-off, velocity) - queries over this
+/// table, not a separate analytics table with no writer yet.
+model LessonProgress {
+  id String @id @default(cuid())
+
+  enrollmentId String
+  enrollment   OfferingEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  lessonId     String
+  lesson       Lesson             @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  status LessonProgressStatus @default(NOT_STARTED)
+
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  /// Video resume position - "resume progress" for any block type with a natural playhead.
+  lastPositionSeconds Int?
+  timeSpentSeconds    Int  @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([enrollmentId, lessonId])
+  @@index([enrollmentId])
+  @@index([lessonId])
+}
+
+enum LiveSessionStatus {
+  SCHEDULED
+  LIVE
+  COMPLETED
+  CANCELLED
+}
+
+/// Phase 10 - what kind of session this is. LIVE_CLASS is the Phase 9
+/// original meaning (curriculum-bound, TeamMember-hosted); the other three
+/// are mentor-led and not necessarily tied to any LearningExperience.
+enum LiveSessionType {
+  LIVE_CLASS
+  ONE_ON_ONE
+  OFFICE_HOURS
+  GROUP_MENTORING
+}
+
+/// Descriptive only - no SDK integration, no calendar sync. Satisfies
+/// "prepare integrations with providers... without tightly coupling the
+/// architecture" without adding a dependency this codebase doesn't need yet.
+enum LiveSessionProvider {
+  GOOGLE_MEET
+  ZOOM
+  OTHER
+}
+
+/// A real, lightweight scheduling record - mirrors Meeting's simplicity
+/// (Phase 7's Operations Engine) exactly. No calendar sync, no video
+/// integration; just the data a "Live Classes"/"Office Hours" surface
+/// needs to exist.
+///
+/// Phase 10 generalizes this from "curriculum live class only" to the one
+/// scheduling model for mentor-led sessions too (1:1, office hours, group
+/// mentoring) - the brief explicitly asks to extend this existing
+/// preparation rather than build a parallel MentorSession table.
+/// learningExperienceId went from required to optional for exactly that
+/// reason; every pre-Phase-10 row keeps sessionType's default of
+/// LIVE_CLASS, so no existing behavior changes.
+model LiveSession {
+  id String @id @default(cuid())
+
+  learningExperienceId String?
+  learningExperience   LearningExperience? @relation(fields: [learningExperienceId], references: [id], onDelete: Cascade)
+
+  sessionType LiveSessionType      @default(LIVE_CLASS)
+  provider    LiveSessionProvider?
+
+  title           String
+  scheduledAt     DateTime
+  durationMinutes Int?
+  meetingUrl      String?
+
+  /// TeamMember-hosted curriculum classes - unchanged from Phase 9.
+  hostId   String?
+  host     TeamMember? @relation(fields: [hostId], references: [id], onDelete: SetNull)
+  /// Mentor-led sessions - new in Phase 10, parallel to hostId above
+  /// (mutually-exclusive-in-practice, enforced in code).
+  mentorId String?
+  mentor   Mentor?     @relation(fields: [mentorId], references: [id], onDelete: SetNull)
+
+  status LiveSessionStatus @default(SCHEDULED)
+
+  blocks    LessonBlock[]
+  /// Per-student booking/attendance - curriculum LIVE_CLASS sessions never
+  /// needed this (broadcast, not booked); mentor-led sessions do.
+  attendees MentorSessionAttendee[]
+
+  createdAt DateTime @default(now())
+}
+
+enum CertificateStatus {
+  NOT_ELIGIBLE
+  ELIGIBLE
+  ISSUED
+}
+
+/// Eligibility/issuance record only - no PDF generation, no template. The
+/// concrete row src/features/enrollments/server/access-policy.ts's
+/// `canViewCertificates` (Phase 8) will eventually check against, and the
+/// future certificate-generation phase writes into.
+model Certificate {
+  id String @id @default(cuid())
+
+  enrollmentId String             @unique
+  enrollment   OfferingEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  /// Backs a future human-friendly certificate number, derived not stored - same convention as every other sequence in this schema.
+  sequence Int @unique @default(autoincrement())
+
+  status   CertificateStatus @default(NOT_ELIGIBLE)
+  issuedAt DateTime?
+
+  createdAt DateTime @default(now())
+}
+
+// ============================================
+// MENTOR & LEARNING DELIVERY (Phase 10)
+// ============================================
+//
+// The human side of learning - Student -> Learning -> Mentor -> Assignments
+// -> Feedback -> Growth. Mentor is a dedicated model, not TeamMember: staff
+// (TeamMember) are internal-only by definition, but mentors include
+// external people (industry experts, corporate mentors) who must never be
+// CRM/staff users. Mentor is 1:1 with User (role MENTOR), the exact same
+// shape TeamMember already uses for staff identity - just for a different
+// population.
+
+/// Purely descriptive/filterable - drives zero different code paths, same
+/// spirit as LessonBlockType's many values. Adding a new mentor type later
+/// is one enum value, not a redesign.
+enum MentorType {
+  INTERNAL
+  EXTERNAL
+  INDUSTRY_EXPERT
+  CORPORATE
+  INTERNSHIP_SUPERVISOR
+}
+
+model Mentor {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type MentorType
+
+  /// Internal mentors who are also staff (e.g. a COUNSELLOR who mentors) -
+  /// optional, not required; most external/industry/corporate mentors
+  /// leave this null.
+  affiliatedTeamMemberId String?     @unique
+  affiliatedTeamMember   TeamMember? @relation(fields: [affiliatedTeamMemberId], references: [id], onDelete: SetNull)
+
+  headline String?
+  bio      String? @db.Text
+
+  /// Flat string lists - native Postgres arrays, not Json. The Json+Zod
+  /// pattern elsewhere in this schema (Offering.faqs, LessonBlock.content)
+  /// is for structured/heterogeneous data; a flat tag list doesn't need it.
+  expertiseAreas String[]
+  languages      String[]
+
+  experienceYears Int?
+  profilePhotoUrl String?
+  /// { linkedin?, twitter?, website?, github? } - Zod-validated in
+  /// src/features/mentors/validation.
+  socialLinks     Json?
+  /// { timezone, weeklySlots: [{day, startTime, endTime}] } - descriptive
+  /// availability only, no booking-conflict engine.
+  availability    Json?
+
+  isActive Boolean @default(true)
+
+  assignments         MentorAssignment[]
+  sessions            LiveSession[]
+  conversations       MentorConversation[]
+  announcements       MentorAnnouncement[]
+  reviewedSubmissions AssessmentSubmission[] @relation("MentorReviewer")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum MentorAssignmentStatus {
+  ACTIVE
+  PAUSED
+  ENDED
+}
+
+/// The reusable Student<->Mentor relationship - the brief's "one mentor /
+/// multiple mentors / temporary mentors / program-specific mentors" all
+/// fall out of this one model: multiple mentors per student is just
+/// multiple rows; program-specific is enrollmentId set (null = platform-
+/// wide); temporary is endDate + status ENDED once it lapses.
+model MentorAssignment {
+  id String @id @default(cuid())
+
+  mentorId  String
+  mentor    Mentor @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+  studentId String
+  student   User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  enrollmentId String?
+  enrollment   OfferingEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+
+  status    MentorAssignmentStatus @default(ACTIVE)
+  /// Which mentor to lead with in the UI when a student has several -
+  /// simpler than a full assignment-role enum for a "which one is primary"
+  /// question.
+  isPrimary Boolean                @default(true)
+
+  startDate DateTime  @default(now())
+  endDate   DateTime?
+  notes     String?
+
+  assignedById String?
+  assignedBy   TeamMember? @relation(fields: [assignedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([studentId])
+  @@index([mentorId])
+}
+
+enum AttendeeStatus {
+  INVITED
+  CONFIRMED
+  ATTENDED
+  NO_SHOW
+  CANCELLED
+}
+
+/// Per-student booking/attendance for a LiveSession - one row for a 1:1,
+/// many for group mentoring, optional RSVP tracking for a curriculum live
+/// class. Also the raw data for the brief's "session attendance" analytics
+/// extension point - no separate analytics table needed.
+model MentorSessionAttendee {
+  id String @id @default(cuid())
+
+  liveSessionId String
+  liveSession   LiveSession @relation(fields: [liveSessionId], references: [id], onDelete: Cascade)
+  studentId     String
+  student       User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  status AttendeeStatus @default(INVITED)
+
+  createdAt DateTime @default(now())
+
+  @@unique([liveSessionId, studentId])
+}
+
+/// One running thread per (mentor, student) pair - not a general DM/channel
+/// system. Deliberately not scoped by enrollment (unlike MentorAssignment
+/// above, which legitimately needs program-scoping): a student's
+/// relationship with a given mentor doesn't need to fork per course, and
+/// forcing it to would be exactly the unnecessary complexity the brief
+/// warns against.
+model MentorConversation {
+  id String @id @default(cuid())
+
+  mentorId  String
+  mentor    Mentor @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+  studentId String
+  student   User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  lastMessageAt DateTime?
+  messages      MentorMessage[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([mentorId, studentId])
+}
+
+model MentorMessage {
+  id String @id @default(cuid())
+
+  conversationId String
+  conversation   MentorConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  /// Either participant's User id - a mentor and a student are both Users
+  /// regardless of role, so one FK covers both sides of the thread.
+  senderId String?
+  sender   User?   @relation(fields: [senderId], references: [id], onDelete: SetNull)
+
+  content String    @db.Text
+  readAt  DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId])
+}
+
+/// One-to-many broadcast from a mentor to their currently-assigned
+/// students - distinct from MentorMessage's 1:1 conversational shape.
+/// Read-tracking lives on Notification (below), not duplicated here -
+/// creating an announcement fans out one Notification per assigned student.
+model MentorAnnouncement {
+  id String @id @default(cuid())
+
+  mentorId String
+  mentor   Mentor @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+
+  title   String
+  content String @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([mentorId])
+}
+
+/// The reusable notification architecture the brief asks for - one generic
+/// model, one writer (createNotification in
+/// src/features/notifications/server/creation.ts), called non-fatally by
+/// every feature that produces a notification-worthy event. Replaces the
+/// dashboard shell's dummy INITIAL_NOTIFICATIONS static data with real rows.
+/// SESSION_REMINDER/ASSIGNMENT_DEADLINE are prepared types - nothing
+/// schedules them proactively yet since this codebase has no background
+/// job runner; that stays a documented future extension, not a stub table.
+enum NotificationType {
+  MENTOR_ASSIGNED
+  SESSION_SCHEDULED
+  SESSION_REMINDER
+  FEEDBACK_RECEIVED
+  ASSIGNMENT_DEADLINE
+  MENTOR_ANNOUNCEMENT
+  MESSAGE_RECEIVED
+}
+
+model Notification {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type  NotificationType
+  title String
+  body  String?
+  /// Where clicking the notification navigates - e.g. /student/mentors/[id]
+  /// or /mentor/reviews.
+  link  String?
+
+  read   Boolean   @default(false)
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, read])
 }

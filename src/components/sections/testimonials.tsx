@@ -6,6 +6,7 @@ import type { Testimonial } from "@prisma/client";
 
 import { Section } from "@/components/shared/section";
 import { Container } from "@/components/shared/container";
+import { Eyebrow } from "@/components/shared/eyebrow";
 import { Button } from "@/components/ui/button";
 
 export interface TestimonialsProps {
@@ -29,47 +30,75 @@ function Testimonials({ testimonials }: TestimonialsProps) {
   const goPrev = () => setIndex((i) => (i === 0 ? testimonials.length - 1 : i - 1));
   const goNext = () => setIndex((i) => (i === testimonials.length - 1 ? 0 : i + 1));
 
+  const initials = current.studentName
+    .split(" ")
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
   return (
     <Section background="default">
-      <Container className="flex flex-col items-center gap-8">
-        <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">What students say</h2>
+      <Container className="flex flex-col items-center gap-10">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <Eyebrow>Testimonials</Eyebrow>
+          <h2 className="font-display text-3xl font-semibold tracking-[-0.02em] md:text-4xl">
+            What students say
+          </h2>
+        </div>
 
-        <div className="flex w-full max-w-2xl items-center gap-4">
-          {testimonials.length > 1 && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={goPrev}
-              aria-label="Previous testimonial"
-              className="shrink-0"
-            >
-              <ChevronLeft />
-            </Button>
-          )}
-
-          <blockquote
-            key={current.id}
-            aria-live="polite"
-            className="flex flex-1 flex-col items-center gap-4 text-center"
+        <div className="border-border bg-card relative w-full max-w-2xl rounded-3xl border p-8 shadow-sm sm:p-12">
+          <span
+            aria-hidden="true"
+            className="font-display text-primary/15 absolute top-4 left-6 text-8xl leading-none select-none"
           >
-            <p className="text-foreground text-lg">&ldquo;{current.quote}&rdquo;</p>
-            <footer className="text-muted-foreground flex flex-col text-sm">
-              <span className="text-foreground font-medium">{current.studentName}</span>
-              {current.studentRole && <span>{current.studentRole}</span>}
-            </footer>
-          </blockquote>
+            &ldquo;
+          </span>
+          <div className="flex items-center gap-4">
+            {testimonials.length > 1 && (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={goPrev}
+                aria-label="Previous testimonial"
+                className="shrink-0"
+              >
+                <ChevronLeft aria-hidden="true" />
+              </Button>
+            )}
 
-          {testimonials.length > 1 && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={goNext}
-              aria-label="Next testimonial"
-              className="shrink-0"
+            <blockquote
+              key={current.id}
+              aria-live="polite"
+              className="animate-in fade-in relative flex flex-1 flex-col items-center gap-5 text-center duration-200"
             >
-              <ChevronRight />
-            </Button>
-          )}
+              <p className="text-foreground text-lg text-balance">&ldquo;{current.quote}&rdquo;</p>
+              <footer className="flex flex-col items-center gap-2 text-sm">
+                <span
+                  aria-hidden="true"
+                  className="bg-primary/10 text-primary flex size-10 items-center justify-center rounded-full text-xs font-semibold"
+                >
+                  {initials}
+                </span>
+                <span className="text-muted-foreground flex flex-col">
+                  <span className="text-foreground font-medium">{current.studentName}</span>
+                  {current.studentRole && <span>{current.studentRole}</span>}
+                </span>
+              </footer>
+            </blockquote>
+
+            {testimonials.length > 1 && (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={goNext}
+                aria-label="Next testimonial"
+                className="shrink-0"
+              >
+                <ChevronRight aria-hidden="true" />
+              </Button>
+            )}
+          </div>
         </div>
 
         {testimonials.length > 1 && (
@@ -81,8 +110,8 @@ function Testimonials({ testimonials }: TestimonialsProps) {
                 aria-selected={i === index}
                 aria-label={`Testimonial from ${t.studentName}`}
                 onClick={() => setIndex(i)}
-                className={`size-2 rounded-full transition-colors duration-150 ${
-                  i === index ? "bg-primary" : "bg-border"
+                className={`h-2 rounded-full transition-all duration-200 ${
+                  i === index ? "bg-primary w-6" : "bg-border w-2"
                 }`}
               />
             ))}

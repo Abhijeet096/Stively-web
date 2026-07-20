@@ -30,26 +30,41 @@ function ProgramHero({ program }: { program: Program }) {
   const enrollHref = `/signup?callbackUrl=/training/${program.slug}`;
 
   return (
-    <Section id="program-hero" background="default" className="py-16 md:py-20">
-      <Container className="flex flex-col gap-6">
+    <Section
+      id="program-hero"
+      background="inverted"
+      className="texture-noise relative overflow-hidden py-20 md:py-24"
+    >
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          background:
+            "radial-gradient(ellipse 900px 500px at 10% 0%, oklch(0.541 0.216 265.75 / 0.32), transparent 60%)," +
+            "radial-gradient(ellipse 650px 450px at 90% 30%, oklch(0.746 0.127 200.01 / 0.18), transparent 55%)",
+        }}
+      />
+      <Container className="relative flex flex-col gap-6">
         <div className="flex flex-wrap gap-2">
-          <Badge variant="secondary">{LEVEL_LABEL[program.level]}</Badge>
-          <Badge variant="outline">{MODE_LABEL[program.mode]}</Badge>
-          <Badge variant="outline">{program.durationWeeks} weeks</Badge>
+          <Badge variant="ink">{LEVEL_LABEL[program.level]}</Badge>
+          <Badge variant="ink">{MODE_LABEL[program.mode]}</Badge>
+          <Badge variant="ink">{program.durationWeeks} weeks</Badge>
         </div>
 
-        <h1 className="text-4xl font-semibold tracking-tight text-balance md:text-5xl">
+        <h1 className="font-display text-4xl font-semibold tracking-[-0.025em] text-balance md:text-5xl">
           {program.title}
         </h1>
 
-        <p className="text-muted-foreground max-w-2xl text-lg">{program.shortDescription}</p>
+        <p className="text-ink-muted-foreground max-w-2xl text-lg text-pretty">
+          {program.shortDescription}
+        </p>
 
         <div className="flex flex-wrap items-center gap-4 pt-2">
-          <span className="text-foreground text-2xl font-semibold">
+          <span className="text-ink-foreground font-display text-2xl font-semibold tabular-nums">
             {formatPrice(program.price, program.currency)}
           </span>
-          <Button size="lg" asChild>
-            <Link href={enrollHref}>Enroll Now</Link>
+          <Button size="lg" variant="inverse" asChild>
+            <Link href={enrollHref}>Enroll now</Link>
           </Button>
         </div>
       </Container>

@@ -12,10 +12,29 @@ import { WhyChooseStively, type Reason } from "@/components/sections/why-choose-
 import { FAQSection, type FAQItem } from "@/components/sections/faq-section";
 import { CTASection } from "@/components/sections/cta-section";
 
+const TITLE = "Software Development Services";
+const DESCRIPTION =
+  "Custom software, web, and AI development from Stively - backed by a talent pipeline trained on real projects, not a freelancer roster.";
+
 export const metadata: Metadata = {
-  title: "Software Development Services",
-  description:
-    "Custom software, web, and AI development from Stively - backed by a talent pipeline trained on real projects, not a freelancer roster.",
+  title: TITLE,
+  description: DESCRIPTION,
+  alternates: { canonical: "/services" },
+  // "images" explicit here - see the note in src/app/(marketing)/page.tsx's
+  // metadata for why (a page-level openGraph/twitter block replaces the
+  // parent's instead of merging, dropping the opengraph-image.tsx image).
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    url: `${siteConfig.url}/services`,
+    images: ["/opengraph-image"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: ["/opengraph-image"],
+    title: TITLE,
+    description: DESCRIPTION,
+  },
 };
 
 /**
@@ -131,8 +150,8 @@ export default function ServicesPage() {
         eyebrow="Software Development"
         heading="Software built by developers who never stop learning"
         subheading="Stively pairs businesses with developers trained on real projects - not a freelancer marketplace, a talent pipeline with a process behind it."
-        primaryCta={{ label: "Book a Consultation", href: "/contact" }}
-        secondaryCta={{ label: "Our Process", href: "#how-it-works" }}
+        primaryCta={{ label: "Book a consultation", href: "/contact" }}
+        secondaryCta={{ label: "Our process", href: "#how-it-works" }}
       />
 
       <ServicesGrid />
@@ -144,15 +163,8 @@ export default function ServicesPage() {
 
       <CTASection
         heading="Have a project in mind?"
-        description="Tell us what you're building - we'll tell you honestly whether we're the right fit."
-        actionLabel="Get in touch"
-        actionHref="/contact"
-      />
-
-      <CTASection
-        heading="Ready to book a consultation?"
         description="A short call to talk through scope, timeline, and whether this is a fit - no obligation."
-        actionLabel="Book a Consultation"
+        actionLabel="Book a consultation"
         actionHref="/contact"
         inverted
       />

@@ -52,8 +52,10 @@ function ContactMethods() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {methods.map((method) => (
             <Card key={method.label}>
-              <CardContent className="flex flex-col items-center gap-2 text-center">
-                <method.icon className="text-primary size-5" aria-hidden="true" />
+              <CardContent className="flex flex-col items-center gap-3 text-center">
+                <span className="bg-primary/10 text-primary flex size-11 items-center justify-center rounded-xl">
+                  <method.icon className="size-5" aria-hidden="true" />
+                </span>
                 <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                   {method.label}
                 </span>

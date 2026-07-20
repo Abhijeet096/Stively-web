@@ -40,7 +40,7 @@ function FormField({ id, label, optional, helpText, error, className, children }
       })}
 
       {error ? (
-        <p id={`${id}-error`} className="text-destructive text-sm">
+        <p id={`${id}-error`} role="alert" className="text-destructive text-sm">
           {error}
         </p>
       ) : helpText ? (

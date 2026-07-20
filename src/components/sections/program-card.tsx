@@ -19,18 +19,21 @@ const MODE_LABEL: Record<Program["mode"], string> = {
 
 function ProgramCard({ program }: { program: Program }) {
   return (
-    <Link href={`/training/${program.slug}`} className="block">
+    <Link
+      href={`/training/${program.slug}`}
+      className="block rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+    >
       <Card variant="interactive" className="h-full">
         <CardHeader>
           <div className="mb-1 flex gap-2">
             <Badge variant="secondary">{LEVEL_LABEL[program.level]}</Badge>
             <Badge variant="outline">{MODE_LABEL[program.mode]}</Badge>
           </div>
-          <CardTitle>{program.title}</CardTitle>
+          <CardTitle className="font-display">{program.title}</CardTitle>
           <CardDescription>{program.shortDescription}</CardDescription>
         </CardHeader>
-        <CardFooter className="mt-auto justify-between">
-          <span className="text-foreground text-sm font-medium">
+        <CardFooter className="border-border/70 mt-auto justify-between border-t pt-4">
+          <span className="text-foreground font-display text-base font-semibold tabular-nums">
             {formatPrice(program.price, program.currency)}
           </span>
           <span className="text-muted-foreground text-sm">{program.durationWeeks} weeks</span>

@@ -3,6 +3,8 @@ import type { LucideIcon } from "lucide-react";
 
 import { Section } from "@/components/shared/section";
 import { Container } from "@/components/shared/container";
+import { Eyebrow } from "@/components/shared/eyebrow";
+import { Reveal } from "@/components/shared/reveal";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 interface Audience {
@@ -43,27 +45,34 @@ const AUDIENCES: Audience[] = [
 function WhoWeServe() {
   return (
     <Section background="default">
-      <Container className="flex flex-col gap-10">
-        <h2 className="text-center text-3xl font-semibold tracking-tight md:text-4xl">
-          Who we serve
-        </h2>
-        <div className="grid gap-6 sm:grid-cols-2">
-          {AUDIENCES.map((audience) => (
-            <Card key={audience.title}>
-              <CardHeader>
-                <audience.icon className="text-primary mb-2 size-6" aria-hidden="true" />
-                <CardTitle>{audience.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="flex flex-col gap-2">
-                  {audience.points.map((point) => (
-                    <li key={point} className="text-muted-foreground text-sm">
-                      {point}
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
+      <Container className="flex flex-col items-center gap-10">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <Eyebrow>Audiences</Eyebrow>
+          <h2 className="font-display text-3xl font-semibold tracking-[-0.02em] text-balance md:text-4xl">
+            Who we serve
+          </h2>
+        </div>
+        <div className="grid w-full gap-6 sm:grid-cols-2">
+          {AUDIENCES.map((audience, index) => (
+            <Reveal key={audience.title} delay={index * 80} className="h-full">
+              <Card className="h-full">
+                <CardHeader>
+                  <span className="bg-primary/10 text-primary mb-1 flex size-12 items-center justify-center rounded-2xl">
+                    <audience.icon className="size-6" aria-hidden="true" />
+                  </span>
+                  <CardTitle className="font-display">{audience.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="flex flex-col gap-2.5">
+                    {audience.points.map((point) => (
+                      <li key={point} className="text-muted-foreground text-sm text-pretty">
+                        {point}
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            </Reveal>
           ))}
         </div>
       </Container>

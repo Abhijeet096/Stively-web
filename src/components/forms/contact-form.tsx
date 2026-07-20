@@ -20,8 +20,15 @@ type EnquiryType = "STUDENT" | "BUSINESS";
  * necessary" and Phase E's Contact page decision that a successful
  * submission replaces the form with a confirmation, not a toast.
  */
-function ContactForm() {
-  const [enquiryType, setEnquiryType] = React.useState<EnquiryType>("STUDENT");
+function ContactForm({
+  defaultType = "STUDENT",
+  offeringTitle,
+}: {
+  defaultType?: EnquiryType;
+  /** Carried through from `/contact?offering=<title>` (see OfferingCTA) - prefills the field each mode already has for exactly this purpose, rather than adding new schema/validation. */
+  offeringTitle?: string;
+}) {
+  const [enquiryType, setEnquiryType] = React.useState<EnquiryType>(defaultType);
   const [state, formAction, isPending] = useActionState<ContactFormState, FormData>(
     submitContactEnquiry,
     null
@@ -31,7 +38,7 @@ function ContactForm() {
     return (
       <div
         aria-live="polite"
-        className="border-border bg-card flex flex-col items-center gap-3 rounded-lg border p-8 text-center"
+        className="border-border bg-card flex flex-col items-center gap-3 rounded-3xl border p-8 text-center"
       >
         <h3 className="text-foreground text-lg font-semibold">Message sent</h3>
         <p className="text-muted-foreground">
@@ -50,10 +57,10 @@ function ContactForm() {
           {(["STUDENT", "BUSINESS"] as const).map((type) => (
             <label
               key={type}
-              className={`flex-1 cursor-pointer rounded-md border px-4 py-2.5 text-center text-sm font-medium transition-colors duration-150 ${
+              className={`flex-1 cursor-pointer rounded-xl border px-4 py-2.5 text-center text-sm font-medium transition-colors duration-150 ${
                 enquiryType === type
                   ? "border-primary bg-primary/10 text-primary"
-                  : "border-input text-muted-foreground hover:text-foreground"
+                  : "border-input text-muted-foreground hover:border-foreground/20 hover:bg-accent hover:text-foreground"
               }`}
             >
               <input
@@ -84,11 +91,15 @@ function ContactForm() {
 
       {enquiryType === "BUSINESS" ? (
         <FormField id="companyName" label="Company name">
-          <Input name="companyName" required />
+          <Input name="companyName" required autoComplete="organization" />
         </FormField>
       ) : (
         <FormField id="programInterest" label="Program of interest" optional>
-          <Input name="programInterest" placeholder="e.g. Full-Stack Web Development" />
+          <Input
+            name="programInterest"
+            placeholder="e.g. Full-Stack Web Development"
+            defaultValue={offeringTitle}
+          />
         </FormField>
       )}
 
@@ -96,7 +107,14 @@ function ContactForm() {
         id="message"
         label={enquiryType === "BUSINESS" ? "Tell us about your project" : "Your message"}
       >
-        <Textarea name="message" required rows={5} />
+        <Textarea
+          name="message"
+          required
+          rows={5}
+          defaultValue={
+            enquiryType === "BUSINESS" && offeringTitle ? `Regarding: ${offeringTitle}\n\n` : undefined
+          }
+        />
       </FormField>
 
       {state?.success === false && (
@@ -106,7 +124,7 @@ function ContactForm() {
       )}
 
       <Button type="submit" size="lg" loading={isPending} className="w-full sm:w-auto">
-        Send message
+        Send a message
       </Button>
     </form>
   );

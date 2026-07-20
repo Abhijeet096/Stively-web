@@ -28,6 +28,8 @@ Four roles, deliberately not more: **Primary** (brand/action), **Secondary** (su
 
 **Font families:** Geist Sans (UI, all weights), Geist Mono (code, stats, tabular data). One family for everything else — see Phase A rationale (mixing display + body fonts is a common tell of "AI website" energy; Stripe/Linear/Vercel all lean on one excellent sans and use weight/size for hierarchy).
 
+> **Addendum (premium-agency redesign):** this rule is deliberately relaxed for exactly one role: `<h1>` and section `<h2>` headings now use **Bricolage Grotesque** (`--font-display`, `font-display` utility) instead of Geist Sans. Reasoning: the "one family everywhere" rule is right for a SaaS *product* UI, but this brief explicitly asked the site to feel like a distinctive premium agency, not a template — a same-family heading system was the generic default, not a choice made for this brief. Scope stays narrow on purpose: body copy, buttons, card titles, nav, and badges all stay on Geist Sans, unchanged. Geist Mono's role (eyebrows, technical/data accents) is unchanged.
+
 | Level      | Size / Line-height       | Weight | Tracking          | Usage                                       |
 | ---------- | ------------------------ | ------ | ----------------- | ------------------------------------------- |
 | Display    | 72px / 1.05 (`text-7xl`) | 700    | -0.02em           | Rare — hero moments only, max once per page |
@@ -116,6 +118,7 @@ That cubic-bezier (often called "ease-out-expo" in motion libraries) is what giv
 1. **Motion communicates state, not decoration.** Every animation should answer "what changed?" (opened, loading, succeeded, moved) — if it doesn't answer that question, cut it.
 2. **Hover states are subtle:** `opacity`, 1–2% `scale`, or 2–4px `translate` — never a bouncy scale-up or color-inverting hover. Restraint here is a major visual signal of "premium" vs "template."
 3. **No animation on page load** beyond a simple fade for above-the-fold content. Products in this category don't animate every element in on scroll — that reads as a marketing template, not a product.
+   > **Addendum (premium-agency redesign):** relaxed once, narrowly, for the homepage/marketing Hero only: a single orchestrated ~600–800ms `animejs` timeline (eyebrow → heading → "signal path" line draw → subheading → CTAs), justified by the signal-path motif the Hero introduces (the same line reappears literally as `BusinessProcess`'s scroll-linked timeline connector, and closes as a static echo near the footer — see `src/lib/animations.ts`). This is a single deliberate moment, not per-element stagger spam, and every other section keeps the plain scroll-triggered `Reveal` fade this rule describes. Reduced motion still collapses it to an instant, fully-visible final state.
 4. **Loading and success states use motion functionally** (skeleton shimmer, a checkmark that draws in) — this is the one place more elaborate motion is earned, because it's communicating real state.
 
 ---

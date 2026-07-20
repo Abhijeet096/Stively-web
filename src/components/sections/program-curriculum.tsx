@@ -24,7 +24,9 @@ function ProgramCurriculum({ program }: { program: Program }) {
   return (
     <Section background="default">
       <Container className="flex flex-col gap-8">
-        <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">Curriculum</h2>
+        <h2 className="font-display text-3xl font-semibold tracking-[-0.02em] text-balance md:text-4xl">
+          Curriculum
+        </h2>
         <Accordion type="single" collapsible className="w-full max-w-3xl">
           {syllabus.modules.map((module, index) => (
             <AccordionItem key={module.title} value={`module-${index}`}>

@@ -1,82 +1,101 @@
 import type { Metadata } from "next";
 
-import { getFeaturedPrograms } from "../../lib/queries/programs";
+import { siteConfig } from "@/config/site";
 import { getFeaturedTestimonials } from "@/lib/queries/testimonials";
 import { HeroSection } from "@/components/sections/hero-section";
-import { ProgramsOverview } from "@/components/sections/programs-overview";
-import { HowItWorks } from "@/components/sections/how-it-works";
+import { HeroVisual } from "@/components/sections/hero-visual";
+import { TrustStrip } from "@/components/sections/trust-strip";
+import { WhyStivelyComparison } from "@/components/sections/why-stively-comparison";
+import { CapabilitiesStrip } from "@/components/sections/capabilities-strip";
+import { PricingTiers } from "@/components/sections/pricing-tiers";
+import { BusinessProcess } from "@/components/sections/business-process";
 import { Testimonials } from "@/components/sections/testimonials";
+import { EcosystemNote } from "@/components/sections/ecosystem-note";
 import { CTASection } from "@/components/sections/cta-section";
-import { WhoWeHelp } from "@/components/sections/who-we-help";
+
+const TITLE = "Stively - Software Development for Businesses";
+// Kept under ~160 characters so Google and social previews don't truncate
+// it mid-sentence - see the same discipline applied site-wide in Phase 5.
+const DESCRIPTION =
+  "Stively builds custom software with developers trained and evaluated first - not a freelancer roster. Transparent process, fixed estimates, no black box.";
 
 export const metadata: Metadata = {
-  title: "Stively - Real Industry Experience for Students",
-  description:
-    "Practical training programs that lead to real projects and internships. Stively trains developers, connects them with real work, and helps companies hire the ones who are ready.",
+  title: TITLE,
+  description: DESCRIPTION,
+  alternates: { canonical: "/" },
+  // Explicit "images" below is required, not redundant with opengraph-image.tsx:
+  // Next.js only auto-merges the generated image when a route has NO
+  // page-level openGraph/twitter block. Once a page defines its own (as this
+  // one does, for title/description/url), that object fully replaces the
+  // parent's instead of merging field-by-field, silently dropping the image.
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    url: siteConfig.url,
+    images: ["/opengraph-image"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: ["/opengraph-image"],
+    title: TITLE,
+    description: DESCRIPTION,
+  },
 };
 
-const HOW_IT_WORKS_STEPS = [
-  {
-    title: "Enroll",
-    description: "Pick a program that matches where you are and where you want to go.",
-  },
-  {
-    title: "Learn",
-    description: "Structured, cohort-based training - not a self-paced video library.",
-  },
-  {
-    title: "Build",
-    description: "Ship real projects, not toy exercises, with mentor feedback along the way.",
-  },
-  {
-    title: "Get certified",
-    description: "Walk away with a certificate and a portfolio you can actually show.",
-  },
-] as const;
-
 /**
- * Section order and every inclusion/omission decision here follows
- * docs/phase-e-visual-ux-planning.md's Home wireframe exactly:
- * - Trust Band is intentionally not rendered - Phase E's own rule is to cut
- *   it entirely when there are no real numbers to show yet, rather than
- *   ship a placeholder.
- * - Programs Overview and Testimonials are omitted (not shown with an
- *   EmptyState) when their data is empty - an empty section on a marketing
- *   page reads as broken, not "coming soon."
- * - Who We Help stays after the CTA band, never before it - see Phase E's
- *   Home revision for the full reasoning.
+ * Business-first homepage rebuild. Previous version led with training
+ * (student-first hero, a program-card carousel as the second section,
+ * "Who we help" giving training/business/mentors equal billing) - the
+ * business is now the primary audience per explicit direction, so the
+ * narrative runs: what we build -> why trust us -> what we build (detail)
+ * -> how an engagement runs -> proof (if any exists) -> where the talent
+ * comes from (training, demoted, not dominant) -> final ask.
+ *
+ * No fabricated case studies, client logos, or stats anywhere below -
+ * none exist yet to show honestly (AGENTS.md's standing rule). Trust is
+ * built through process transparency and real, verifiable claims about
+ * how Stively operates, not invented outcomes or numbers.
  */
 export default async function HomePage() {
-  const [programs, testimonials] = await Promise.all([
-    getFeaturedPrograms(),
-    getFeaturedTestimonials(),
-  ]);
+  const testimonials = await getFeaturedTestimonials();
 
   return (
     <>
       <HeroSection
-        eyebrow="For students who want the real thing"
-        heading="Learn by building what companies actually need"
-        subheading="Stively trains developers, connects them with real projects, and helps companies hire the ones who are ready."
-        primaryCta={{ label: "Explore Programs", href: "/training" }}
-        secondaryCta={{ label: "How it works", href: "#how-it-works" }}
+        eyebrow="Software development for businesses"
+        eyebrowMono
+        heading={
+          <>
+            Software built by developers who&apos;ve{" "}
+            <span className="from-primary to-brand-teal-text bg-linear-to-r bg-clip-text text-transparent">
+              already proven themselves
+            </span>
+          </>
+        }
+        subheading="Stively pairs your project with developers trained and evaluated inside our own programs first - not a freelancer roster, a talent pipeline with a real process behind it."
+        primaryCta={{ label: "Start a project", href: "/contact?type=business" }}
+        secondaryCta={{ label: "See how we work", href: "#how-we-work" }}
+        visual={<HeroVisual />}
       />
 
-      {programs.length > 0 && <ProgramsOverview programs={programs} />}
-
-      <HowItWorks steps={[...HOW_IT_WORKS_STEPS]} />
+      <TrustStrip />
+      <WhyStivelyComparison />
+      <CapabilitiesStrip />
+      <PricingTiers variant="teaser" />
+      <BusinessProcess />
 
       {testimonials.length > 0 && <Testimonials testimonials={testimonials} />}
 
-      <CTASection
-        heading="Ready to start?"
-        description="Enroll in a program and start building toward something real."
-        actionLabel="Explore Programs"
-        actionHref="/training"
-        inverted
-      />
+      <EcosystemNote />
 
-      <WhoWeHelp />
+      <CTASection
+        heading="Ready to talk about your project?"
+        description="No sales pitch, no pressure - just a straight answer about whether we're the right fit."
+        actionLabel="Start a project"
+        actionHref="/contact?type=business"
+        inverted
+        glow
+      />
     </>
   );
 }

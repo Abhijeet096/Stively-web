@@ -1,5 +1,6 @@
 import { Section } from "@/components/shared/section";
 import { Container } from "@/components/shared/container";
+import { Eyebrow } from "@/components/shared/eyebrow";
 import { Badge } from "@/components/ui/badge";
 
 const TECH_GROUPS: { label: string; items: string[] }[] = [
@@ -18,11 +19,14 @@ const TECH_GROUPS: { label: string; items: string[] }[] = [
 function TechStack() {
   return (
     <Section background="default">
-      <Container className="flex flex-col gap-10">
-        <h2 className="text-center text-3xl font-semibold tracking-tight md:text-4xl">
-          Technology we build with
-        </h2>
-        <div className="grid gap-8 sm:grid-cols-2">
+      <Container className="flex flex-col items-center gap-10">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <Eyebrow>Stack</Eyebrow>
+          <h2 className="font-display text-3xl font-semibold tracking-[-0.02em] text-balance md:text-4xl">
+            Technology we build with
+          </h2>
+        </div>
+        <div className="grid w-full gap-8 sm:grid-cols-2">
           {TECH_GROUPS.map((group) => (
             <div key={group.label} className="flex flex-col gap-3">
               <h3 className="text-muted-foreground text-sm font-medium tracking-wide uppercase">

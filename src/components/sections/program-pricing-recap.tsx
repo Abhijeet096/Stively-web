@@ -21,9 +21,9 @@ function ProgramPricingRecap({ program }: { program: Program }) {
   return (
     <Section background="default">
       <Container className="flex justify-center">
-        <Card className="w-full max-w-md">
+        <Card className="w-full max-w-md rounded-3xl">
           <CardContent className="flex flex-col items-center gap-4 text-center">
-            <span className="text-foreground text-3xl font-semibold">
+            <span className="text-foreground font-display text-3xl font-semibold tabular-nums">
               {formatPrice(program.price, program.currency)}
             </span>
             <dl className="grid w-full grid-cols-2 gap-4 text-sm">
@@ -39,7 +39,7 @@ function ProgramPricingRecap({ program }: { program: Program }) {
               </div>
             </dl>
             <Button size="lg" asChild className="w-full">
-              <Link href={enrollHref}>Enroll Now</Link>
+              <Link href={enrollHref}>Enroll now</Link>
             </Button>
           </CardContent>
         </Card>

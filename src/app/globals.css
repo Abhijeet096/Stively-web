@@ -11,7 +11,11 @@
    ============================================================ */
 
 :root {
-  --radius: 0.75rem;
+  /* Bumped from 0.75rem in the premium-redesign pass - a visibly softer,
+     more "designed object" radius family (Framer/Figma/Stripe/Apple all
+     run cards at 16-24px, not 12px) is one of the fastest-reading signals
+     that separates a premium agency site from a default SaaS template. */
+  --radius: 1rem;
 
   /* Neutrals - Zinc scale */
   --background: oklch(1 0 0);
@@ -26,13 +30,63 @@
   --input: oklch(0.92 0.004 286.32);
   --ring: oklch(0.541 0.216 265.75);
 
-  /* Brand - Stively Indigo */
+  /* "Ink" - the deep indigo-black canvas reserved for exactly three bands
+     on every page: Hero, the closing CTA, and Footer (see docs/design-
+     system.md's bookend-dark rationale added in the premium redesign).
+     Not the same mechanism as .dark below - this is a fixed, always-dark
+     surface available in light mode too (Linear/Framer/Raycast's dark
+     marketing canvas), independent of any future site-wide dark-mode
+     toggle. Same indigo hue (265.75) as --primary, pulled down to near-
+     black and desaturated slightly, so the aurora mesh and signal-path
+     gradient (indigo -> iris -> teal) glow against it instead of
+     competing with a neutral gray. */
+  --ink: oklch(0.16 0.026 264);
+  --ink-foreground: oklch(0.98 0.004 264);
+  --ink-muted-foreground: oklch(0.72 0.02 264);
+  --ink-elevated: oklch(0.212 0.03 264);
+  --ink-elevated-2: oklch(0.262 0.032 264);
+  --ink-border: oklch(1 0 0 / 10%);
+  --ink-border-strong: oklch(1 0 0 / 18%);
+
+  /* Brand - Stively Indigo (primary) + Stively Teal (accent) - both sampled
+     precisely from the real logo (public/logo.png: navy #2a353f bg, teal
+     #00c4cc "i"), converted to OKLCH rather than dropped in as raw hex, so
+     they mix cleanly with the rest of this OKLCH token system. Indigo stays
+     the dominant, high-frequency color (buttons, links, focus - unchanged
+     everywhere it already appears); teal is a second, sparingly-used accent
+     for premium highlight moments (gradient text, glow variants), not a
+     replacement. */
   --primary: oklch(0.541 0.216 265.75);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.967 0.001 286.38);
   --secondary-foreground: oklch(0.21 0.006 285.88);
   --accent: oklch(0.967 0.001 286.38);
   --accent-foreground: oklch(0.21 0.006 285.88);
+  --brand-teal: oklch(0.746 0.127 200.01);
+  --brand-teal-foreground: oklch(0.141 0.005 285.82);
+  /* Same hue/chroma as --brand-teal, darkened until it clears WCAG AA
+     (4.5:1) as TEXT on a light background - the raw --brand-teal is only
+     2.15:1 on white, fine for a background/glow/border tint but a real
+     accessibility failure if used as text color (e.g. in gradient text).
+     Use this, never --brand-teal directly, anywhere teal renders as text. */
+  --brand-teal-text: oklch(0.5 0.127 200.01);
+  /* A whisper-subtle indigo-tinted near-white, distinct from flat --card
+     white - used for surfaces that should read as "raised above" the page,
+     not just bordered. */
+  --surface-elevated: oklch(0.995 0.002 265.75);
+  /* One step below --muted - a genuinely recessed panel, not just another
+     "raised" surface. For content that should read as sitting behind the
+     page (the non-highlighted pricing tiers, the "typical agency" column
+     in the comparison table), completing a real 3-tier depth stack:
+     sunken -> base/card -> elevated. */
+  --surface-sunken: oklch(0.955 0.003 286.32);
+  /* The OKLCH midpoint hue between --primary (265.75) and --brand-teal
+     (200.01) - not a third invented brand color, but the color that
+     mathematically bridges the two that already exist. Gradient/orb stop
+     only - never a solid text, border, button, or icon fill, so it never
+     dilutes the two-color brand system anywhere a viewer perceives a
+     discrete color choice. */
+  --brand-iris: oklch(0.58 0.19 232.9);
 
   /* Semantic */
   --success: oklch(0.63 0.17 145);
@@ -64,6 +118,21 @@
   --secondary-foreground: oklch(0.985 0 0);
   --accent: oklch(0.24 0.006 285.88);
   --accent-foreground: oklch(0.985 0 0);
+  --brand-teal: oklch(0.78 0.12 200.01);
+  --brand-teal-foreground: oklch(0.141 0.005 285.82);
+  /* Dark mode's --brand-teal is already light enough to pass as text
+     against the dark background (10.4:1), unlike light mode - no
+     separate darkened value needed here. */
+  --brand-teal-text: oklch(0.78 0.12 200.01);
+  --surface-elevated: oklch(0.22 0.006 285.88);
+  /* Darker than --background (0.141), reads as a true recess rather than
+     just another panel - unlike light mode, dark mode's "sunken" surface
+     sits below the base, not below --muted. */
+  --surface-sunken: oklch(0.11 0.005 285.88);
+  /* Brightened relative to light mode's iris, same reasoning as the
+     existing --brand-teal dark adjustment - needs to read against a dark
+     canvas. Still gradient-stop only, never a solid fill. */
+  --brand-iris: oklch(0.66 0.17 232.9);
 
   --success: oklch(0.68 0.17 145);
   --success-foreground: oklch(0.141 0.005 285.82);
@@ -73,6 +142,17 @@
   --destructive-foreground: oklch(0.141 0.005 285.82);
   --info: oklch(0.68 0.15 250);
   --info-foreground: oklch(0.141 0.005 285.82);
+
+  /* Ink stays the same fixed surface in dark mode - it's already the
+     darkest thing on the page, so it keeps reading as the deliberate
+     "void" band rather than blending into --background. */
+  --ink: oklch(0.12 0.024 264);
+  --ink-foreground: oklch(0.98 0.004 264);
+  --ink-muted-foreground: oklch(0.72 0.02 264);
+  --ink-elevated: oklch(0.18 0.028 264);
+  --ink-elevated-2: oklch(0.23 0.03 264);
+  --ink-border: oklch(1 0 0 / 10%);
+  --ink-border-strong: oklch(1 0 0 / 18%);
 }
 
 /* Maps CSS variables to Tailwind utility classes: bg-background, text-primary, border-border, etc. */
@@ -102,20 +182,78 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-brand-teal: var(--brand-teal);
+  --color-brand-teal-foreground: var(--brand-teal-foreground);
+  --color-brand-teal-text: var(--brand-teal-text);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-brand-iris: var(--brand-iris);
+  --color-surface-sunken: var(--surface-sunken);
+
+  --color-ink: var(--ink);
+  --color-ink-foreground: var(--ink-foreground);
+  --color-ink-muted-foreground: var(--ink-muted-foreground);
+  --color-ink-elevated: var(--ink-elevated);
+  --color-ink-elevated-2: var(--ink-elevated-2);
+  --color-ink-border: var(--ink-border);
+  --color-ink-border-strong: var(--ink-border-strong);
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-bricolage);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  /* Reserved for hero/CTA panels and the featured pricing card - the one
+     size up from --radius-xl, used sparingly (see design-system.md §4). */
+  --radius-2xl: calc(var(--radius) + 12px);
 
   /* Shadow system - low opacity, large blur, near-zero spread (see design-system.md §5) */
   --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.04);
   --shadow-sm: 0 2px 8px -2px rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.04);
   --shadow-md: 0 8px 24px -4px rgb(0 0 0 / 0.08), 0 2px 6px -2px rgb(0 0 0 / 0.04);
   --shadow-lg: 0 16px 48px -8px rgb(0 0 0 / 0.12), 0 4px 12px -4px rgb(0 0 0 / 0.06);
+  /* Brand-tinted hover elevation - a neutral shadow layered under a soft
+     wash of --primary (oklch literal, not a var(), since box-shadow color
+     needs a concrete value here), for interactive cards that should feel
+     like they're lifting toward the accent color, not just getting darker. */
+  --shadow-glow:
+    0 20px 40px -12px oklch(0.541 0.216 265.75 / 0.25),
+    0 8px 20px -6px oklch(0.141 0.005 285.82 / 0.08);
+  /* Teal variant of the above, for the sparing moments that use the
+     secondary brand color instead of indigo. */
+  --shadow-glow-teal:
+    0 20px 40px -12px oklch(0.746 0.127 200.01 / 0.3),
+    0 8px 20px -6px oklch(0.141 0.005 285.82 / 0.08);
+  /* Solid buttons: a thin inset highlight along the top edge, layered under
+     the resting shadow - reads as a lit, dimensional surface instead of a
+     flat rectangle. */
+  --shadow-button: inset 0 1px 0 0 oklch(1 0 0 / 0.16), 0 1px 2px 0 rgb(0 0 0 / 0.04);
+  /* Third glow variant, same recipe as --shadow-glow/-teal, for the one
+     element that should read as "between" the two brand colors: the
+     highlighted pricing tier. */
+  --shadow-glow-iris:
+    0 24px 48px -12px oklch(0.58 0.19 232.9 / 0.28),
+    0 8px 20px -6px oklch(0.141 0.005 285.82 / 0.08);
+  /* Generalizes --shadow-button's inset top-highlight trick to premium
+     cards (not just buttons) - a lit, dimensional top edge layered under
+     the standard --shadow-lg resting shadow. Scoped to HeroVisual's
+     floating cards and the highlighted pricing tier only, never the
+     shared Card component broadly. */
+  --shadow-card-lit: inset 0 1px 0 0 oklch(1 0 0 / 0.06), var(--shadow-lg);
+  /* Oversized, very soft glow for hero-scale and CTA-scale moments on the
+     ink surface - the aurora mesh needs a shadow that reads at a bigger
+     radius than the card-hover glows above, or it looks like a mistake
+     rather than atmosphere. */
+  --shadow-glow-xl:
+    0 40px 120px -24px oklch(0.541 0.216 265.75 / 0.35),
+    0 20px 60px -12px oklch(0.746 0.127 200.01 / 0.18);
+  /* Cards resting directly on --ink: elevation comes from the surface
+     ladder (ink -> ink-elevated -> ink-elevated-2) plus a hairline border,
+     the same restraint Linear/Raycast apply on dark - a light-mode shadow
+     recipe just disappears against a near-black background. */
+  --shadow-ink-card: inset 0 1px 0 0 oklch(1 0 0 / 0.05), 0 1px 2px 0 rgb(0 0 0 / 0.4);
 }
 
 @layer base {
@@ -128,6 +266,58 @@
   /* Visible keyboard focus everywhere - accessibility floor, not optional */
   :focus-visible {
     @apply outline-ring outline-2 outline-offset-2;
+  }
+}
+
+@layer utilities {
+  /* Fractal-noise grain, inlined as an SVG data URI - no image request, no
+     JS, ~1KB of CSS. Applied at very low opacity as a ::before overlay so it
+     never competes with content or fights a section's own background color;
+     purely a texture cue on otherwise-flat surfaces.
+     Named "texture-noise", not "bg-noise" - a class starting with "bg-"
+     gets misread by tailwind-merge as a background-color utility, which
+     silently strips out the real bg-* class (e.g. bg-foreground) it's
+     combined with via cn(). Found and fixed after confirming in rendered
+     output that this exact collision was deleting BusinessProcess's dark
+     background. */
+  .texture-noise {
+    position: relative;
+  }
+  .texture-noise::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.035;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* Faint dot grid for the ink surface (Hero/CTA/Footer) - a quiet
+     engineered texture behind the aurora mesh, echoing the reference
+     brands' "product-grade" chrome (Vercel/Raycast) without becoming a
+     decoration in its own right. currentColor-driven so it auto-adapts
+     to --ink-foreground wherever it's used. */
+  .bg-dot-grid {
+    background-image: radial-gradient(currentColor 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+
+  /* The signal-path brand gradient (indigo -> iris -> teal) as text fill -
+     one reusable accent for the handful of headline moments that want a
+     gradient word instead of a plain one. Kept out of the JS-heavy Hero
+     component so any section can reach for it identically. */
+  .text-signal-gradient {
+    background-image: linear-gradient(
+      90deg,
+      var(--primary),
+      var(--brand-iris),
+      var(--brand-teal)
+    );
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
   }
 }
 

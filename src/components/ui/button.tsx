@@ -5,24 +5,45 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium " +
-    "transition-colors duration-150 ease-out disabled:pointer-events-none disabled:opacity-50 " +
-    "[&_svg]:pointer-events-none [&_svg]:shrink-0 outline-none " +
+  // Full pill (Framer/Figma/Stripe/Apple's shared CTA grammar) instead of
+  // the previous rounded-md rectangle - one of the highest-leverage single
+  // changes for reading as a premium agency rather than a default SaaS
+  // template. A small -translate-y lift on hover (not scale-up) is the
+  // "quiet, premium" micro-interaction the reference brands share.
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-medium " +
+    "transition-all duration-200 ease-out disabled:pointer-events-none disabled:opacity-50 " +
+    "[&_svg]:pointer-events-none [&_svg]:shrink-0 outline-none active:scale-[0.98] active:translate-y-0 " +
     "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
   {
     variants: {
       variant: {
-        primary: "bg-primary text-primary-foreground hover:opacity-90 active:opacity-80",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        outline: "border border-border bg-background hover:bg-accent hover:text-accent-foreground",
+        // Inset top highlight layered under the resting shadow - a thin sliver
+        // of light along the top edge, the detail that makes a solid-color
+        // button read as a lit, dimensional object instead of a flat rectangle.
+        primary:
+          "bg-primary text-primary-foreground shadow-button hover:-translate-y-0.5 hover:brightness-105 hover:shadow-glow active:brightness-95",
+        secondary: "bg-secondary text-secondary-foreground hover:-translate-y-0.5 hover:bg-secondary/80",
+        outline:
+          "border border-border bg-background hover:-translate-y-0.5 hover:border-foreground/20 hover:bg-accent hover:text-accent-foreground",
         ghost: "hover:bg-accent hover:text-accent-foreground",
-        destructive: "bg-destructive text-destructive-foreground hover:opacity-90",
-        link: "text-primary underline-offset-4 hover:underline",
+        destructive:
+          "bg-destructive text-destructive-foreground shadow-button hover:brightness-95 active:brightness-90",
+        link: "rounded-none text-primary underline-offset-4 hover:underline",
+        // For the ink surfaces (Hero, Process, closing CTA, Footer): a solid
+        // near-white pill, the same "the brightest thing on a dark canvas is
+        // the primary action" grammar Raycast/Framer use, instead of the
+        // brand indigo (which reads muddier against --ink than white does).
+        inverse:
+          "bg-ink-foreground text-ink shadow-button hover:-translate-y-0.5 hover:brightness-95 active:brightness-90",
+        // Secondary action on ink surfaces - a translucent outline rather
+        // than a filled surface, so it recedes under `inverse`/`primary`.
+        "outline-inverse":
+          "border border-ink-border-strong bg-transparent text-ink-foreground hover:-translate-y-0.5 hover:bg-white/[0.06]",
       },
       size: {
-        sm: "h-8 px-3 text-xs [&_svg]:size-3.5",
-        default: "h-10 px-4 [&_svg]:size-4",
-        lg: "h-11 px-6 text-base [&_svg]:size-4",
+        sm: "h-8 px-3.5 text-xs [&_svg]:size-3.5",
+        default: "h-10 px-5 [&_svg]:size-4",
+        lg: "h-12 px-7 text-base [&_svg]:size-4",
         icon: "size-10 [&_svg]:size-4",
       },
     },

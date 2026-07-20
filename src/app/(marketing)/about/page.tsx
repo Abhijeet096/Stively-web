@@ -5,6 +5,7 @@ import { siteConfig } from "@/config/site";
 import { JsonLd } from "@/components/shared/json-ld";
 import { Section } from "@/components/shared/section";
 import { Container } from "@/components/shared/container";
+import { Eyebrow } from "@/components/shared/eyebrow";
 import { Badge } from "@/components/ui/badge";
 import { HeroSection } from "@/components/sections/hero-section";
 import { WhyWeExist } from "@/components/sections/why-we-exist";
@@ -20,17 +21,22 @@ export const metadata: Metadata = {
   description:
     "Why Stively exists, how our ecosystem connects training to real work, and why students and businesses trust us.",
   alternates: { canonical: "/about" },
+  // "images" explicit here - see the note in src/app/(marketing)/page.tsx's
+  // metadata for why (a page-level openGraph/twitter block replaces the
+  // parent's instead of merging, dropping the opengraph-image.tsx image).
   openGraph: {
     title: "About Stively",
     description:
       "Why Stively exists, how our ecosystem connects training to real work, and why students and businesses trust us.",
     url: `${siteConfig.url}/about`,
+    images: ["/opengraph-image"],
   },
   twitter: {
     card: "summary_large_image",
     title: "About Stively",
     description:
       "Why Stively exists, how our ecosystem connects training to real work, and why students and businesses trust us.",
+    images: ["/opengraph-image"],
   },
 };
 
@@ -127,8 +133,8 @@ export default function AboutPage() {
         eyebrow="About Stively"
         heading="Turning learning into real experience - and real experience into hiring"
         subheading="Stively trains students on real projects, and gives businesses access to developers who've already proven themselves on real work."
-        primaryCta={{ label: "Explore Training", href: "/training" }}
-        secondaryCta={{ label: "Explore Services", href: "/services" }}
+        primaryCta={{ label: "Explore training", href: "/training" }}
+        secondaryCta={{ label: "Explore services", href: "/services" }}
       />
 
       <WhyWeExist />
@@ -148,11 +154,16 @@ export default function AboutPage() {
       <WhyChooseStively heading="Why we're different" reasons={DIFFERENTIATORS} />
 
       <Section background="muted">
-        <Container className="flex flex-col items-center gap-6 text-center">
-          <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">Core values</h2>
-          <div className="flex flex-wrap justify-center gap-2">
+        <Container className="flex flex-col gap-6">
+          <div className="flex flex-col gap-3">
+            <Eyebrow>What we stand for</Eyebrow>
+            <h2 className="font-display text-3xl font-semibold tracking-[-0.02em] text-balance md:text-4xl">
+              Core values
+            </h2>
+          </div>
+          <div className="flex flex-wrap gap-2">
             {CORE_VALUES.map((value) => (
-              <Badge key={value} variant="secondary">
+              <Badge key={value} variant="secondary" className="px-3 py-1 text-sm">
                 {value}
               </Badge>
             ))}

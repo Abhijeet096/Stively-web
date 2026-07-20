@@ -19,15 +19,19 @@ function MissionVision() {
     <Section background="muted">
       <Container className="grid gap-12 sm:grid-cols-2">
         <div className="flex flex-col gap-3">
-          <h2 className="text-primary text-sm font-medium tracking-wide uppercase">Our mission</h2>
-          <p className="text-foreground text-2xl font-semibold tracking-tight">
+          <h2 className="text-primary font-mono text-xs font-semibold tracking-[0.14em] uppercase">
+            Our mission
+          </h2>
+          <p className="font-display text-foreground text-2xl font-semibold tracking-[-0.015em] text-pretty">
             Build a trusted ecosystem where students become industry-ready through real projects,
             and businesses get high-quality software from talent that&apos;s already proven itself.
           </p>
         </div>
         <div className="flex flex-col gap-3">
-          <h2 className="text-primary text-sm font-medium tracking-wide uppercase">Our vision</h2>
-          <p className="text-foreground text-2xl font-semibold tracking-tight">
+          <h2 className="text-primary font-mono text-xs font-semibold tracking-[0.14em] uppercase">
+            Our vision
+          </h2>
+          <p className="font-display text-foreground text-2xl font-semibold tracking-[-0.015em] text-pretty">
             A real bridge between education and industry - not a course library on one side and a
             hiring pipeline on the other, but one connected path from learning to real work.
           </p>

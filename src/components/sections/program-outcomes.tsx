@@ -10,14 +10,16 @@ function ProgramOutcomes({ program }: { program: Program }) {
   return (
     <Section background="muted">
       <Container className="flex flex-col gap-8">
-        <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">
+        <h2 className="font-display text-3xl font-semibold tracking-[-0.02em] text-balance md:text-4xl">
           What you&apos;ll be able to do
         </h2>
         <ul className="grid gap-4 sm:grid-cols-2">
           {program.outcomes.map((outcome: string) => (
             <li key={outcome} className="flex items-start gap-3">
-              <Check className="text-primary mt-0.5 size-5 shrink-0" aria-hidden="true" />
-              <span className="text-foreground">{outcome}</span>
+              <span className="bg-primary/10 text-primary mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full">
+                <Check className="size-3.5" aria-hidden="true" />
+              </span>
+              <span className="text-foreground text-pretty">{outcome}</span>
             </li>
           ))}
         </ul>

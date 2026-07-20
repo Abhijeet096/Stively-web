@@ -3,6 +3,7 @@ import type { Program } from "@prisma/client";
 
 import { Section } from "@/components/shared/section";
 import { Container } from "@/components/shared/container";
+import { Eyebrow } from "@/components/shared/eyebrow";
 import { Button } from "@/components/ui/button";
 import { ProgramCard } from "@/components/sections/program-card";
 
@@ -19,12 +20,20 @@ export interface ProgramsOverviewProps {
 function ProgramsOverview({ programs }: ProgramsOverviewProps) {
   return (
     <Section background="default">
-      <Container className="flex flex-col gap-10">
-        <div className="flex flex-col items-center gap-2 text-center">
-          <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">Training programs</h2>
-          <p className="text-muted-foreground max-w-xl">
-            Practical, cohort-based programs built around real outcomes, not just topics.
-          </p>
+      <Container className="flex flex-col gap-8">
+        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
+          <div className="flex flex-col gap-3">
+            <Eyebrow>Training</Eyebrow>
+            <h2 className="font-display text-3xl font-semibold tracking-[-0.02em] text-balance md:text-4xl">
+              Training programs
+            </h2>
+            <p className="text-muted-foreground max-w-md">
+              Practical, cohort-based programs built around real outcomes, not just topics.
+            </p>
+          </div>
+          <Button variant="outline" asChild className="shrink-0">
+            <Link href="/training">View all programs</Link>
+          </Button>
         </div>
 
         {/* Mobile: horizontal scroll. Desktop (md+): 3-column grid. */}
@@ -34,12 +43,6 @@ function ProgramsOverview({ programs }: ProgramsOverviewProps) {
               <ProgramCard program={program} />
             </div>
           ))}
-        </div>
-
-        <div className="flex justify-center">
-          <Button variant="outline" asChild>
-            <Link href="/training">View all programs</Link>
-          </Button>
         </div>
       </Container>
     </Section>

@@ -1,17 +1,21 @@
 import { Code2, Globe, Bot, Smartphone, Plug, Users2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+import { siteConfig } from "@/config/site";
 import { Section } from "@/components/shared/section";
 import { Container } from "@/components/shared/container";
+import { Eyebrow } from "@/components/shared/eyebrow";
+import { Reveal } from "@/components/shared/reveal";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { JsonLd } from "@/components/shared/json-ld";
 
-interface ServiceOffering {
+export interface ServiceOffering {
   icon: LucideIcon;
   title: string;
   description: string;
 }
 
-const SERVICES: ServiceOffering[] = [
+export const SERVICES: ServiceOffering[] = [
   {
     icon: Globe,
     title: "Web Application Development",
@@ -57,22 +61,54 @@ const SERVICES: ServiceOffering[] = [
 function ServicesGrid() {
   return (
     <Section background="default">
-      <Container className="flex flex-col gap-10">
-        <div className="flex flex-col items-center gap-2 text-center">
-          <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">What we build</h2>
-          <p className="text-muted-foreground max-w-xl">
-            Software development services backed by a talent pipeline trained on real projects.
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "Service",
+          serviceType: "Software Development",
+          provider: { "@type": "Organization", name: siteConfig.name, url: siteConfig.url },
+          areaServed: "Worldwide",
+          hasOfferCatalog: {
+            "@type": "OfferCatalog",
+            name: "Software Development Services",
+            itemListElement: SERVICES.map((service) => ({
+              "@type": "Offer",
+              itemOffered: {
+                "@type": "Service",
+                name: service.title,
+                description: service.description,
+              },
+            })),
+          },
+        }}
+      />
+      <Container className="flex flex-col gap-12">
+        <div className="flex max-w-2xl flex-col gap-3">
+          <Eyebrow>What we build</Eyebrow>
+          <h2 className="font-display text-3xl font-semibold tracking-[-0.02em] text-balance md:text-4xl">
+            Software, built the way an in-house team would build it
+          </h2>
+          <p className="text-muted-foreground text-lg text-pretty">
+            Six capability areas backed by a talent pipeline trained on real projects, not a
+            freelancer roster.
           </p>
         </div>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {SERVICES.map((service) => (
-            <Card key={service.title}>
-              <CardHeader>
-                <service.icon className="text-primary mb-2 size-6" aria-hidden="true" />
-                <CardTitle>{service.title}</CardTitle>
-                <CardDescription>{service.description}</CardDescription>
-              </CardHeader>
-            </Card>
+          {SERVICES.map((service, index) => (
+            <Reveal key={service.title} delay={index * 60} className="h-full">
+              <Card variant="interactive" className="h-full">
+                <CardHeader className="gap-3">
+                  <span
+                    className="from-primary/15 via-brand-iris/10 to-brand-teal/15 text-primary mb-1 flex size-12 items-center justify-center rounded-2xl bg-linear-to-br"
+                    aria-hidden="true"
+                  >
+                    <service.icon className="size-6" />
+                  </span>
+                  <CardTitle>{service.title}</CardTitle>
+                  <CardDescription>{service.description}</CardDescription>
+                </CardHeader>
+              </Card>
+            </Reveal>
           ))}
         </div>
       </Container>

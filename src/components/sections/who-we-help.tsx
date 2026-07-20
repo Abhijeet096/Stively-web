@@ -35,7 +35,7 @@ function WhoWeHelp() {
   return (
     <Section background="muted">
       <Container className="flex flex-col gap-10">
-        <h2 className="text-foreground text-center text-2xl font-semibold tracking-tight">
+        <h2 className="font-display text-foreground text-center text-2xl font-semibold tracking-[-0.015em] sm:text-left">
           Who we help
         </h2>
         <div className="grid gap-8 sm:grid-cols-3">

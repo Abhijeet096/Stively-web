@@ -7,10 +7,20 @@ const cardVariants = cva("rounded-lg bg-card text-card-foreground flex flex-col 
   variants: {
     variant: {
       default: "border border-border shadow-xs",
-      elevated: "shadow-sm",
+      // Uses --surface-elevated (a whisper-subtle tinted near-white/near-black,
+      // distinct from flat --card) so "elevated" is a genuinely different
+      // surface, not just a bigger shadow on the same flat white.
+      elevated: "bg-surface-elevated shadow-sm",
       interactive:
-        "border border-border shadow-xs cursor-pointer transition-all duration-150 ease-out " +
-        "hover:shadow-md hover:border-primary/20",
+        "border border-border shadow-xs cursor-pointer transition-all duration-300 ease-out " +
+        "hover:-translate-y-1.5 hover:shadow-glow hover:border-primary/25",
+      // For cards sitting directly on the --ink surface (Process, ink-band
+      // CTAs) - elevation via the ink surface ladder + hairline border, not
+      // a light-mode shadow recipe (see globals.css's --shadow-ink-card).
+      ink: "bg-ink-elevated text-ink-foreground border border-ink-border",
+      "ink-interactive":
+        "bg-ink-elevated text-ink-foreground border border-ink-border cursor-pointer " +
+        "transition-all duration-300 ease-out hover:-translate-y-1.5 hover:bg-ink-elevated-2 hover:border-ink-border-strong",
     },
   },
   defaultVariants: {
@@ -35,9 +45,9 @@ function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement
   );
 }
 
-function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
-    <div
+    <h3
       data-slot="card-title"
       className={cn("text-xl leading-none font-semibold tracking-tight", className)}
       {...props}
@@ -45,9 +55,9 @@ function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLDivElement>
   );
 }
 
-function CardDescription({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+function CardDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
   return (
-    <div
+    <p
       data-slot="card-description"
       className={cn("text-muted-foreground text-sm", className)}
       {...props}
