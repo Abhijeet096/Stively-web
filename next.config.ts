@@ -47,6 +47,21 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // The blog moved off this domain to blog.stively.com - every legacy
+  // /blog and /blog/<slug> URL on this domain now permanently (301) redirects
+  // to the identical path there, rather than 404ing. `:slug*` (zero-or-more)
+  // covers both the bare /blog index and every nested post URL in one rule.
+  // `statusCode: 301` is used explicitly instead of `permanent: true`
+  // (which emits 308 in this Next.js version) to match a literal 301.
+  async redirects() {
+    return [
+      {
+        source: "/blog/:slug*",
+        destination: "https://blog.stively.com/blog/:slug*",
+        statusCode: 301,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
