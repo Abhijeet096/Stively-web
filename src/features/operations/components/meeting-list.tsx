@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useRouter } from "next/navigation";
 import type { Meeting } from "@prisma/client";
 
@@ -22,9 +23,15 @@ function formatDateTime(date: Date) {
 
 function MeetingList({ operationItemId, meetings }: { operationItemId: string; meetings: Meeting[] }) {
   const router = useRouter();
+  // Which meeting + target status is in flight - not a single shared flag,
+  // so updating one meeting doesn't visually disable every other meeting's
+  // buttons too.
+  const [pending, setPending] = React.useState<{ meetingId: string; status: Meeting["status"] } | null>(null);
 
   async function handleStatusChange(meetingId: string, status: Meeting["status"]) {
+    setPending({ meetingId, status });
     await updateMeetingStatus(meetingId, status);
+    setPending(null);
     router.refresh();
   }
 
@@ -47,10 +54,22 @@ function MeetingList({ operationItemId, meetings }: { operationItemId: string; m
               {meeting.notes && <p className="text-muted-foreground text-sm">{meeting.notes}</p>}
               {meeting.status === "SCHEDULED" && (
                 <div className="flex gap-2 pt-1">
-                  <Button size="sm" variant="outline" onClick={() => handleStatusChange(meeting.id, "COMPLETED")}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    loading={pending?.meetingId === meeting.id && pending.status === "COMPLETED"}
+                    disabled={pending?.meetingId === meeting.id}
+                    onClick={() => handleStatusChange(meeting.id, "COMPLETED")}
+                  >
                     Mark completed
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => handleStatusChange(meeting.id, "CANCELLED")}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    loading={pending?.meetingId === meeting.id && pending.status === "CANCELLED"}
+                    disabled={pending?.meetingId === meeting.id}
+                    onClick={() => handleStatusChange(meeting.id, "CANCELLED")}
+                  >
                     Cancel
                   </Button>
                 </div>

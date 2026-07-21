@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useRouter } from "next/navigation";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -24,10 +25,16 @@ export interface CurriculumTreeProps {
 function CurriculumTree({ learningExperience, resources, assessments, liveSessions }: CurriculumTreeProps) {
   const router = useRouter();
   const modules = learningExperience.modules;
+  // Which row's delete is in flight - disables just that row's button
+  // (and blocks a second click on it) rather than a single shared flag
+  // freezing every delete button on the tree at once.
+  const [pendingDeleteId, setPendingDeleteId] = React.useState<string | null>(null);
 
-  async function handleDelete(action: () => Promise<unknown>) {
+  async function handleDelete(id: string, action: () => Promise<unknown>) {
     if (!window.confirm("Delete this? This can't be undone.")) return;
+    setPendingDeleteId(id);
     await action();
+    setPendingDeleteId(null);
     router.refresh();
   }
 
@@ -59,7 +66,14 @@ function CurriculumTree({ learningExperience, resources, assessments, liveSessio
             </div>
             <div className="flex items-center gap-1">
               <ModuleForm learningExperienceId={learningExperience.id} module={module} />
-              <Button variant="ghost" size="icon" aria-label="Delete module" onClick={() => handleDelete(() => deleteModule(module.id))}>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Delete module"
+                loading={pendingDeleteId === module.id}
+                disabled={pendingDeleteId !== null}
+                onClick={() => handleDelete(module.id, () => deleteModule(module.id))}
+              >
                 &times;
               </Button>
             </div>
@@ -85,7 +99,14 @@ function CurriculumTree({ learningExperience, resources, assessments, liveSessio
                   </div>
                   <div className="flex items-center gap-1">
                     <LessonForm moduleId={module.id} lesson={lesson} />
-                    <Button variant="ghost" size="icon" aria-label="Delete lesson" onClick={() => handleDelete(() => deleteLesson(lesson.id))}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Delete lesson"
+                      loading={pendingDeleteId === lesson.id}
+                      disabled={pendingDeleteId !== null}
+                      onClick={() => handleDelete(lesson.id, () => deleteLesson(lesson.id))}
+                    >
                       &times;
                     </Button>
                   </div>
@@ -116,7 +137,14 @@ function CurriculumTree({ learningExperience, resources, assessments, liveSessio
                             assessments={assessments}
                             liveSessions={liveSessions}
                           />
-                          <Button variant="ghost" size="icon" aria-label="Delete block" onClick={() => handleDelete(() => deleteBlock(block.id))}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Delete block"
+                            loading={pendingDeleteId === block.id}
+                            disabled={pendingDeleteId !== null}
+                            onClick={() => handleDelete(block.id, () => deleteBlock(block.id))}
+                          >
                             &times;
                           </Button>
                         </div>
