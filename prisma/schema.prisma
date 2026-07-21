@@ -1989,6 +1989,11 @@ enum NotificationType {
   ASSIGNMENT_DEADLINE
   MENTOR_ANNOUNCEMENT
   MESSAGE_RECEIVED
+  /// An Order transitions to PAID - see notifyOrderPaid() (src/features/orders/server/notify.ts).
+  PAYMENT_RECEIVED
+  /// A Meeting is scheduled against an OperationItem the customer owns - see
+  /// notifyMeetingScheduled() (src/features/operations/server/notify.ts).
+  MEETING_SCHEDULED
 }
 
 model Notification {

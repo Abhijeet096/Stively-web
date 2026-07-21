@@ -4,15 +4,16 @@ import { formatPrice } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatOrderNumber } from "../lib/order-number";
 import { OrderStatusBadge } from "./order-status-badge";
-import type { OrderWithOffering } from "../server/queries";
+import { OrderMeetings } from "./order-meetings";
+import type { OrderWithMeetings } from "../server/queries";
 
 /**
  * Receipt-style confirmation - number, offering, amount, status, paid
- * date. No Enrollment/Project record exists yet to link out to (see
- * prisma/schema.prisma's Order comment) - a PAID order here is the whole
- * story for now.
+ * date, plus any Meetings staff have scheduled about this order (see
+ * OrderMeetings - renders nothing when there are none, so an order with
+ * no meetings looks exactly as it did before this existed).
  */
-function OrderDetailView({ order }: { order: OrderWithOffering }) {
+function OrderDetailView({ order }: { order: OrderWithMeetings }) {
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-3">
@@ -58,6 +59,8 @@ function OrderDetailView({ order }: { order: OrderWithOffering }) {
           )}
         </CardContent>
       </Card>
+
+      <OrderMeetings meetings={order.meetings} />
 
       <Link href={`/offerings/${order.offering.slug}`} className="text-primary text-sm font-medium underline-offset-4 hover:underline">
         View offering

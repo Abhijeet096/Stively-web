@@ -10,6 +10,7 @@ import { requireRole } from "@/lib/session";
 import { createRazorpayOrder, verifyRazorpaySignature } from "@/lib/razorpay";
 import type { ActionResult } from "@/actions/leads";
 import { emitOrderEvent } from "../lib/events";
+import { notifyOrderPaid } from "../server/notify";
 import { createOperationItemForOrder } from "@/features/operations/server/creation";
 import { createEnrollmentFromOrder } from "@/features/enrollments/server/creation";
 
@@ -91,6 +92,11 @@ export async function createOrder(offeringId: string, phone?: string): Promise<C
         await createEnrollmentFromOrder(order);
       } catch (error) {
         console.error("createEnrollmentFromOrder failed:", error);
+      }
+      try {
+        await notifyOrderPaid(order);
+      } catch (error) {
+        console.error("notifyOrderPaid failed:", error);
       }
 
       revalidatePath("/student/orders");
@@ -200,6 +206,11 @@ export async function verifyPayment(
       await createEnrollmentFromOrder(updated);
     } catch (error) {
       console.error("createEnrollmentFromOrder failed:", error);
+    }
+    try {
+      await notifyOrderPaid(updated);
+    } catch (error) {
+      console.error("notifyOrderPaid failed:", error);
     }
 
     revalidatePath("/student/orders");

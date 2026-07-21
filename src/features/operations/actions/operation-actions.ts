@@ -12,6 +12,7 @@ import {
   assignSalesPerson,
 } from "@/features/offering-requests/actions/admin-request-actions";
 import { updateOrderStatusAdmin } from "@/features/orders/actions/order-actions";
+import { notifyMeetingScheduled } from "../server/notify";
 import type { ActionResult } from "@/actions/leads";
 import {
   assignOperationSchema,
@@ -261,7 +262,7 @@ export async function scheduleMeeting(operationItemId: string, input: unknown): 
   try {
     const scheduledById = await resolveActorTeamMemberId();
     const scheduledAt = new Date(parsed.data.scheduledAt);
-    await prisma.$transaction([
+    const [meeting] = await prisma.$transaction([
       prisma.meeting.create({
         data: {
           operationItemId,
@@ -280,6 +281,13 @@ export async function scheduleMeeting(operationItemId: string, input: unknown): 
         },
       }),
     ]);
+
+    try {
+      await notifyMeetingScheduled(operationItemId, meeting);
+    } catch (error) {
+      console.error("notifyMeetingScheduled failed:", error);
+    }
+
     revalidateOperationItem(operationItemId);
     return { success: true };
   } catch (error) {

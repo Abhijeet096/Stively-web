@@ -1,9 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import type { Order, Offering } from "@prisma/client";
+import type { Order, Offering, Meeting } from "@prisma/client";
 
 export const ORDER_PAGE_SIZE = 10;
 
 export type OrderWithOffering = Order & { offering: Offering };
+export type OrderWithMeetings = OrderWithOffering & { meetings: Meeting[] };
 
 export interface PaginatedOrders {
   orders: OrderWithOffering[];
@@ -42,10 +43,25 @@ export async function getMyOrders(userId: string, page = 1): Promise<PaginatedOr
   };
 }
 
-/** Ownership-scoped single lookup - same "not found and not yours look identical" discipline as getRequestById. */
-export async function getOrderById(id: string, userId: string): Promise<OrderWithOffering | null> {
-  return prisma.order.findFirst({
+/**
+ * Ownership-scoped single lookup - same "not found and not yours look
+ * identical" discipline as getRequestById. Also surfaces any Meetings
+ * staff scheduled against this order's OperationItem (flattened onto the
+ * return value as `meetings`, rather than the caller reaching through
+ * `operationItem.meetings` - the nesting is an internal Operations
+ * implementation detail the customer-facing order view shouldn't need to
+ * know about).
+ */
+export async function getOrderById(id: string, userId: string): Promise<OrderWithMeetings | null> {
+  const order = await prisma.order.findFirst({
     where: { id, userId },
-    include: { offering: true },
+    include: {
+      offering: true,
+      operationItem: { include: { meetings: { orderBy: { scheduledAt: "desc" } } } },
+    },
   });
+  if (!order) return null;
+
+  const { operationItem, ...rest } = order;
+  return { ...rest, meetings: operationItem?.meetings ?? [] };
 }

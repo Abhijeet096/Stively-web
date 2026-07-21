@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { createOperationItemForOrder } from "@/features/operations/server/creation";
 import { createEnrollmentFromOrder } from "@/features/enrollments/server/creation";
+import { notifyOrderPaid } from "@/features/orders/server/notify";
 
 /**
  * Razorpay webhook receiver. Configure this URL (`/api/webhooks/payment`)
@@ -70,6 +71,11 @@ export async function POST(req: NextRequest) {
         await createEnrollmentFromOrder(paid);
       } catch (error) {
         console.error("createEnrollmentFromOrder (webhook) failed:", error);
+      }
+      try {
+        await notifyOrderPaid(paid);
+      } catch (error) {
+        console.error("notifyOrderPaid (webhook) failed:", error);
       }
     }
   }
