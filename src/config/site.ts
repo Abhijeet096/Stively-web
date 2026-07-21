@@ -5,7 +5,12 @@ export const siteConfig = {
   // it mid-sentence - same meaning as before, just tightened for length.
   description:
     "Stively gives students real industry experience through training, projects, and internships - and helps businesses build high-quality software.",
-  url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://stively.com",
+  // Trailing slash stripped defensively - every call site builds URLs as
+  // `${siteConfig.url}${path}` (sitemap.ts, robots.ts, JSON-LD, OpenGraph),
+  // so a trailing slash here (however it got into the env var) would
+  // silently produce double-slash URLs like https://www.stively.com//about
+  // everywhere at once, not just in one place.
+  url: (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.stively.com").replace(/\/+$/, ""),
   links: {
     twitter: "https://twitter.com/stively",
     linkedin: "https://linkedin.com/company/stively",

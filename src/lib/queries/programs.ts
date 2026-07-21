@@ -60,6 +60,27 @@ export async function getAllProgramSlugs(): Promise<string[]> {
   }
 }
 
+/**
+ * Sitemap-only variant of the above - carries `updatedAt` so sitemap.ts can
+ * report each program's real last-modified date instead of "now" on every
+ * request. Kept separate from `getAllProgramSlugs` rather than changing its
+ * return shape, since that function's only other caller
+ * (training/[slug]'s generateStaticParams) just needs the slug list.
+ */
+export async function getAllProgramSlugsWithDates(): Promise<
+  { slug: string; updatedAt: Date }[]
+> {
+  try {
+    return await prisma.program.findMany({
+      where: { published: true },
+      select: { slug: true, updatedAt: true },
+    });
+  } catch (error) {
+    console.error("getAllProgramSlugsWithDates failed:", error);
+    return [];
+  }
+}
+
 export const PROGRAM_LEVELS = ["BEGINNER", "INTERMEDIATE", "ADVANCED"] as const;
 export const PROGRAM_MODES = ["ONLINE", "OFFLINE", "HYBRID"] as const;
 export const DURATION_BUCKETS = ["under-4", "4-8", "8-plus"] as const;

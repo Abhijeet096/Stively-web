@@ -175,3 +175,49 @@ export async function getAllUsedCategorySlugs(): Promise<OfferingCategory[]> {
     return [];
   }
 }
+
+/**
+ * Sitemap-only variant of getAllOfferingSlugs - carries `updatedAt` so
+ * sitemap.ts can report each offering's real last-modified date instead of
+ * "now" on every request. Kept separate rather than changing
+ * getAllOfferingSlugs's return shape, since that function's other caller
+ * (offerings/[slug]'s generateStaticParams) just needs the slug list.
+ */
+export async function getAllOfferingSlugsWithDates(): Promise<
+  { slug: string; updatedAt: Date }[]
+> {
+  try {
+    return await prisma.offering.findMany({
+      where: { status: "PUBLISHED", visible: true },
+      select: { slug: true, updatedAt: true },
+    });
+  } catch (error) {
+    console.error("getAllOfferingSlugsWithDates failed:", error);
+    return [];
+  }
+}
+
+/**
+ * Per-category most-recent-update timestamp, paired with
+ * getAllUsedCategorySlugs for sitemap.ts's category archive entries.
+ */
+export async function getCategoryLastModifiedMap(): Promise<Record<string, Date>> {
+  try {
+    const grouped = await prisma.offering.groupBy({
+      by: ["category"],
+      where: { status: "PUBLISHED", visible: true },
+      _max: { updatedAt: true },
+    });
+    return Object.fromEntries(
+      grouped
+        .filter((g: { _max: { updatedAt: Date | null } }) => g._max.updatedAt)
+        .map((g: { category: OfferingCategory; _max: { updatedAt: Date | null } }) => [
+          g.category,
+          g._max.updatedAt as Date,
+        ])
+    );
+  } catch (error) {
+    console.error("getCategoryLastModifiedMap failed:", error);
+    return {};
+  }
+}
