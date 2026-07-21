@@ -528,6 +528,58 @@ model Testimonial {
   createdAt DateTime @default(now())
 }
 
+/// Purely descriptive/filterable category for a showcased demo site - drives
+/// a client-side filter chip, nothing else. Adding a new category later is
+/// one enum value, same "don't hardcode behavior per type" reasoning used
+/// throughout this schema (LessonBlockType, MentorType, etc.).
+enum PortfolioCategory {
+  WEBSITE
+  WEB_APP
+  ECOMMERCE
+  MOBILE_APP
+  BRANDING
+  OTHER
+}
+
+/// A real, shipped demo/client site shown on the public "Our Work" page and
+/// as a homepage teaser - the concrete proof the homepage's ServicesGrid
+/// comment says doesn't exist yet ("no fabricated case studies... none
+/// exist yet to show honestly"). Seed/DB-managed only, same as Testimonial
+/// above - no admin CRUD UI this round, since that's this schema's own
+/// established precedent for public marketing content and nothing here
+/// asked for a content-management screen.
+model PortfolioItem {
+  id String @id @default(cuid())
+
+  title      String
+  /// Null for a self-initiated "Portfolio Concept" piece (no real client) -
+  /// that null-ness IS the Portfolio-Concept-vs-Client-Project distinction,
+  /// not a separate field. Set to a real name for actual client work.
+  clientName String?
+  /// The vertical this project is for (e.g. "Interior Design", "Fitness",
+  /// "Healthcare") - distinct from `category` above, which is the *kind* of
+  /// build (Website/Web App/...), not who it's for.
+  industry   String?
+  category   PortfolioCategory @default(WEBSITE)
+  summary    String            @db.Text
+
+  imageUrl String
+  liveUrl  String?
+  tags     String[]
+
+  /// Pins an item to the front of both the homepage teaser and the full
+  /// grid, ahead of sortOrder - lets whoever manages content promote a
+  /// strongest-piece-first without reordering everything else.
+  featured  Boolean @default(false)
+  published Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([published])
+}
+
 // ============================================
 // OFFERINGS PLATFORM (Phase 4 - core product catalog)
 // ============================================

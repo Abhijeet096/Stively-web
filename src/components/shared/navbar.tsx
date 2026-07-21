@@ -18,6 +18,7 @@ import { Sheet, SheetTrigger, SheetContent, SheetTitle, SheetClose } from "@/com
 const NAV_LINKS = [
   { href: "/about", label: "About" },
   { href: "/services", label: "Services" },
+  { href: "/work", label: "Our Work" },
   { href: "/pricing", label: "Pricing" },
   { href: "/training", label: "Training" },
 ] as const;

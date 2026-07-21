@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 
 import { siteConfig } from "@/config/site";
 import { getFeaturedTestimonials } from "@/lib/queries/testimonials";
+import { getFeaturedPortfolioItems } from "@/lib/queries/portfolio";
 import { HeroSection } from "@/components/sections/hero-section";
 import { HeroVisual } from "@/components/sections/hero-visual";
 import { TrustStrip } from "@/components/sections/trust-strip";
 import { WhyStivelyComparison } from "@/components/sections/why-stively-comparison";
 import { CapabilitiesStrip } from "@/components/sections/capabilities-strip";
+import { PortfolioShowcase } from "@/components/sections/portfolio-showcase";
 import { PricingTiers } from "@/components/sections/pricing-tiers";
 import { BusinessProcess } from "@/components/sections/business-process";
 import { Testimonials } from "@/components/sections/testimonials";
@@ -51,13 +53,18 @@ export const metadata: Metadata = {
  * -> how an engagement runs -> proof (if any exists) -> where the talent
  * comes from (training, demoted, not dominant) -> final ask.
  *
- * No fabricated case studies, client logos, or stats anywhere below -
- * none exist yet to show honestly (AGENTS.md's standing rule). Trust is
- * built through process transparency and real, verifiable claims about
- * how Stively operates, not invented outcomes or numbers.
+ * Still no fabricated stats or client logos anywhere below - AGENTS.md's
+ * standing rule - but PortfolioShowcase is the first real exception to
+ * "no case studies yet": actual shipped demo sites, shown only once real
+ * PortfolioItem rows exist (same conditional-render-when-empty discipline
+ * Testimonials already used below). Trust is still built through process
+ * transparency first; this section adds concrete proof on top, not instead.
  */
 export default async function HomePage() {
-  const testimonials = await getFeaturedTestimonials();
+  const [testimonials, portfolioItems] = await Promise.all([
+    getFeaturedTestimonials(),
+    getFeaturedPortfolioItems(),
+  ]);
 
   return (
     <>
@@ -81,6 +88,9 @@ export default async function HomePage() {
       <TrustStrip />
       <WhyStivelyComparison />
       <CapabilitiesStrip />
+
+      {portfolioItems.length > 0 && <PortfolioShowcase items={portfolioItems} />}
+
       <PricingTiers variant="teaser" />
       <BusinessProcess />
 

@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 const FOOTER_LINKS = {
   Product: [
     { href: "/services", label: "Services" },
+    { href: "/work", label: "Our Work" },
     { href: "/pricing", label: "Pricing" },
     { href: "/training", label: "Training" },
   ],

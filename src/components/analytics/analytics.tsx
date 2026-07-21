@@ -1,36 +1,22 @@
 import Script from "next/script";
+import { GoogleAnalytics } from "@next/third-parties/google";
 
 /**
- * Loads GA4 and Microsoft Clarity only when their env vars are present.
- * This means local/dev/preview environments run clean by default - no
- * analytics noise in your GA data from every `npm run dev` session -
- * and production picks them up automatically once the env vars are set
- * in Vercel. Nothing to toggle by hand.
+ * Loads GA4 (via the official @next/third-parties component, which handles
+ * gtag.js + App Router route-change pageviews itself - no manual dataLayer
+ * wiring) and Microsoft Clarity, both gated to production builds only so
+ * `npm run dev` and preview testing never pollute real analytics data.
  */
 export function Analytics() {
   const gaId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
   const clarityId = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID;
+  const isProduction = process.env.NODE_ENV === "production";
 
   return (
     <>
-      {gaId && (
-        <>
-          <Script
-            src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`}
-            strategy="afterInteractive"
-          />
-          <Script id="ga4-init" strategy="afterInteractive">
-            {`
-              window.dataLayer = window.dataLayer || [];
-              function gtag(){dataLayer.push(arguments);}
-              gtag('js', new Date());
-              gtag('config', '${gaId}');
-            `}
-          </Script>
-        </>
-      )}
+      {isProduction && gaId && <GoogleAnalytics gaId={gaId} />}
 
-      {clarityId && (
+      {isProduction && clarityId && (
         <Script id="clarity-init" strategy="afterInteractive">
           {`
             (function(c,l,a,r,i,t,y){

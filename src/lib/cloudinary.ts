@@ -16,12 +16,12 @@ export type CloudinaryUploadResult = {
 
 /**
  * Uploads a file buffer to Cloudinary under a Stively-specific folder,
- * so program/blog/testimonial assets stay organized in the media library
- * rather than dumped in the account root.
+ * so program/blog/testimonial/portfolio assets stay organized in the media
+ * library rather than dumped in the account root.
  */
 export async function uploadImage(
   file: Buffer,
-  folder: "programs" | "testimonials" | "avatars" | "blog" = "programs"
+  folder: "programs" | "testimonials" | "avatars" | "blog" | "portfolio" = "programs"
 ): Promise<CloudinaryUploadResult> {
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
