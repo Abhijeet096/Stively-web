@@ -20,7 +20,7 @@ export const siteConfig = {
     // this as optional and skip it while unset.
     twitter: undefined as string | undefined,
   },
-  contactEmail: "hello@stively.com",
+  contactEmail: "team@stively.com",
   // Optional - undefined until the business provides real values. The Contact
   // page renders each of these conditionally rather than showing a fabricated
   // placeholder (see docs/phase-e-visual-ux-planning.md's "no fabricated

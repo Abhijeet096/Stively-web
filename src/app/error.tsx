@@ -21,8 +21,8 @@ export default function Error({
       <h1 className="text-2xl font-semibold tracking-tight">Something went wrong</h1>
       <p className="text-muted-foreground max-w-md">
         That&apos;s on us, not you. Try again, and if it keeps happening, reach out at{" "}
-        <a href="mailto:hello@stively.com" className="text-primary underline underline-offset-4">
-          hello@stively.com
+        <a href="mailto:team@stively.com" className="text-primary underline underline-offset-4">
+          team@stively.com
         </a>
         .
       </p>
