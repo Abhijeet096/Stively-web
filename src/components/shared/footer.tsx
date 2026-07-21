@@ -110,14 +110,16 @@ function Footer() {
             © {new Date().getFullYear()} {siteConfig.name}. All rights reserved.
           </p>
           <div className="flex gap-6">
-            <a
-              href={siteConfig.links.twitter}
-              className="text-ink-muted-foreground hover:text-ink-foreground text-sm transition-colors duration-150"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Twitter
-            </a>
+            {siteConfig.links.twitter && (
+              <a
+                href={siteConfig.links.twitter}
+                className="text-ink-muted-foreground hover:text-ink-foreground text-sm transition-colors duration-150"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Twitter
+              </a>
+            )}
             <a
               href={siteConfig.links.linkedin}
               className="text-ink-muted-foreground hover:text-ink-foreground text-sm transition-colors duration-150"

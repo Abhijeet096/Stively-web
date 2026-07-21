@@ -87,11 +87,13 @@ export default async function RootLayout({
             url: siteConfig.url,
             logo: `${siteConfig.url}/logo-mark.png`,
             description: siteConfig.description,
+            // .filter(Boolean) drops twitter while it's unset, so an unset
+            // profile never serializes as a `null` entry in the schema.
             sameAs: [
-              siteConfig.links.twitter,
               siteConfig.links.linkedin,
               siteConfig.links.instagram,
-            ],
+              siteConfig.links.twitter,
+            ].filter(Boolean),
           }}
         />
         {/*

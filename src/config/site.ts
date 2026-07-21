@@ -12,9 +12,13 @@ export const siteConfig = {
   // everywhere at once, not just in one place.
   url: (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.stively.com").replace(/\/+$/, ""),
   links: {
-    twitter: "https://twitter.com/stively",
-    linkedin: "https://linkedin.com/company/stively",
-    instagram: "https://instagram.com/stively",
+    linkedin: "https://www.linkedin.com/company/stively-technologies/",
+    instagram: "https://www.instagram.com/stivelyTechnologies",
+    // Not live yet - omitted (not a placeholder URL) until there's a real
+    // profile, same "no fabricated content" discipline as contactPhone/
+    // businessHours below. Footer and the Organization JSON-LD both treat
+    // this as optional and skip it while unset.
+    twitter: undefined as string | undefined,
   },
   contactEmail: "hello@stively.com",
   // Optional - undefined until the business provides real values. The Contact
