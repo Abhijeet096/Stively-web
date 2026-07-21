@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
+import { headers } from "next/headers";
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -54,6 +55,8 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
     redirect("/unauthorized");
   }
 
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   const isFree = offering.pricingType === "FREE";
   const amount = offering.discountPrice ?? offering.price;
   const priceLabel = isFree ? "Free" : amount != null ? formatPrice(amount, offering.currency) : "-";
@@ -78,6 +81,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
           userName={session.user.name ?? undefined}
           userEmail={session.user.email ?? undefined}
           detailPathPrefix={detailPathPrefix}
+          nonce={nonce}
         />
       </CardFooter>
     </Card>

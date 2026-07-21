@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
-import { SERVICES } from "@/components/sections/services-grid";
+import { SERVICES } from "@/lib/services-data";
 import { driftOrb } from "@/lib/animations";
 import { Section } from "@/components/shared/section";
 import { Container } from "@/components/shared/container";

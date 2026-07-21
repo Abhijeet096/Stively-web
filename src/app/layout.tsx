@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Bricolage_Grotesque } from "next/font/google";
+import { headers } from "next/headers";
 import "./globals.css";
 
 import { siteConfig } from "@/config/site";
@@ -58,11 +59,13 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html
       lang="en"
@@ -102,10 +105,10 @@ export default function RootLayout({
           - light stays the default everywhere until a user explicitly
           opts in, and their choice persists via localStorage from then on.
         */}
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} nonce={nonce}>
           {children}
         </ThemeProvider>
-        <Analytics />
+        <Analytics nonce={nonce} />
       </body>
     </html>
   );

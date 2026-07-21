@@ -37,6 +37,8 @@ export interface CheckoutButtonProps {
   userEmail?: string;
   /** /student/orders or /client/orders - where the confirmation page lives. */
   detailPathPrefix: string;
+  /** CSP nonce from src/proxy.ts, read via `headers()` on the checkout page. */
+  nonce?: string;
 }
 
 /**
@@ -54,6 +56,7 @@ function CheckoutButton({
   userName,
   userEmail,
   detailPathPrefix,
+  nonce,
 }: CheckoutButtonProps) {
   const router = useRouter();
   const [scriptReady, setScriptReady] = React.useState(false);
@@ -127,6 +130,7 @@ function CheckoutButton({
       <Script
         src="https://checkout.razorpay.com/v1/checkout.js"
         strategy="lazyOnload"
+        nonce={nonce}
         onLoad={() => setScriptReady(true)}
       />
 

@@ -1,6 +1,3 @@
-import { Code2, Globe, Bot, Smartphone, Plug, Users2 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-
 import { siteConfig } from "@/config/site";
 import { Section } from "@/components/shared/section";
 import { Container } from "@/components/shared/container";
@@ -8,50 +5,7 @@ import { Eyebrow } from "@/components/shared/eyebrow";
 import { Reveal } from "@/components/shared/reveal";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { JsonLd } from "@/components/shared/json-ld";
-
-export interface ServiceOffering {
-  icon: LucideIcon;
-  title: string;
-  description: string;
-}
-
-export const SERVICES: ServiceOffering[] = [
-  {
-    icon: Globe,
-    title: "Web Application Development",
-    description:
-      "Full-stack web applications built on modern, maintainable frameworks - not template sites.",
-  },
-  {
-    icon: Code2,
-    title: "Custom Software Development",
-    description:
-      "Software built around how your business actually works, not the other way around.",
-  },
-  {
-    icon: Bot,
-    title: "AI & Automation",
-    description:
-      "Practical automation and AI integration that removes repetitive work, not novelty features.",
-  },
-  {
-    icon: Smartphone,
-    title: "Mobile App Development",
-    description:
-      "Cross-platform mobile applications built on the same engineering standards as our web work.",
-  },
-  {
-    icon: Plug,
-    title: "API & Systems Integration",
-    description: "Connecting the tools you already use, cleanly, without brittle one-off scripts.",
-  },
-  {
-    icon: Users2,
-    title: "Technical Consulting",
-    description:
-      "Architecture and technology decisions reviewed before they become expensive to change.",
-  },
-];
+import { SERVICES } from "@/lib/services-data";
 
 /**
  * Describes offering categories and capability, not completed projects -
