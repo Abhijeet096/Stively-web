@@ -115,7 +115,12 @@ export async function createOrder(offeringId: string, phone?: string): Promise<C
   try {
     const razorpayOrder = await createRazorpayOrder({
       amountInPaise: amount,
-      receipt: `offering-${offering.id}-${session.user.id}-${Date.now()}`,
+      // Razorpay caps `receipt` at 40 characters - the full offeringId +
+      // userId + timestamp this used to build ran to ~74 and was rejected
+      // outright by their API (only surfaced once real keys were added;
+      // with no keys configured this call never actually ran before). The
+      // real traceable IDs still go in `notes`, which has no such limit.
+      receipt: `ord_${Date.now().toString(36)}_${crypto.randomUUID().slice(0, 8)}`,
       notes: { offeringId: offering.id, userId: session.user.id },
     });
 

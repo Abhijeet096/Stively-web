@@ -94,6 +94,19 @@ export async function getOfferingBySlug(slug: string): Promise<Offering | null> 
   return offering;
 }
 
+/**
+ * Same lookup, no viewCount side effect - for surfacing a real offering's
+ * price/details on a page that isn't that offering's own detail page (e.g.
+ * a service landing page's Pricing section referencing the matching
+ * catalog item). Counting that as a "view" of the offering itself would
+ * inflate the metric with traffic that never actually looked at it.
+ */
+export async function getOfferingForDisplay(slug: string): Promise<Offering | null> {
+  return prisma.offering.findFirst({
+    where: { slug, status: "PUBLISHED", visible: true },
+  });
+}
+
 export async function getFeaturedOfferings(limit = 6): Promise<Offering[]> {
   try {
     return await prisma.offering.findMany({

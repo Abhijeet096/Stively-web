@@ -17,6 +17,8 @@ export interface HeroCta {
 }
 
 export interface HeroSectionProps {
+  /** For a page's sticky CTA bar (see service-sticky-cta.tsx) to watch via IntersectionObserver. */
+  id?: string;
   eyebrow?: string;
   /** Plain string on every existing caller (unchanged); accepts a ReactNode so a phrase can carry a gradient-text accent (see Home's usage) without a separate prop. */
   heading: React.ReactNode;
@@ -46,6 +48,7 @@ export interface HeroSectionProps {
  * scroll-triggered Reveal pattern.
  */
 function HeroSection({
+  id,
   eyebrow,
   heading,
   subheading,
@@ -149,6 +152,7 @@ function HeroSection({
   if (visual) {
     return (
       <Section
+        id={id}
         ref={rootRef}
         background="inverted"
         className="texture-noise relative overflow-hidden py-24 md:py-32"
@@ -181,6 +185,7 @@ function HeroSection({
 
   return (
     <Section
+      id={id}
       ref={rootRef}
       background="inverted"
       className="texture-noise relative overflow-hidden py-24 md:py-32"

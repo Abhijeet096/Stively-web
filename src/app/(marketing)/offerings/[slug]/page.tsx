@@ -26,6 +26,15 @@ import { HeroSection } from "@/components/sections/hero-section";
 import { FAQSection } from "@/components/sections/faq-section";
 import { CTASection } from "@/components/sections/cta-section";
 
+// Maps a catalog category to its dedicated SEO/conversion landing page, once
+// one exists (see /website-development) - the landing page is the canonical
+// entry point for that service's search intent; this catalog view stays the
+// pricing/browse listing and links up to it rather than the two competing
+// for the same keyword. Add one entry per category as its page ships.
+const CATEGORY_SERVICE_PAGE: Partial<Record<string, string>> = {
+  WEBSITE_DEVELOPMENT: "/website-development",
+};
+
 interface OfferingSlugPageProps {
   params: Promise<{ slug: string }>;
   searchParams: Promise<Record<string, string | undefined>>;
@@ -118,6 +127,7 @@ export default async function OfferingSlugPage({ params, searchParams }: Offerin
     );
 
     const label = CATEGORY_LABEL[category];
+    const servicePage = CATEGORY_SERVICE_PAGE[category];
 
     return (
       <>
@@ -126,6 +136,7 @@ export default async function OfferingSlugPage({ params, searchParams }: Offerin
           heading={label}
           subheading={`Browse everything Stively offers under ${label}.`}
           primaryCta={{ label: "Talk to us", href: "/contact" }}
+          secondaryCta={servicePage ? { label: `See the full ${label} service`, href: servicePage } : undefined}
         />
         <Section background="default">
           <OfferingCatalog

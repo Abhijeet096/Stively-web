@@ -7,6 +7,7 @@ import { siteConfig } from "@/config/site";
 import { Analytics } from "@/components/analytics/analytics";
 import { JsonLd } from "@/components/shared/json-ld";
 import { ThemeProvider } from "@/components/shared/theme-provider";
+import { WhatsAppButton } from "@/components/shared/whatsapp-button";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -110,6 +111,7 @@ export default async function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} nonce={nonce}>
           {children}
         </ThemeProvider>
+        <WhatsAppButton />
         <Analytics nonce={nonce} />
       </body>
     </html>
