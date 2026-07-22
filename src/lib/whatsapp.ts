@@ -2,7 +2,7 @@
  * Stively's real WhatsApp Business number, E.164 without the leading "+"
  * (the format wa.me's click-to-chat URL expects).
  */
-export const WHATSAPP_NUMBER = "919579704823";
+export const WHATSAPP_NUMBER = "918010881507";
 
 /**
  * Per-route pre-filled message so a visitor's chat opens already framed

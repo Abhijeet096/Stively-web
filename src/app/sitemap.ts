@@ -24,7 +24,17 @@ const STATIC_ROUTES: { path: string; priority: number }[] = [
   { path: "/training", priority: 0.8 },
   { path: "/offerings", priority: 0.8 },
   { path: "/work", priority: 0.7 },
+  { path: "/process", priority: 0.7 },
   { path: "/contact", priority: 0.7 },
+  // Legal pages: low priority (not conversion/search targets) but still
+  // indexable - a linked-but-unsubmitted policy page is worse for trust
+  // signals than a submitted one.
+  { path: "/legal/privacy-policy", priority: 0.3 },
+  { path: "/legal/terms-of-service", priority: 0.3 },
+  { path: "/legal/refund-policy", priority: 0.3 },
+  { path: "/legal/delivery-policy", priority: 0.3 },
+  { path: "/legal/cookie-policy", priority: 0.3 },
+  { path: "/legal/disclaimer", priority: 0.3 },
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

@@ -9,9 +9,7 @@ import { Button } from "@/components/ui/button";
 
 // "/careers" omitted - planned (see docs/phase-a-product-plan.md) but not
 // built yet, and a live footer link pointing at a 404 is worse than no
-// link. "/pricing" shipped, so it's back in Product below. The Legal
-// group's targets don't exist yet either, but those links are left in
-// place deliberately - see the note on the Legal group below.
+// link. "/pricing" shipped, so it's back in Product below.
 const FOOTER_LINKS = {
   Product: [
     { href: "/services", label: "Services" },
@@ -21,18 +19,19 @@ const FOOTER_LINKS = {
   ],
   Company: [
     { href: "/about", label: "About" },
+    { href: "/process", label: "Our Process" },
     { href: "/contact", label: "Contact" },
   ],
-  // Unlike Pricing/Careers, these links stay even though the pages don't
-  // exist yet: this site collects real PII (Contact form, newsletter
-  // signup) with no linked privacy policy anywhere, which is a compliance
-  // gap, not just a dead link. Deleting the links would hide that gap
-  // instead of surfacing it - flagged here and in the Phase 5 report as a
-  // pre-launch blocker, not something to quietly remove.
+  // All six now real pages (previously flagged as a pre-launch compliance
+  // gap - the site collects PII via the Contact form, newsletter signup,
+  // and Razorpay payments with no linked policies anywhere).
   Legal: [
     { href: "/legal/privacy-policy", label: "Privacy Policy" },
     { href: "/legal/terms-of-service", label: "Terms of Service" },
-    { href: "/legal/refund-policy", label: "Refund Policy" },
+    { href: "/legal/refund-policy", label: "Refund & Cancellation" },
+    { href: "/legal/delivery-policy", label: "Delivery Policy" },
+    { href: "/legal/cookie-policy", label: "Cookie Policy" },
+    { href: "/legal/disclaimer", label: "Disclaimer" },
   ],
 } as const;
 
