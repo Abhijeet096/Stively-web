@@ -43,4 +43,37 @@ export async function uploadImage(
   });
 }
 
+export type CloudinaryFileUploadResult = {
+  secureUrl: string;
+  publicId: string;
+  bytes: number;
+};
+
+/**
+ * Uploads an arbitrary file (PDF, Word doc, etc, not just images) via
+ * resource_type "auto" - Cloudinary detects the real type itself. Separate
+ * from uploadImage above rather than generalizing it, since every existing
+ * caller of uploadImage genuinely only ever sends images and depends on
+ * its image-specific return shape (width/height).
+ */
+export async function uploadFile(
+  file: Buffer,
+  folder: "sales-leads",
+  fileName: string
+): Promise<CloudinaryFileUploadResult> {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      { folder: `stively/${folder}`, resource_type: "auto", filename_override: fileName, use_filename: true },
+      (error, result) => {
+        if (error || !result) {
+          reject(error ?? new Error("Cloudinary upload returned no result"));
+          return;
+        }
+        resolve({ secureUrl: result.secure_url, publicId: result.public_id, bytes: result.bytes });
+      }
+    );
+    uploadStream.end(file);
+  });
+}
+
 export default cloudinary;

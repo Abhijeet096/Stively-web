@@ -12,6 +12,7 @@ import {
   UserRound,
   BarChart3,
   Settings,
+  Mic,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -21,6 +22,7 @@ const NAV_ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/leads", label: "Leads", icon: Users },
   { href: "/admin/operations", label: "Operations", icon: Workflow },
+  { href: "/admin/interviews", label: "Interviews", icon: Mic },
   { href: "/admin/learning", label: "Learning", icon: BookOpen },
   { href: "/admin/mentors", label: "Mentors", icon: UserRound },
   { href: "/admin/students", label: "Students", icon: GraduationCap },

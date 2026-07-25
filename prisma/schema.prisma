@@ -413,6 +413,33 @@ model TeamMember {
   mentorProfile         Mentor?
   mentorAssignmentsMade MentorAssignment[]
 
+  /// AI Interview Platform - see Job below.
+  createdJobs Job[]
+
+  /// Sales CRM - see SalesLead below. Separate from `ownedLeads`/
+  /// `assignments` (the inbound-marketing Lead CRM) on purpose, same
+  /// "parallel, not merged" reasoning as `assignedOperationItems` above -
+  /// this is outbound B2B sales prospecting, a different data shape and
+  /// pipeline entirely.
+  salesProfile             SalesProfile?
+  ownedSalesLeads          SalesLead[]           @relation("SalesLeadAssignedTo")
+  createdSalesLeads        SalesLead[]           @relation("SalesLeadCreatedBy")
+  salesLeadAssignments     SalesLeadAssignment[] @relation("SalesAssignmentOwner")
+  salesLeadAssignmentsMade SalesLeadAssignment[] @relation("SalesAssignmentAssignedBy")
+  salesLeadActivities      SalesLeadActivity[]
+  salesLeadNotes           SalesLeadNote[]
+  salesLeadAttachments     SalesLeadAttachment[]
+  assignedFollowUps        SalesFollowUp[]       @relation("FollowUpAssignee")
+  createdFollowUps         SalesFollowUp[]       @relation("FollowUpCreatedBy")
+  assignedTasks            SalesTask[]           @relation("TaskAssignee")
+  createdTasks             SalesTask[]           @relation("TaskAssignedBy")
+  salesProjectsAsSales     SalesProject[]        @relation("ProjectSalesPerson")
+  salesProjectsAsManager   SalesProject[]        @relation("ProjectManager")
+  salesProjectsAsDev       SalesProject[]        @relation("ProjectDeveloper")
+  recordedPayments         SalesProjectPayment[]
+  commissionsEarned        SalesCommission[]     @relation("CommissionSalesPerson")
+  commissionsApproved      SalesCommission[]     @relation("CommissionApprovedBy")
+
   createdAt DateTime @default(now())
 }
 
@@ -426,6 +453,17 @@ enum TeamMemberRole {
   ADMIN
   COUNSELLOR
   SUPPORT
+  /// AI Interview Platform - purely descriptive/attribution, same as every
+  /// other value here (see Job.createdBy) - not a separate hard-gated
+  /// permission tier. /admin/interviews/* access is still governed by
+  /// User.role (ADMIN/SUPER_ADMIN) via src/config/rbac.ts, same as every
+  /// other admin surface.
+  RECRUITER
+  /// Sales CRM - leads a team of SALESPERSON TeamMembers, sees the whole
+  /// team's pipeline/commission via resolveSalesCrmViewer (full access,
+  /// same tier as FOUNDER/ADMIN there), distinct from SALESPERSON (whose
+  /// visibility is restricted to their own assigned SalesLeads).
+  SALES_MANAGER
 }
 
 /// Append-only event timeline for a Lead - every meaningful action gets an
@@ -1994,6 +2032,21 @@ enum NotificationType {
   /// A Meeting is scheduled against an OperationItem the customer owns - see
   /// notifyMeetingScheduled() (src/features/operations/server/notify.ts).
   MEETING_SCHEDULED
+
+  // --- Sales CRM ---
+  /// A SalesLead is assigned/reassigned to a salesperson.
+  SALES_LEAD_ASSIGNED
+  /// A SalesFollowUp is due today or overdue - written eagerly on creation
+  /// for now (no scheduled/cron reminder job exists in this codebase yet -
+  /// same documented "prepared, not proactively scheduled" treatment as
+  /// SESSION_REMINDER above).
+  FOLLOW_UP_REMINDER
+  /// A SalesProject is assigned to a salesperson/developer/project manager.
+  SALES_PROJECT_ASSIGNED
+  /// A SalesCommission moves PENDING -> APPROVED.
+  COMMISSION_APPROVED
+  /// A SalesCommission moves APPROVED -> PAID.
+  COMMISSION_PAID
 }
 
 model Notification {
@@ -2016,4 +2069,708 @@ model Notification {
 
   @@index([userId])
   @@index([userId, read])
+}
+
+// ============================================
+// AI INTERVIEW PLATFORM
+// ============================================
+// A parallel system to the Lead/Operations CRM above, not merged into it -
+// same "parallel, not merged" precedent OperationItem already established
+// for Lead. Candidates here are job applicants, not Stively's own
+// students/clients, and never get a User row - the whole flow is designed
+// to run without the candidate ever authenticating (see InterviewLink).
+
+enum JobStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+  CLOSED
+}
+
+enum InterviewLinkStatus {
+  PENDING
+  SENT
+  OPENED
+  IN_PROGRESS
+  COMPLETED
+  EXPIRED
+}
+
+enum InterviewCategory {
+  INTRODUCTION
+  COMMUNICATION
+  BEHAVIOR
+  SALES
+  PROBLEM_SOLVING
+  ROLE_PLAY
+  OBJECTION_HANDLING
+  COMPANY_AWARENESS
+  CAREER_GOALS
+  CLOSING
+}
+
+enum InterviewStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+}
+
+enum Recommendation {
+  STRONG_HIRE
+  HIRE
+  HOLD
+  REJECT
+}
+
+/// A reusable interview "profile" - system prompt, goals, and evaluation
+/// rubric for one kind of role (Sales, Frontend Developer, HR...). DB/seed-
+/// managed only for now, no admin CRUD UI - same precedent as Testimonial
+/// (src/features/notifications aside, this codebase's established pattern
+/// for "real content, not user-editable yet" - see prisma seed script).
+model InterviewTemplate {
+  id                 String   @id @default(cuid())
+  name               String   @unique
+  /// The persona and behavioral rules the AI interviewer follows - see
+  /// PromptService (src/features/interviews/server/prompt-service.ts),
+  /// which composes this with live conversation state, never sends it raw.
+  systemPrompt       String   @db.Text
+  /// What this interview is actually trying to find out - feeds both
+  /// question generation and evaluation.
+  goals              String[]
+  /// Structured per-category rubric, e.g.
+  /// { "SALES": "Listens for objection-handling technique...", ... } -
+  /// deliberately Json (heterogeneous, not a flat list) per this codebase's
+  /// established Json-vs-array convention (see Mentor.expertiseAreas'
+  /// comment for the flat-array side of that same convention).
+  evaluationCriteria Json
+
+  jobs Job[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Job {
+  id          String    @id @default(cuid())
+  title       String
+  department  String
+  description String    @db.Text
+  experience  String
+  skills      String[]
+  /// Minutes - shown to the candidate as "Estimated time" before they start.
+  duration    Int       @default(20)
+  status      JobStatus @default(DRAFT)
+
+  templateId String
+  template   InterviewTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+
+  createdById String?
+  createdBy   TeamMember? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  candidates Candidate[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
+model Candidate {
+  id    String  @id @default(cuid())
+  name  String
+  email String
+  phone String?
+
+  jobId String
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  links InterviewLink[]
+
+  createdAt DateTime @default(now())
+
+  /// One active candidacy per job per email - re-inviting the same person
+  /// for the same job reuses this row rather than creating a duplicate.
+  @@unique([email, jobId])
+  @@index([jobId])
+}
+
+/// The unauthenticated entry point into an interview - see
+/// src/features/interviews/lib/token.ts for generation. Deliberately
+/// separate from Interview below (1:1, created lazily) so a link can exist,
+/// expire, or be revoked before any interview record is needed.
+model InterviewLink {
+  id String @id @default(cuid())
+
+  /// crypto.randomBytes(24) base62 - unguessable, never sequential. Never
+  /// logged or displayed anywhere except the one-time "here's the link"
+  /// admin screen.
+  token String @unique
+
+  candidateId String
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  status    InterviewLinkStatus @default(PENDING)
+  expiresAt DateTime
+  /// Set the first time the token resolves successfully - a second
+  /// attempt to *start* an interview (not just view the landing page)
+  /// after this is set is rejected, per the brief's "cannot be reused".
+  usedAt    DateTime?
+
+  interview Interview?
+
+  createdAt DateTime @default(now())
+
+  /// Fixed-window rate limit state for the two public, unauthenticated
+  /// candidate actions (startInterview, submitInterviewTurn) - see
+  /// src/features/interviews/server/rate-limit.ts. Stored on the DB (not
+  /// in-memory) since this app can run across multiple serverless function
+  /// instances that don't share process memory.
+  rateLimitWindowStart DateTime?
+  rateLimitCount       Int       @default(0)
+
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model Interview {
+  id String @id @default(cuid())
+
+  linkId String        @unique
+  link   InterviewLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
+  status          InterviewStatus @default(NOT_STARTED)
+  startedAt       DateTime?
+  completedAt     DateTime?
+  durationSeconds Int?
+
+  /// Which InterviewCategory values have already been covered this
+  /// session and in what order - the Interview Engine's own state, read
+  /// and appended to on every turn so "never the same sequence twice"
+  /// survives a page refresh mid-interview.
+  categoriesCovered InterviewCategory[]
+
+  responses    Response[]
+  score        Score?
+  activityLogs InterviewActivityLog[]
+
+  createdAt DateTime @default(now())
+
+  @@index([status])
+}
+
+/// One row per AI question asked, in order - the real transcript. Not a
+/// reference to a static question bank: `question` is the text the model
+/// actually generated for this candidate, in this conversation, which is
+/// the whole point of a dynamic interview engine rather than a fixed list.
+model Response {
+  id String @id @default(cuid())
+
+  interviewId String
+  interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  category InterviewCategory
+  question String            @db.Text
+  answer   String?           @db.Text
+
+  askedAt        DateTime  @default(now())
+  answeredAt     DateTime?
+  /// Milliseconds between askedAt and answeredAt - one of the "Live
+  /// Evaluation" signals (see EvaluationService), and shown to the
+  /// recruiter, never the candidate.
+  responseTimeMs Int?
+
+  /// Order within the interview - the actual sequence asked, which the
+  /// brief requires to never be fixed across interviews.
+  sequence Int
+
+  createdAt DateTime @default(now())
+
+  @@index([interviewId, sequence])
+}
+
+/// One row per interview - the final structured report. Per-answer signal
+/// (see Response) feeds this at interview end; there's no separate
+/// per-answer score entity, since the brief is explicit that scores are
+/// never shown to the candidate and the recruiter reviews the aggregate,
+/// not a running per-question tally.
+model Score {
+  id          String    @id @default(cuid())
+  interviewId String    @unique
+  interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  overall             Float
+  communication       Float
+  confidence          Float
+  professionalism     Float
+  /// Null for non-sales interview templates - not every role's rubric
+  /// scores this axis.
+  salesSkills         Float?
+  problemSolving      Float
+  leadershipPotential Float
+  learningAbility     Float
+
+  strengths         String[]
+  weaknesses        String[]
+  suggestedTraining String[]
+  recommendation    Recommendation
+
+  /// The full model output this was parsed from - kept for audit and for
+  /// re-deriving the structured fields above if the scoring rubric
+  /// changes later, without re-running the interview.
+  rawEvaluation Json
+
+  createdAt DateTime @default(now())
+
+  @@index([recommendation])
+}
+
+/// Named InterviewActivityLog (not ActivityLog) to avoid colliding with
+/// the existing Operations-CRM ActivityLog above - same model, different
+/// domain, deliberately not merged (see this section's own header comment).
+model InterviewActivityLog {
+  id String @id @default(cuid())
+
+  interviewId String
+  interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  /// e.g. "LINK_OPENED", "MIC_GRANTED", "MIC_DENIED", "DISCONNECTED",
+  /// "GROQ_TIMEOUT", "SPEECH_RECOGNITION_FAILED" - a flat string, not an
+  /// enum, since this is an open-ended diagnostic/error log, not a
+  /// workflow state machine (contrast Interview.status above).
+  type     String
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([interviewId])
+}
+
+// ============================================
+// SALES CRM & COMMISSION MANAGEMENT
+// ============================================
+// Deliberately its own domain, not an extension of Lead above - Lead is an
+// inbound marketing-capture system (contact form submissions, UTM
+// attribution, student counselling); this is outbound B2B sales
+// prospecting (cold-calling businesses sourced from IndiaMart/Google Maps,
+// GST numbers, multi-installment payments, per-salesperson commission) -
+// a genuinely different data shape and pipeline. Same "parallel, not
+// merged" precedent OperationItem already set against Lead, applied again
+// here for the same reason: retrofitting a new concept into a working
+// system is exactly the high-risk change that precedent exists to avoid.
+
+enum SalesLeadSource {
+  WEBSITE
+  WHATSAPP
+  LINKEDIN
+  COLD_CALLING
+  REFERRAL
+  INDIAMART
+  GOOGLE_MAPS
+  FACEBOOK
+  INSTAGRAM
+  MANUAL
+  OTHER
+}
+
+enum SalesLeadStatus {
+  NEW
+  CONTACTED
+  FOLLOW_UP
+  INTERESTED
+  MEETING_SCHEDULED
+  PROPOSAL_SENT
+  NEGOTIATION
+  WON
+  LOST
+  ON_HOLD
+}
+
+/// One row per prospective B2B client a salesperson is pursuing. Reuses
+/// LeadPriority (LOW/MEDIUM/HIGH) from the Lead domain above - identical
+/// shape, no reason to fork it.
+model SalesLead {
+  id       String @id @default(cuid())
+  /// Human-readable reference, e.g. SL-000123 - rendered in lib/labels.ts.
+  sequence Int    @unique @default(autoincrement())
+
+  businessName String
+  ownerName    String
+  industry     String?
+
+  phone    String
+  whatsapp String?
+  email    String?
+  website  String?
+
+  address   String? @db.Text
+  city      String?
+  state     String?
+  country   String  @default("India")
+  /// Optional - a cold-called prospect rarely has this on file yet.
+  gstNumber String?
+
+  source   SalesLeadSource
+  status   SalesLeadStatus @default(NEW)
+  priority LeadPriority    @default(MEDIUM)
+
+  /// Quoted/estimated deal size in paise - pipeline-value reporting only,
+  /// never what commission is calculated on (see SalesCommission below).
+  estimatedValue Int?
+
+  assignedToId String?
+  assignedTo   TeamMember? @relation("SalesLeadAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdById  String?
+  createdBy    TeamMember? @relation("SalesLeadCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  assignments SalesLeadAssignment[]
+  activities  SalesLeadActivity[]
+  notes       SalesLeadNote[]
+  attachments SalesLeadAttachment[]
+  followUps   SalesFollowUp[]
+  tasks       SalesTask[]
+  /// Set once this lead is WON and converted - see convertLeadToProject().
+  project     SalesProject?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([assignedToId])
+  @@index([status])
+  @@index([source])
+  @@index([city])
+}
+
+/// Append-only ownership log - identical pattern to LeadAssignment above.
+/// Every SalesLead always has exactly one active assignment; reassigning
+/// marks the current one inactive and creates a new one.
+model SalesLeadAssignment {
+  id String @id @default(cuid())
+
+  salesLeadId String
+  salesLead   SalesLead @relation(fields: [salesLeadId], references: [id], onDelete: Cascade)
+
+  assigneeId String
+  assignee   TeamMember @relation("SalesAssignmentOwner", fields: [assigneeId], references: [id], onDelete: Cascade)
+
+  assignedById String?
+  assignedBy   TeamMember? @relation("SalesAssignmentAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  reason   ReassignmentReason @default(INITIAL)
+  isActive Boolean            @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@index([salesLeadId])
+}
+
+enum SalesLeadActivityType {
+  LEAD_CREATED
+  LEAD_ASSIGNED
+  LEAD_REASSIGNED
+  CALL_LOGGED
+  WHATSAPP_LOGGED
+  EMAIL_LOGGED
+  STATUS_CHANGED
+  NOTE_ADDED
+  ATTACHMENT_ADDED
+  FOLLOW_UP_SCHEDULED
+  MEETING_SCHEDULED
+  PROPOSAL_UPLOADED
+  PROJECT_CREATED
+  PAYMENT_RECEIVED
+  COMMISSION_GENERATED
+}
+
+/// Every meaningful action on a SalesLead gets an activity row - the
+/// module's own equivalent of LeadHistory/ActivityLog, kept scoped to this
+/// domain rather than reusing either (see this section's header comment).
+model SalesLeadActivity {
+  id String @id @default(cuid())
+
+  salesLeadId String
+  salesLead   SalesLead @relation(fields: [salesLeadId], references: [id], onDelete: Cascade)
+
+  type        SalesLeadActivityType
+  description String?
+  metadata    Json?
+
+  performedById String?
+  performedBy   TeamMember? @relation(fields: [performedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([salesLeadId])
+}
+
+/// Manual, human notes - create-only, no edit/delete, same as LeadNote.
+model SalesLeadNote {
+  id String @id @default(cuid())
+
+  salesLeadId String
+  salesLead   SalesLead @relation(fields: [salesLeadId], references: [id], onDelete: Cascade)
+
+  content  String      @db.Text
+  authorId String?
+  author   TeamMember? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([salesLeadId])
+}
+
+/// Proposals, documents, GST certificates etc. attached to a lead - stored
+/// on Cloudinary (already the app's file-storage provider, see
+/// src/lib/cloudinary.ts), only the resulting URL and metadata live here.
+model SalesLeadAttachment {
+  id String @id @default(cuid())
+
+  salesLeadId String
+  salesLead   SalesLead @relation(fields: [salesLeadId], references: [id], onDelete: Cascade)
+
+  fileName String
+  fileUrl  String
+  fileType String?
+  fileSize Int?
+
+  uploadedById String?
+  uploadedBy   TeamMember? @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([salesLeadId])
+}
+
+enum SalesFollowUpType {
+  CALL
+  WHATSAPP
+  EMAIL
+  MEETING
+  OTHER
+}
+
+enum SalesFollowUpStatus {
+  PENDING
+  COMPLETED
+  RESCHEDULED
+  CANCELLED
+}
+
+/// A scheduled reminder to re-engage a specific lead - distinct from
+/// SalesTask below (general assigned work, not necessarily lead-scoped).
+model SalesFollowUp {
+  id String @id @default(cuid())
+
+  salesLeadId String
+  salesLead   SalesLead @relation(fields: [salesLeadId], references: [id], onDelete: Cascade)
+
+  assignedToId String
+  assignedTo   TeamMember  @relation("FollowUpAssignee", fields: [assignedToId], references: [id], onDelete: Cascade)
+  createdById  String?
+  createdBy    TeamMember? @relation("FollowUpCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  type   SalesFollowUpType   @default(CALL)
+  status SalesFollowUpStatus @default(PENDING)
+  dueAt  DateTime
+  notes  String?             @db.Text
+
+  completedAt     DateTime?
+  /// Set when this row itself is the result of rescheduling an earlier one
+  /// - the original due date, kept for a simple audit trail without a full
+  /// separate history table.
+  rescheduledFrom DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([assignedToId, status])
+  @@index([dueAt])
+}
+
+enum SalesTaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+/// General assigned work, optionally tied to a lead - a task can exist on
+/// its own ("prepare Q3 pitch deck"), unlike SalesFollowUp which always
+/// belongs to one lead.
+model SalesTask {
+  id String @id @default(cuid())
+
+  title       String
+  description String? @db.Text
+
+  salesLeadId String?
+  salesLead   SalesLead? @relation(fields: [salesLeadId], references: [id], onDelete: SetNull)
+
+  assignedToId String
+  assignedTo   TeamMember  @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: Cascade)
+  assignedById String?
+  assignedBy   TeamMember? @relation("TaskAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  priority LeadPriority    @default(MEDIUM)
+  status   SalesTaskStatus @default(TODO)
+  dueDate  DateTime?
+
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([assignedToId, status])
+}
+
+enum SalesProjectStatus {
+  ACTIVE
+  COMPLETED
+  ON_HOLD
+  CANCELLED
+}
+
+/// Created from convertLeadToProject() the moment a SalesLead's status
+/// becomes WON - the delivery-side record of a closed B2B deal. Distinct
+/// from OperationItem (which tracks delivery for Offering-side
+/// Orders/OfferingRequests) - see this section's header comment for why
+/// these two "post-sale work" concepts stay separate rather than merging.
+model SalesProject {
+  id       String @id @default(cuid())
+  sequence Int    @unique @default(autoincrement())
+
+  salesLeadId String    @unique
+  salesLead   SalesLead @relation(fields: [salesLeadId], references: [id], onDelete: Restrict)
+
+  /// Snapshotted from SalesLead.businessName at conversion time, editable
+  /// afterward independently of the originating lead.
+  clientName String
+
+  salesPersonId       String?
+  salesPerson         TeamMember? @relation("ProjectSalesPerson", fields: [salesPersonId], references: [id], onDelete: SetNull)
+  projectManagerId    String?
+  projectManager      TeamMember? @relation("ProjectManager", fields: [projectManagerId], references: [id], onDelete: SetNull)
+  assignedDeveloperId String?
+  assignedDeveloper   TeamMember? @relation("ProjectDeveloper", fields: [assignedDeveloperId], references: [id], onDelete: SetNull)
+
+  /// Total agreed deal value in paise - what SalesProjectPayment rows are
+  /// tracked against; commission is calculated per payment, never on this.
+  totalValue Int
+  status     SalesProjectStatus @default(ACTIVE)
+
+  startDate     DateTime  @default(now())
+  targetEndDate DateTime?
+  description   String?   @db.Text
+
+  payments    SalesProjectPayment[]
+  commissions SalesCommission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([salesPersonId])
+  @@index([status])
+}
+
+enum SalesProjectPaymentStatus {
+  PENDING
+  /// Lazily promoted from PENDING once dueDate has passed and it's still
+  /// unpaid, on read - same "flip on read, not on a cron job" pattern
+  /// InterviewLink uses for EXPIRED.
+  DUE
+  PAID
+}
+
+/// One row per installment against a SalesProject - a project can have
+/// many (e.g. 20k / 30k / 50k). Marking one PAID is the sole trigger for
+/// commission generation (see SalesCommission below) - never the project's
+/// totalValue or any quoted amount.
+model SalesProjectPayment {
+  id String @id @default(cuid())
+
+  salesProjectId String
+  salesProject   SalesProject @relation(fields: [salesProjectId], references: [id], onDelete: Cascade)
+
+  amount Int
+  status SalesProjectPaymentStatus @default(PENDING)
+
+  dueDate   DateTime?
+  paidAt    DateTime?
+  /// Free text - "Bank Transfer", "UPI", "Cheque #4521" etc. These are
+  /// custom B2B deals settled outside Razorpay, not Offering checkout.
+  method    String?
+  reference String?
+
+  recordedById String?
+  recordedBy   TeamMember? @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+
+  commission SalesCommission?
+
+  createdAt DateTime @default(now())
+
+  @@index([salesProjectId])
+  @@index([status])
+}
+
+enum SalesCommissionStatus {
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
+}
+
+/// Generated automatically the moment a SalesProjectPayment is marked
+/// PAID - never hand-created, never calculated from quotation/totalValue.
+/// commissionPercentage is a snapshot of the salesperson's SalesProfile
+/// rate AT GENERATION TIME, so a later rate change never retroactively
+/// alters an already-generated commission.
+model SalesCommission {
+  id String @id @default(cuid())
+
+  salesPersonId String
+  salesPerson   TeamMember @relation("CommissionSalesPerson", fields: [salesPersonId], references: [id], onDelete: Restrict)
+
+  salesProjectId String
+  salesProject   SalesProject @relation(fields: [salesProjectId], references: [id], onDelete: Cascade)
+
+  salesProjectPaymentId String              @unique
+  salesProjectPayment   SalesProjectPayment @relation(fields: [salesProjectPaymentId], references: [id], onDelete: Cascade)
+
+  /// Snapshot of the triggering payment's amount, in paise.
+  paymentAmount        Int
+  /// Snapshot, e.g. 10.0 = 10%.
+  commissionPercentage Float
+  /// paymentAmount * commissionPercentage / 100, rounded to the nearest paisa.
+  commissionAmount     Int
+
+  status SalesCommissionStatus @default(PENDING)
+
+  approvedById String?
+  approvedBy   TeamMember? @relation("CommissionApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt   DateTime?
+  paidAt       DateTime?
+
+  rejectionReason String?
+
+  createdAt DateTime @default(now())
+
+  @@index([salesPersonId, status])
+}
+
+/// 1:1 with a TeamMember whose role is SALESPERSON or SALES_MANAGER - the
+/// one place a commission rate lives. Admin-editable anytime; never
+/// hardcoded anywhere else in the codebase.
+model SalesProfile {
+  id String @id @default(cuid())
+
+  teamMemberId String     @unique
+  teamMember   TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+
+  /// Percentage, e.g. 10.0 = 10%. Admin sets/edits this anytime - every
+  /// commission generated afterward uses whatever this is at that moment.
+  commissionPercentage Float @default(10)
+  /// Paise - future-ready quota tracking, not enforced anywhere yet.
+  monthlyTarget        Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

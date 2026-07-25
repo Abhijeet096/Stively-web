@@ -45,6 +45,19 @@ const nextConfig: NextConfig = {
         source: "/(.*)",
         headers: securityHeaders,
       },
+      // The AI interview flow needs the candidate's own camera/microphone -
+      // scoped to this one path (not site-wide) so every other page keeps
+      // the fully-denied default above. Later entries override earlier ones
+      // for the same header on a matching path (see Next's headers() docs).
+      {
+        source: "/interview/:path*",
+        headers: [
+          {
+            key: "Permissions-Policy",
+            value: "camera=(self), microphone=(self), geolocation=(), browsing-topics=(), interest-cohort=()",
+          },
+        ],
+      },
     ];
   },
   // The blog moved off this domain to blog.stively.com - every legacy
