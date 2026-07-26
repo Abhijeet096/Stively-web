@@ -17,7 +17,7 @@ async function actorTeamMemberId(userId: string): Promise<string | undefined> {
 }
 
 export async function createFollowUp(input: unknown): Promise<ActionResult> {
-  const user = await requireRole("ADMIN", "SUPER_ADMIN");
+  const user = await requireRole("ADMIN", "SUPER_ADMIN", "SALES");
 
   const parsed = createFollowUpSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -85,7 +85,7 @@ const COMPLETION_ACTIVITY_TYPE: Record<string, SalesLeadActivityType> = {
 };
 
 export async function completeFollowUp(followUpId: string): Promise<ActionResult> {
-  const user = await requireRole("ADMIN", "SUPER_ADMIN");
+  const user = await requireRole("ADMIN", "SUPER_ADMIN", "SALES");
 
   try {
     const viewer = await resolveSalesCrmViewer(user.id, user.role);
@@ -117,7 +117,7 @@ export async function completeFollowUp(followUpId: string): Promise<ActionResult
 
 /** Marks the current follow-up RESCHEDULED and creates a fresh PENDING one for the new date - keeps the original due date on record rather than overwriting it. */
 export async function rescheduleFollowUp(input: unknown): Promise<ActionResult> {
-  const user = await requireRole("ADMIN", "SUPER_ADMIN");
+  const user = await requireRole("ADMIN", "SUPER_ADMIN", "SALES");
 
   const parsed = rescheduleFollowUpSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };

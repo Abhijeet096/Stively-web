@@ -14,7 +14,7 @@ async function actorTeamMemberId(userId: string): Promise<string | undefined> {
 }
 
 export async function createTask(input: unknown): Promise<ActionResult> {
-  const user = await requireRole("ADMIN", "SUPER_ADMIN");
+  const user = await requireRole("ADMIN", "SUPER_ADMIN", "SALES");
 
   const parsed = createTaskSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -53,7 +53,7 @@ export async function createTask(input: unknown): Promise<ActionResult> {
 }
 
 export async function updateTaskStatus(input: unknown): Promise<ActionResult> {
-  const user = await requireRole("ADMIN", "SUPER_ADMIN");
+  const user = await requireRole("ADMIN", "SUPER_ADMIN", "SALES");
 
   const parsed = updateTaskStatusSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };

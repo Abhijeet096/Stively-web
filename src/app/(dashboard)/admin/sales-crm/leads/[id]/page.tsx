@@ -10,8 +10,12 @@ import {
   getSalesLeadAttachments,
   getFollowUpsForLead,
   getSalesTeamMembers,
+  getQuotesForLead,
+  getOfferingsForQuotePicker,
 } from "@/features/sales-crm/server/queries";
+import { getAllTeamMembers } from "@/lib/queries/team-members";
 import { SalesLeadDetail } from "@/features/sales-crm/components/admin/sales-lead-detail";
+import { ConvertToProjectDialog } from "@/features/sales-crm/components/admin/convert-to-project-dialog";
 
 interface SalesLeadDetailPageProps {
   params: Promise<{ id: string }>;
@@ -27,17 +31,30 @@ export default async function SalesLeadDetailPage({ params }: SalesLeadDetailPag
   const lead = await getSalesLeadById(id, viewer);
   if (!lead) notFound();
 
-  const [activities, notes, attachments, followUps, teamMembers] = await Promise.all([
+  const [activities, notes, attachments, followUps, quotes, offerings, teamMembers, allTeamMembers] = await Promise.all([
     getSalesLeadTimeline(id),
     getSalesLeadNotes(id),
     getSalesLeadAttachments(id),
     getFollowUpsForLead(id),
+    getQuotesForLead(id),
+    getOfferingsForQuotePicker(),
     getSalesTeamMembers(),
+    getAllTeamMembers(),
   ]);
 
   return (
     <div className="p-6">
-      <SalesLeadDetail lead={lead} activities={activities} notes={notes} attachments={attachments} followUps={followUps} teamMembers={teamMembers} />
+      <SalesLeadDetail
+        lead={lead}
+        activities={activities}
+        notes={notes}
+        attachments={attachments}
+        followUps={followUps}
+        quotes={quotes}
+        offerings={offerings}
+        teamMembers={teamMembers}
+        convertPanel={<ConvertToProjectDialog salesLeadId={lead.id} suggestedValue={lead.estimatedValue} teamMembers={allTeamMembers} />}
+      />
     </div>
   );
 }

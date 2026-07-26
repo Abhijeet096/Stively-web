@@ -13,7 +13,7 @@ function formatDate(date: Date) {
   return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(date);
 }
 
-function SalesLeadList({ leads }: { leads: SalesLeadWithOwner[] }) {
+function SalesLeadList({ leads, basePath = "/admin/sales-crm/leads" }: { leads: SalesLeadWithOwner[]; basePath?: string }) {
   if (leads.length === 0) {
     return (
       <EmptyState
@@ -42,7 +42,7 @@ function SalesLeadList({ leads }: { leads: SalesLeadWithOwner[] }) {
         {leads.map((lead) => (
           <TableRow key={lead.id} className="hover:bg-accent/50">
             <TableCell className="p-0">
-              <Link href={`/admin/sales-crm/leads/${lead.id}`} className="flex flex-col px-4 py-3">
+              <Link href={`${basePath}/${lead.id}`} className="flex flex-col px-4 py-3">
                 <span className="text-foreground font-medium">{lead.businessName}</span>
                 <span className="text-muted-foreground text-xs">{formatSalesLeadNumber(lead.sequence)}</span>
               </Link>

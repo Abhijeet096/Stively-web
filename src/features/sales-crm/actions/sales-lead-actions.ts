@@ -108,7 +108,7 @@ export async function createSalesLead(input: unknown): Promise<CreateSalesLeadRe
 
 /** Any Sales CRM staff can update a lead they can see (admins/managers: any; salespeople: only their own, enforced via resolveSalesCrmViewer). */
 export async function updateSalesLead(id: string, input: unknown): Promise<ActionResult> {
-  const user = await requireRole("ADMIN", "SUPER_ADMIN");
+  const user = await requireRole("ADMIN", "SUPER_ADMIN", "SALES");
 
   const parsed = updateSalesLeadSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -211,7 +211,7 @@ export async function reassignSalesLead(input: unknown): Promise<ActionResult> {
 }
 
 export async function addSalesLeadNote(input: unknown): Promise<ActionResult> {
-  const user = await requireRole("ADMIN", "SUPER_ADMIN");
+  const user = await requireRole("ADMIN", "SUPER_ADMIN", "SALES");
 
   const parsed = addSalesLeadNoteSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };

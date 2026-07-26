@@ -7,6 +7,7 @@ import type {
   SalesProjectStatus,
   SalesProjectPaymentStatus,
   SalesCommissionStatus,
+  SalesQuoteStatus,
   LeadPriority,
   TeamMemberRole,
 } from "@prisma/client";
@@ -162,4 +163,16 @@ export const SALES_TEAM_ROLE_LABEL: Partial<Record<TeamMemberRole, string>> = {
   SALES_MANAGER: "Sales Manager",
   FOUNDER: "Founder",
   ADMIN: "Admin",
+};
+
+export const SALES_QUOTE_STATUS_LABEL: Record<SalesQuoteStatus, string> = {
+  SENT: "Sent",
+  ACCEPTED: "Accepted",
+  REJECTED: "Rejected",
+};
+
+export const SALES_QUOTE_STATUS_VARIANT: Record<SalesQuoteStatus, NonNullable<BadgeProps["variant"]>> = {
+  SENT: "warning",
+  ACCEPTED: "success",
+  REJECTED: "destructive",
 };

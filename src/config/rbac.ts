@@ -17,6 +17,7 @@ export const ROLE_HOME: Record<Role, string> = {
   TEAM_MEMBER: "/team/dashboard",
   ADMIN: "/admin/dashboard",
   SUPER_ADMIN: "/ceo/dashboard",
+  SALES: "/sales/dashboard",
 };
 
 /** Human-readable role labels, shared by ProfileDropdown, the dashboard shell's role badge, and anywhere else a Role enum value needs to render as text. */
@@ -29,6 +30,7 @@ export const ROLE_LABEL: Record<Role, string> = {
   TEAM_MEMBER: "Team member",
   ADMIN: "Admin",
   SUPER_ADMIN: "Super admin",
+  SALES: "Sales",
 };
 
 export interface ProtectedRoute {
@@ -52,6 +54,7 @@ export const PROTECTED_ROUTES: ProtectedRoute[] = [
   { prefix: "/team", roles: ["TEAM_MEMBER"] },
   { prefix: "/admin", roles: ["ADMIN", "SUPER_ADMIN"] },
   { prefix: "/ceo", roles: ["SUPER_ADMIN"] },
+  { prefix: "/sales", roles: ["SALES"] },
 ];
 
 /** The auth-flow pages a signed-in user should never see - they get bounced to their own dashboard instead. */

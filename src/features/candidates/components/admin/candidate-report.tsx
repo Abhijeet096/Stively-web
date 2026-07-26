@@ -10,6 +10,7 @@ import {
   RECOMMENDATION_LABEL,
   RECOMMENDATION_VARIANT,
 } from "@/features/interviews/lib/report-labels";
+import { HireAsSalesPersonPanel } from "@/features/sales-crm/components/admin/hire-as-sales-person-panel";
 import type { CandidateReport as CandidateReportData } from "../../server/queries";
 
 function formatDateTime(date: Date) {
@@ -37,7 +38,7 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
   );
 }
 
-function CandidateReport({ candidate }: { candidate: CandidateReportData }) {
+function CandidateReport({ candidate, alreadyHired }: { candidate: CandidateReportData; alreadyHired: boolean }) {
   const link = candidate.links[0];
   const interview = link?.interview;
   const score = interview?.score;
@@ -220,7 +221,13 @@ function CandidateReport({ candidate }: { candidate: CandidateReportData }) {
                   <ScoreBar label="Learning ability" value={score.learningAbility} />
                 </CardContent>
               </Card>
-            ) : (
+            ) : null}
+
+            {score && (score.recommendation === "HIRE" || score.recommendation === "STRONG_HIRE") && (
+              <HireAsSalesPersonPanel candidateId={candidate.id} candidateName={candidate.name} alreadyHired={alreadyHired} />
+            )}
+
+            {!score && (
               interview.status === "COMPLETED" && (
                 <Card>
                   <CardContent>

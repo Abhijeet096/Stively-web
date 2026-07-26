@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 import { FileEdit } from "lucide-react";
 
 import { requireRole } from "@/lib/session";
@@ -28,6 +29,8 @@ export default async function ClientRequestDetailPage({ params }: ClientRequestD
     notFound();
   }
 
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <>
       <SetPageTitle title={formatRequestNumber(request.sequence)} />
@@ -41,7 +44,13 @@ export default async function ClientRequestDetailPage({ params }: ClientRequestD
             actionHref={`/request-proposal/${request.offering.slug}`}
           />
         ) : (
-          <RequestDetailView request={request} />
+          <RequestDetailView
+            request={request}
+            userName={user.name ?? undefined}
+            userEmail={user.email ?? undefined}
+            detailPathPrefix="/client/requests"
+            nonce={nonce}
+          />
         )}
       </Container>
     </>

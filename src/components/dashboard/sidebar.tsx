@@ -13,6 +13,8 @@ import {
   BarChart3,
   Settings,
   Mic,
+  Briefcase,
+  Radar,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -21,6 +23,8 @@ import { cn } from "@/lib/utils";
 const NAV_ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/leads", label: "Leads", icon: Users },
+  { href: "/admin/sales-crm/dashboard", label: "Sales CRM", icon: Briefcase },
+  { href: "/admin/lead-intelligence/dashboard", label: "Lead Intelligence", icon: Radar },
   { href: "/admin/operations", label: "Operations", icon: Workflow },
   { href: "/admin/interviews", label: "Interviews", icon: Mic },
   { href: "/admin/learning", label: "Learning", icon: BookOpen },

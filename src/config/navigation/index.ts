@@ -9,6 +9,7 @@ import { internNavigation } from "./intern";
 import { teamNavigation } from "./team";
 import { adminNavigation } from "./admin";
 import { ceoNavigation } from "./ceo";
+import { salesNavigation } from "./sales";
 
 /**
  * The one place a Role maps to a sidebar. `Record<Role, ...>` (not
@@ -27,6 +28,7 @@ const ROLE_NAVIGATION: Record<Role, NavigationConfig> = {
   TEAM_MEMBER: teamNavigation,
   ADMIN: adminNavigation,
   SUPER_ADMIN: ceoNavigation,
+  SALES: salesNavigation,
 };
 
 export function getNavigationForRole(role: Role): NavigationConfig {

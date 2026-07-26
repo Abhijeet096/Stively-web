@@ -8,12 +8,22 @@ import { formatPrice } from "@/lib/utils";
 import { formatSalesLeadNumber } from "../../lib/reference-number";
 import { LEAD_PRIORITY_LABEL, LEAD_PRIORITY_VARIANT, SALES_LEAD_SOURCE_LABEL } from "../../lib/labels";
 import { SalesLeadStatusChanger } from "./sales-lead-status-changer";
+import { SalesLeadLostReason } from "./sales-lead-lost-reason";
 import { SalesLeadOwnerPanel } from "./sales-lead-owner-panel";
 import { SalesLeadNotesPanel } from "./sales-lead-notes-panel";
 import { SalesLeadAttachmentsPanel } from "./sales-lead-attachments-panel";
 import { SalesLeadTimeline } from "./sales-lead-timeline";
 import { SalesFollowUpsPanel } from "./sales-follow-ups-panel";
-import type { getSalesLeadById, getSalesLeadTimeline, getSalesLeadNotes, getSalesLeadAttachments, getFollowUpsForLead } from "../../server/queries";
+import { SalesQuotesPanel } from "./sales-quotes-panel";
+import type {
+  getSalesLeadById,
+  getSalesLeadTimeline,
+  getSalesLeadNotes,
+  getSalesLeadAttachments,
+  getFollowUpsForLead,
+  getQuotesForLead,
+  OfferingForQuote,
+} from "../../server/queries";
 import type { TeamMember } from "@prisma/client";
 
 type SalesLead = NonNullable<Awaited<ReturnType<typeof getSalesLeadById>>>;
@@ -24,7 +34,15 @@ export interface SalesLeadDetailProps {
   notes: Awaited<ReturnType<typeof getSalesLeadNotes>>;
   attachments: Awaited<ReturnType<typeof getSalesLeadAttachments>>;
   followUps: Awaited<ReturnType<typeof getFollowUpsForLead>>;
+  quotes: Awaited<ReturnType<typeof getQuotesForLead>>;
+  offerings: OfferingForQuote[];
   teamMembers: TeamMember[];
+  /** Base path for the "View project" link - differs between the admin CMS and the /sales portal. */
+  basePath?: string;
+  /** Reassignment is Admin/Super Admin-only (see reassignSalesLead) - the /sales portal shows ownership read-only instead of a Reassign button that would always fail. */
+  canReassign?: boolean;
+  /** Rendered in place of the plain "ready to convert" hint when the lead is WON and un-converted - Admin/Super Admin-only (see convertLeadToProject), so the /sales portal omits this prop entirely. */
+  convertPanel?: React.ReactNode;
 }
 
 function InfoRow({ icon: Icon, children }: { icon: React.ElementType; children: React.ReactNode }) {
@@ -37,7 +55,19 @@ function InfoRow({ icon: Icon, children }: { icon: React.ElementType; children: 
   );
 }
 
-function SalesLeadDetail({ lead, activities, notes, attachments, followUps, teamMembers }: SalesLeadDetailProps) {
+function SalesLeadDetail({
+  lead,
+  activities,
+  notes,
+  attachments,
+  followUps,
+  quotes,
+  offerings,
+  teamMembers,
+  basePath = "/admin/sales-crm/projects",
+  canReassign = true,
+  convertPanel,
+}: SalesLeadDetailProps) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -52,7 +82,7 @@ function SalesLeadDetail({ lead, activities, notes, attachments, followUps, team
         </div>
         {lead.project && (
           <Button variant="outline" asChild>
-            <Link href={`/admin/sales-crm/projects/${lead.project.id}`}>View project</Link>
+            <Link href={`${basePath}/${lead.project.id}`}>View project</Link>
           </Button>
         )}
       </div>
@@ -80,6 +110,7 @@ function SalesLeadDetail({ lead, activities, notes, attachments, followUps, team
           </Card>
 
           <SalesFollowUpsPanel salesLeadId={lead.id} followUps={followUps} teamMembers={teamMembers} defaultAssigneeId={lead.assignedToId ?? undefined} />
+          <SalesQuotesPanel salesLeadId={lead.id} leadEmail={lead.email} quotes={quotes} offerings={offerings} />
           <SalesLeadNotesPanel salesLeadId={lead.id} notes={notes} />
           <SalesLeadAttachmentsPanel salesLeadId={lead.id} attachments={attachments} />
           <SalesLeadTimeline activities={activities} />
@@ -92,13 +123,25 @@ function SalesLeadDetail({ lead, activities, notes, attachments, followUps, team
             </CardHeader>
             <CardContent>
               <SalesLeadStatusChanger salesLeadId={lead.id} currentStatus={lead.status} />
-              {lead.status === "WON" && !lead.project && (
-                <p className="text-success mt-3 text-xs">Ready to convert to a project.</p>
-              )}
+              {lead.status === "WON" &&
+                !lead.project &&
+                (convertPanel ?? <p className="text-success mt-3 text-xs">Ready to convert to a project.</p>)}
+              {lead.status === "LOST" && <SalesLeadLostReason salesLeadId={lead.id} currentReason={lead.lostReason} />}
             </CardContent>
           </Card>
 
-          <SalesLeadOwnerPanel salesLeadId={lead.id} currentOwner={lead.assignedTo} teamMembers={teamMembers} />
+          {canReassign ? (
+            <SalesLeadOwnerPanel salesLeadId={lead.id} currentOwner={lead.assignedTo} teamMembers={teamMembers} />
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Salesperson</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <span className="text-foreground text-sm">{lead.assignedTo?.name ?? "Unassigned"}</span>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>

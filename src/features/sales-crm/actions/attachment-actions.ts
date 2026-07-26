@@ -13,7 +13,7 @@ const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024; // 15MB - generous for proposals/
 
 /** Proposals, GST certificates, and other documents attached to a lead - uploaded to Cloudinary, only the resulting URL persisted here. */
 export async function uploadSalesLeadAttachment(formData: FormData): Promise<ActionResult> {
-  const user = await requireRole("ADMIN", "SUPER_ADMIN");
+  const user = await requireRole("ADMIN", "SUPER_ADMIN", "SALES");
 
   const salesLeadId = formData.get("salesLeadId");
   const file = formData.get("file");

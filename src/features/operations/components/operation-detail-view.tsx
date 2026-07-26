@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/sections/empty-state";
 import { EnrollmentOpsCard } from "@/features/enrollments/components/enrollment-ops-card";
 import { MentorOpsCard } from "@/features/mentors/components/admin/mentor-ops-card";
+import { QuoteReviewCard } from "@/features/offering-requests/components/admin/quote-review-card";
 import type { getMentorForOperationsCard } from "@/features/mentors/server/queries";
 import { formatOperationNumber } from "../lib/operation-number";
 import { OperationStatusBadge } from "./operation-status-badge";
@@ -134,6 +135,8 @@ function OperationDetailView({
               />
             </CardContent>
           </Card>
+
+          {item.type === "REQUEST" && item.request && <QuoteReviewCard request={item.request} />}
 
           <ActivityTimeline activities={item.activities} />
 

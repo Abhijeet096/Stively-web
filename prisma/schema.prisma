@@ -104,6 +104,12 @@ enum Role {
   TEAM_MEMBER
   ADMIN
   SUPER_ADMIN
+  /// Sales CRM - a dedicated portal at /sales, distinct from ADMIN/TEAM_MEMBER
+  /// so a sales hire gets least-privilege access (their own leads/dashboard
+  /// only) instead of the broad /admin surface. TeamMember.role
+  /// (SALESPERSON vs SALES_MANAGER) decides own-only vs whole-team
+  /// visibility within this portal - see resolveSalesCrmViewer.
+  SALES
 }
 
 /// Single-use token backing the "forgot password" flow
@@ -406,6 +412,7 @@ model TeamMember {
   /// only the latter), not two competing owner concepts.
   counsellingRequests OfferingRequest[] @relation("RequestCounsellor")
   salesRequests       OfferingRequest[] @relation("RequestSalesPerson")
+  quoteReviewsGiven   OfferingRequest[] @relation("RequestQuoteReviewedBy")
 
   /// Phase 10 (Mentor & Learning Delivery) - set only for staff who are
   /// *also* an internal mentor (Mentor.affiliatedTeamMemberId below), not
@@ -429,6 +436,7 @@ model TeamMember {
   salesLeadActivities      SalesLeadActivity[]
   salesLeadNotes           SalesLeadNote[]
   salesLeadAttachments     SalesLeadAttachment[]
+  salesQuotesCreated       SalesQuote[]
   assignedFollowUps        SalesFollowUp[]       @relation("FollowUpAssignee")
   createdFollowUps         SalesFollowUp[]       @relation("FollowUpCreatedBy")
   assignedTasks            SalesTask[]           @relation("TaskAssignee")
@@ -439,6 +447,15 @@ model TeamMember {
   recordedPayments         SalesProjectPayment[]
   commissionsEarned        SalesCommission[]     @relation("CommissionSalesPerson")
   commissionsApproved      SalesCommission[]     @relation("CommissionApprovedBy")
+
+  /// AI Lead Intelligence Platform - see Business below. Upstream of the
+  /// Sales CRM above, deliberately not merged into it.
+  businessesCreated         Business[]                  @relation("BusinessCreatedBy")
+  businessesPromoted        Business[]                  @relation("BusinessPromotedBy")
+  leadIntelligenceRuns      LeadIntelligenceSearchRun[]
+  leadScoringConfigsCreated LeadScoringConfig[]
+  businessActivities        BusinessActivity[]
+  auditLogEntries           AuditLog[]
 
   createdAt DateTime @default(now())
 }
@@ -740,6 +757,11 @@ model Offering {
   /// Every enrollment created against this offering - see OfferingEnrollment below.
   offeringEnrollments OfferingEnrollment[]
 
+  /// Every Sales CRM quote that referenced this offering's price as a
+  /// starting point - see SalesQuote. A B2B outbound deal, not a Request/
+  /// Order (which are inbound self-serve), so it's a separate relation.
+  salesQuotes SalesQuote[]
+
   /// The curriculum behind this offering, if it has one - see
   /// LearningExperience below. Optional 1:1: only some categories
   /// (Training, Internship, Corporate Training) ever have curriculum: a
@@ -857,6 +879,30 @@ model OfferingRequest {
 
   paymentStatus PaymentStatus @default(NOT_REQUIRED)
 
+  /// Client-proposed custom price negotiation - independent of `status`
+  /// (the overall admin review pipeline), since a price can be pending/
+  /// rejected/re-proposed without moving the request through that
+  /// pipeline. See proposeCustomQuote/approveCustomQuote/rejectCustomQuote.
+  proposedAmount       Int?
+  proposedMessage      String?             @db.Text
+  quoteStatus          RequestQuoteStatus?
+  /// Set by admin on approval - what the client actually pays, may differ
+  /// from proposedAmount if the admin countered instead of accepting as-is.
+  approvedAmount       Int?
+  quoteReviewedById    String?
+  quoteReviewedBy      TeamMember?         @relation("RequestQuoteReviewedBy", fields: [quoteReviewedById], references: [id], onDelete: SetNull)
+  quoteReviewedAt      DateTime?
+  quoteRejectionReason String?
+
+  /// Set once the client pays approvedAmount - a real Order created via
+  /// createOrderFromApprovedQuote, running through the exact same
+  /// verifyPayment/webhook/notifyOrderPaid machinery as a normal direct
+  /// checkout. The Order's own status is the payment source of truth, not
+  /// a duplicated flag here - this request's own `status` field is left
+  /// alone (admin-controlled workflow stage, not payment state).
+  orderId String? @unique
+  order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
   /// Requestype-specific wizard step data - one flexible field rather than
   /// a studentDetails/businessDetails pair that's always half-empty. Shape
   /// validated by src/features/offering-requests/validation/step-schemas.ts,
@@ -900,6 +946,12 @@ model OfferingRequest {
 enum RequestType {
   STUDENT
   BUSINESS
+}
+
+enum RequestQuoteStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum RequestStatus {
@@ -969,6 +1021,9 @@ enum RequestEventType {
   REJECTED
   CANCELLED
   COMPLETED
+  QUOTE_PROPOSED
+  QUOTE_APPROVED
+  QUOTE_REJECTED
 }
 
 // ============================================
@@ -1031,6 +1086,11 @@ model Order {
   /// Set once this order is Paid - see OfferingEnrollment below and
   /// createEnrollmentFromOrder() (src/features/enrollments/server/creation.ts).
   enrollment OfferingEnrollment?
+
+  /// Set when this Order was created to pay an admin-approved custom
+  /// quote (createOrderFromApprovedQuote) rather than a normal fixed-price
+  /// checkout - see OfferingRequest.orderId above.
+  offeringRequestQuote OfferingRequest?
 
   @@index([userId])
   @@index([offeringId])
@@ -2047,6 +2107,19 @@ enum NotificationType {
   COMMISSION_APPROVED
   /// A SalesCommission moves APPROVED -> PAID.
   COMMISSION_PAID
+  /// A client's custom price proposal on an OfferingRequest is approved -
+  /// see approveCustomQuote (src/features/offering-requests/actions/admin-quote-actions.ts).
+  QUOTE_APPROVED
+  /// A client's custom price proposal on an OfferingRequest is rejected -
+  /// see rejectCustomQuote (src/features/offering-requests/actions/admin-quote-actions.ts).
+  QUOTE_REJECTED
+
+  // --- AI Lead Intelligence Platform ---
+  /// A new AILeadReport crosses the "hot lead" opportunity-score threshold -
+  /// see generate-report.ts (src/features/lead-intelligence/server).
+  BUSINESS_HIGH_OPPORTUNITY_SCORE
+  /// A LeadIntelligenceSearchRun (connector run) ends in status FAILED.
+  LEAD_INTELLIGENCE_RUN_FAILED
 }
 
 model Notification {
@@ -2418,6 +2491,13 @@ model SalesLead {
   /// never what commission is calculated on (see SalesCommission below).
   estimatedValue Int?
 
+  /// Set when status becomes LOST - reuses Lead's LostReason enum above
+  /// rather than forking a new one, since most of its values (BUDGET_ISSUE,
+  /// COMPETITOR_WON, INTERNAL_TEAM, POSTPONED, CANCELLED, NO_RESPONSE...)
+  /// are already genuinely B2B-flavored, not student-specific. Feeds the
+  /// "Lost Lead Analysis" report.
+  lostReason LostReason?
+
   assignedToId String?
   assignedTo   TeamMember? @relation("SalesLeadAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
   createdById  String?
@@ -2429,8 +2509,15 @@ model SalesLead {
   attachments SalesLeadAttachment[]
   followUps   SalesFollowUp[]
   tasks       SalesTask[]
+  quotes      SalesQuote[]
   /// Set once this lead is WON and converted - see convertLeadToProject().
   project     SalesProject?
+
+  /// AI Lead Intelligence Platform - set when this SalesLead was created via
+  /// promoteToSalesLead() from a discovered Business. The FK actually lives
+  /// on Business.promotedSalesLeadId (unique, so a Business can back at most
+  /// one SalesLead) - this is just the display-side back-reference.
+  sourceBusiness Business? @relation("BusinessPromotedTo")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2480,6 +2567,9 @@ enum SalesLeadActivityType {
   PROJECT_CREATED
   PAYMENT_RECEIVED
   COMMISSION_GENERATED
+  QUOTE_SENT
+  QUOTE_ACCEPTED
+  QUOTE_REJECTED
 }
 
 /// Every meaningful action on a SalesLead gets an activity row - the
@@ -2497,6 +2587,50 @@ model SalesLeadActivity {
 
   performedById String?
   performedBy   TeamMember? @relation(fields: [performedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([salesLeadId])
+}
+
+enum SalesQuoteStatus {
+  SENT
+  ACCEPTED
+  REJECTED
+}
+
+/// A formal price quote a salesperson sends a lead's client - the real
+/// negotiation record, not just a status label. Optionally anchored to a
+/// catalog Offering (snapshotting its list price for an honest "was
+/// ₹20,000" comparison), but the actual quotedAmount can be freely
+/// negotiated below (or above) that. No client-facing accept/pay portal
+/// exists yet - the salesperson calls the client and records their verbal
+/// response via markQuoteResponse, same as a real sales rep's CRM habit.
+model SalesQuote {
+  id String @id @default(cuid())
+
+  salesLeadId String
+  salesLead   SalesLead @relation(fields: [salesLeadId], references: [id], onDelete: Cascade)
+
+  offeringId String?
+  offering   Offering? @relation(fields: [offeringId], references: [id], onDelete: SetNull)
+
+  /// Snapshotted at send time - offering.title if one was picked, otherwise free text.
+  title          String
+  /// Paise - offering.price at send time, for comparison only. Null if no offering was picked or it has no fixed price.
+  standardAmount Int?
+  /// Paise - the actual amount being offered to this client, which may differ from standardAmount.
+  quotedAmount   Int
+  currency       String  @default("INR")
+  /// Personalized note included in the email to the client.
+  message        String? @db.Text
+
+  status      SalesQuoteStatus @default(SENT)
+  sentAt      DateTime         @default(now())
+  respondedAt DateTime?
+
+  createdById String?
+  createdBy   TeamMember? @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 
@@ -2773,4 +2907,385 @@ model SalesProfile {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// AI LEAD INTELLIGENCE PLATFORM
+// ============================================
+// Upstream of the Sales CRM above, deliberately not merged into it - a
+// Business is a discovered/unqualified prospect (may never become
+// anything); a SalesLead is a prospect a human has decided to actually
+// pursue. Same "parallel, not merged" precedent already set between Lead
+// and SalesLead elsewhere in this file. Promoting a Business hands it into
+// the exact same SalesLead pipeline/RBAC/quoting/commission machinery
+// already built above - no second CRM.
+
+enum BusinessDataSource {
+  GOOGLE_PLACES
+  WEBSITE
+  MANUAL_IMPORT
+  MANUAL_ENTRY
+}
+
+enum BusinessStatus {
+  /// Just discovered/imported, nothing done with it yet.
+  NEW
+  /// Website analysis and/or an AI report has run at least once.
+  ANALYZED
+  /// Promoted to a SalesLead - see Business.promotedSalesLeadId.
+  PROMOTED
+  /// Admin explicitly marked not worth pursuing (bad fit, duplicate, closed
+  /// business found via website check, etc) - excluded from default views.
+  DISMISSED
+}
+
+enum WebsiteAnalysisStatus {
+  PENDING
+  ANALYZING
+  COMPLETE
+  FAILED
+}
+
+enum SocialPlatform {
+  FACEBOOK
+  INSTAGRAM
+  LINKEDIN
+  YOUTUBE
+  X
+  OTHER
+}
+
+enum ConnectorType {
+  GOOGLE_PLACES
+  WEBSITE
+  MANUAL_IMPORT
+}
+
+enum ConnectorRunTrigger {
+  MANUAL
+  CRON
+}
+
+enum ConnectorRunStatus {
+  RUNNING
+  SUCCESS
+  /// Completed but with some row/item-level errors (partial success) - same
+  /// "report per-row errors, don't fail the whole batch" pattern as
+  /// importSalesLeads's rowErrors.
+  PARTIAL
+  FAILED
+}
+
+enum BusinessActivityType {
+  BUSINESS_DISCOVERED
+  WEBSITE_ANALYZED
+  AI_REPORT_GENERATED
+  SCORE_RECALCULATED
+  DISMISSED
+  REACTIVATED
+  PROMOTED_TO_SALES_LEAD
+  NOTE_ADDED
+}
+
+/// One row per prospect surfaced by any connector (Google Places, a scraped
+/// website, or a manual CSV import) or entered by hand. Pre-CRM: this is
+/// the discovery/qualification stage; promoting to SalesLead below is the
+/// deliberate hand-off into the real outbound sales pipeline.
+model Business {
+  id       String @id @default(cuid())
+  sequence Int    @unique @default(autoincrement())
+
+  businessName String
+  ownerName    String?
+  industry     String?
+
+  phone         String?
+  whatsapp      String?
+  email         String?
+  website       String?
+  /// Lowercased, protocol-and-www-stripped (e.g. "acmecorp.com") - the
+  /// dedupe key connector runs match new results against, alongside
+  /// googlePlaceId. Populated whenever `website` is set.
+  websiteDomain String?
+
+  address String? @db.Text
+  city    String?
+  state   String?
+  country String  @default("India")
+
+  dataSource BusinessDataSource
+  status     BusinessStatus     @default(NEW)
+
+  /// Google Places' unique place identifier - the second dedupe key,
+  /// present only for dataSource GOOGLE_PLACES.
+  googlePlaceId     String? @unique
+  googleRating      Float?
+  googleReviewCount Int?
+  /// Raw category/types array Google Places returns, e.g.
+  /// ["restaurant","food"] - informs industry inference, not authoritative.
+  googlePlaceTypes  Json?
+
+  /// The connector run that first discovered this Business, for
+  /// traceability. Null for MANUAL_ENTRY.
+  discoveredByRunId String?
+  discoveredByRun   LeadIntelligenceSearchRun? @relation("RunDiscoveredBusinesses", fields: [discoveredByRunId], references: [id], onDelete: SetNull)
+
+  /// Set once this Business is promoted - unique so the DB itself
+  /// guarantees a Business backs at most one SalesLead. See
+  /// promoteToSalesLead (src/features/lead-intelligence/actions/promote-actions.ts).
+  promotedSalesLeadId String?     @unique
+  promotedSalesLead   SalesLead?  @relation("BusinessPromotedTo", fields: [promotedSalesLeadId], references: [id], onDelete: SetNull)
+  promotedAt          DateTime?
+  promotedById        String?
+  promotedBy          TeamMember? @relation("BusinessPromotedBy", fields: [promotedById], references: [id], onDelete: SetNull)
+
+  createdById String?
+  createdBy   TeamMember? @relation("BusinessCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  socialProfiles  SocialProfile[]
+  websiteAnalyses BusinessWebsiteAnalysis[]
+  aiReports       AILeadReport[]
+  activities      BusinessActivity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([dataSource])
+  @@index([websiteDomain])
+  @@index([city])
+}
+
+/// Real relation (not Json) - filterable/queryable per platform, and a
+/// business can have zero-to-several. Populated exclusively by the website
+/// connector/analyzer (Google Places never returns social links).
+model SocialProfile {
+  id String @id @default(cuid())
+
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  platform SocialPlatform
+  url      String
+
+  /// Best-effort, scraped from the page's social links/meta tags where
+  /// present (e.g. Open Graph) - null when not determinable without the
+  /// platform's own API, which this feature does not call.
+  handle String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([businessId, platform, url])
+  @@index([businessId])
+}
+
+/// One row per website-analysis run for a Business. Kept as history (not
+/// upserted in place) so re-analysis after a business improves its site is
+/// visible over time - mirrors keeping SalesLeadActivity append-only rather
+/// than mutating SalesLead in place.
+model BusinessWebsiteAnalysis {
+  id String @id @default(cuid())
+
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  url    String
+  status WebsiteAnalysisStatus @default(PENDING)
+
+  /// 0-100 sub-scores, null until status COMPLETE.
+  securityScore    Int?
+  seoScore         Int?
+  /// A response-time/payload-size proxy - honestly not a real
+  /// Lighthouse/Core-Web-Vitals score, which needs a headless browser this
+  /// feature deliberately doesn't run.
+  performanceScore Int?
+  contentScore     Int?
+  /// Weighted composite of the four above - the "website score" the
+  /// Opportunity Score engine consumes as one input.
+  overallScore     Int?
+
+  /// Full structured check output - every individual check's pass/fail/
+  /// detail, kept as Json since it's read as a whole report, never
+  /// filtered/queried check-by-check across businesses.
+  checks Json?
+
+  errorMessage String? @db.Text
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([businessId])
+  @@index([status])
+}
+
+/// One row per AI-generated intelligence pass over a Business - the
+/// business-intelligence summary, the Opportunity Score + factor
+/// breakdown, and recommendations, all produced together from the same
+/// input snapshot so they never drift out of sync with each other.
+model AILeadReport {
+  id String @id @default(cuid())
+
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  /// Plain-language summary of the business and why/why not it's a good
+  /// prospect - the Groq-generated narrative.
+  summary String @db.Text
+
+  /// 0-100.
+  opportunityScore Int
+  /// Per-factor contribution, e.g. {"hasWebsite": 12, "websiteQuality": 18,
+  /// ...} - always sums to opportunityScore. Shape enforced by Zod in the
+  /// scoring engine, not by Prisma.
+  scoreFactors     Json
+  /// [{title, description, priority: "HIGH"|"MEDIUM"|"LOW", category}] -
+  /// folded in here rather than a separate relation since it's a small,
+  /// fixed-shape array always read/written as a unit, matching the Json
+  /// convention already used elsewhere in this schema.
+  recommendations  Json
+
+  /// A ready-to-send opening outreach message for a salesperson - generated
+  /// in the same pass so it's grounded in the same summary.
+  suggestedOutreachMessage String? @db.Text
+
+  /// Which LeadScoringConfig version produced opportunityScore - so a later
+  /// config change doesn't retroactively misattribute an old score.
+  scoringConfigId String?
+  scoringConfig   LeadScoringConfig? @relation(fields: [scoringConfigId], references: [id], onDelete: SetNull)
+
+  /// e.g. "llama-3.1-8b-instant" - records what actually generated this.
+  modelUsed String
+
+  createdAt DateTime @default(now())
+
+  @@index([businessId])
+  @@index([createdAt])
+}
+
+/// Admin-editable scoring weights - the SRS's explicit "not hardcoded"
+/// requirement. Never mutated in place; changing weights deactivates the
+/// old row and inserts a new one, so historical AILeadReports stay
+/// attributable to the config that actually produced them.
+model LeadScoringConfig {
+  id String @id @default(cuid())
+
+  /// Exactly one row has active=true at a time - enforced in
+  /// updateLeadScoringConfig (deactivate old, insert new), not at the DB
+  /// level.
+  active Boolean @default(true)
+
+  /// All weights are 0-100, expected (Zod-validated, not DB-enforced) to
+  /// sum to 100.
+  websiteQualityWeight      Int @default(25)
+  reviewRatingWeight        Int @default(20)
+  reviewCountWeight         Int @default(10)
+  hasWebsiteWeight          Int @default(10)
+  industryFitWeight         Int @default(15)
+  growthSignalsWeight       Int @default(10)
+  contactAvailabilityWeight Int @default(10)
+
+  /// Per-industry historical conversion-rate override, e.g.
+  /// {"Restaurant": 0.32, "Retail": 0.18} - null means "use the live
+  /// computed rate from SalesLead data at score time", populated only when
+  /// an admin explicitly applies a Learning Engine suggestion or hand-tunes
+  /// a rate.
+  industryConversionOverrides Json?
+
+  notes String? @db.Text
+
+  createdById String?
+  createdBy   TeamMember? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  reports AILeadReport[]
+
+  @@index([active])
+}
+
+/// Audit + observability for every connector invocation - a Google Places
+/// search, a single-URL website analysis, or a CSV import - whether
+/// triggered by an admin click or Vercel Cron. Doubles as the generic
+/// "ConnectorRun" the connector layer writes to (one model, not two - a
+/// connector run and a search run are the same event for every connector
+/// this feature builds).
+model LeadIntelligenceSearchRun {
+  id String @id @default(cuid())
+
+  connectorType ConnectorType
+  trigger       ConnectorRunTrigger
+  status        ConnectorRunStatus  @default(RUNNING)
+
+  /// Connector-specific input, e.g. {"query":"restaurants","location":"Pune, India"}
+  /// for GOOGLE_PLACES, {"url":"https://..."} for WEBSITE, {"fileName":"leads.csv"} for MANUAL_IMPORT.
+  input Json
+
+  resultCount    Int   @default(0)
+  createdCount   Int   @default(0)
+  /// Existing Business rows matched instead of duplicated.
+  duplicateCount Int   @default(0)
+  errorCount     Int   @default(0)
+  /// Row/item-level errors, [{item, message}] - same shape discipline as
+  /// importSalesLeads's rowErrors.
+  errors         Json?
+
+  triggeredById String?
+  triggeredBy   TeamMember? @relation(fields: [triggeredById], references: [id], onDelete: SetNull)
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  discoveredBusinesses Business[] @relation("RunDiscoveredBusinesses")
+
+  @@index([connectorType])
+  @@index([status])
+  @@index([startedAt])
+}
+
+/// Append-only event timeline for a Business - exact structural mirror of
+/// SalesLeadActivity.
+model BusinessActivity {
+  id String @id @default(cuid())
+
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  type        BusinessActivityType
+  description String?
+  metadata    Json?
+
+  performedById String?
+  performedBy   TeamMember? @relation(fields: [performedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([businessId])
+}
+
+/// Every meaningful admin/system action worth a forensic trail - connector
+/// runs, scoring-config changes, business bulk-delete/dismiss. Deliberately
+/// generic (actor + action + entity + diff), not a per-feature log, since
+/// nothing like this exists anywhere else in the codebase yet and this
+/// feature is the first to need one.
+model AuditLog {
+  id String @id @default(cuid())
+
+  actorId String?
+  actor   TeamMember? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  /// e.g. "lead_intelligence.connector_run", "lead_intelligence.scoring_config_updated".
+  action     String
+  /// e.g. "Business", "LeadScoringConfig", "LeadIntelligenceSearchRun".
+  entityType String
+  entityId   String?
+
+  /// Before/after snapshot or a free-form detail payload - shape varies per
+  /// action, hence Json; never queried field-by-field, only rendered.
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([createdAt])
 }

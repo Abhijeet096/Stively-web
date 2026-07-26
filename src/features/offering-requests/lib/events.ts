@@ -6,7 +6,10 @@ export type OfferingRequestEventType =
   | "COUNSELLING_SCHEDULED"
   | "APPROVED"
   | "REJECTED"
-  | "PAYMENT_REMINDER";
+  | "PAYMENT_REMINDER"
+  | "QUOTE_PROPOSED"
+  | "QUOTE_APPROVED"
+  | "QUOTE_REJECTED";
 
 /**
  * The single call site every status-changing action in this feature

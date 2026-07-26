@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { OfferingRequest, Offering, OfferingRequestHistory, Prisma, RequestType } from "@prisma/client";
+import type { OfferingRequest, Offering, OfferingRequestHistory, Order, Prisma, RequestType } from "@prisma/client";
 
 import type { RequestFiltersInput, RequestSort } from "../validation/request-filters";
 
@@ -9,6 +9,8 @@ export type OfferingRequestWithOffering = OfferingRequest & { offering: Offering
 export type OfferingRequestWithDetail = OfferingRequest & {
   offering: Offering;
   history: OfferingRequestHistory[];
+  /** The Order created once an approved custom quote is paid - see createOrderFromApprovedQuote. Null until then. */
+  order: Order | null;
 };
 
 export interface PaginatedRequests {
@@ -82,7 +84,7 @@ export async function getRequestById(
 ): Promise<OfferingRequestWithDetail | null> {
   return prisma.offeringRequest.findFirst({
     where: { id, userId },
-    include: { offering: true, history: { orderBy: { createdAt: "asc" } } },
+    include: { offering: true, history: { orderBy: { createdAt: "asc" } }, order: true },
   });
 }
 

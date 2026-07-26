@@ -157,6 +157,106 @@ export async function createOrder(offeringId: string, phone?: string): Promise<C
   }
 }
 
+/**
+ * Pays an admin-approved custom quote (see proposeCustomQuote/
+ * approveCustomQuote in offering-requests/actions). Reuses verifyPayment/
+ * markOrderFailed/the webhook handler completely unchanged - they only
+ * ever look at the Order row by id/userId/razorpayOrderId, with no
+ * Offering-specific logic to diverge from a normal checkout. Idempotent:
+ * a second call resumes the same linked Order (or reports alreadyPaid)
+ * rather than creating a duplicate - OfferingRequest.orderId is @unique,
+ * so a second Order row could never link anyway.
+ */
+export async function createOrderFromApprovedQuote(requestId: string, phone?: string): Promise<CreateOrderResult> {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { success: false, error: "You must be signed in." };
+  }
+
+  const request = await prisma.offeringRequest.findFirst({
+    where: { id: requestId, userId: session.user.id },
+    include: { offering: { select: { currency: true } }, order: true },
+  });
+  if (!request) {
+    return { success: false, error: "Request not found." };
+  }
+  if (request.quoteStatus !== "APPROVED" || request.approvedAmount == null) {
+    return { success: false, error: "This request doesn't have an approved quote to pay." };
+  }
+
+  if (request.order) {
+    if (request.order.status === "PAID") {
+      return { success: true, orderId: request.order.id, alreadyPaid: true };
+    }
+    if (request.order.status === "PENDING" && request.order.razorpayOrderId) {
+      const keyId = process.env.RAZORPAY_KEY_ID;
+      if (!keyId) return { success: false, error: "Payments aren't set up yet - please contact us directly." };
+      return {
+        success: true,
+        orderId: request.order.id,
+        alreadyPaid: false,
+        razorpayOrderId: request.order.razorpayOrderId,
+        amount: request.order.amount,
+        currency: request.order.currency,
+        keyId,
+      };
+    }
+  }
+
+  const amount = request.approvedAmount;
+  const currency = request.offering.currency;
+
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  if (!keyId || !process.env.RAZORPAY_KEY_SECRET) {
+    return { success: false, error: "Payments aren't set up yet - please contact us directly." };
+  }
+
+  try {
+    const razorpayOrder = await createRazorpayOrder({
+      amountInPaise: amount,
+      receipt: `qte_${Date.now().toString(36)}_${crypto.randomUUID().slice(0, 8)}`,
+      notes: { offeringRequestId: request.id, userId: session.user.id },
+    });
+
+    // A previously FAILED attempt reuses the same linked Order row rather
+    // than creating a second one - OfferingRequest.orderId is @unique, so a
+    // second row could never link to this request anyway.
+    const order = request.order
+      ? await prisma.order.update({
+          where: { id: request.order.id },
+          data: { status: "PENDING", razorpayOrderId: razorpayOrder.id, razorpayPaymentId: null, razorpaySignature: null, phone },
+        })
+      : await prisma.order.create({
+          data: {
+            offeringId: request.offeringId,
+            userId: session.user.id,
+            amount,
+            currency,
+            status: "PENDING",
+            razorpayOrderId: razorpayOrder.id,
+            phone,
+          },
+        });
+
+    if (!request.order) {
+      await prisma.offeringRequest.update({ where: { id: requestId }, data: { orderId: order.id } });
+    }
+
+    return {
+      success: true,
+      orderId: order.id,
+      alreadyPaid: false,
+      razorpayOrderId: razorpayOrder.id,
+      amount,
+      currency,
+      keyId,
+    };
+  } catch (error) {
+    console.error("createOrderFromApprovedQuote (Razorpay) failed:", error);
+    return { success: false, error: "Payments aren't set up yet - please contact us directly." };
+  }
+}
+
 export async function verifyPayment(
   orderId: string,
   razorpayPaymentId: string,

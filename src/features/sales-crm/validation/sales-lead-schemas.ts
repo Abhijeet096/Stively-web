@@ -29,6 +29,21 @@ const SALES_LEAD_STATUSES = [
 
 const LEAD_PRIORITIES = ["LOW", "MEDIUM", "HIGH"] as const;
 
+const LOST_REASONS = [
+  "FINANCIAL_ISSUE",
+  "PARENTS_REJECTED",
+  "JOINED_ANOTHER_INSTITUTE",
+  "NO_TIME",
+  "NOT_ELIGIBLE",
+  "BUDGET_ISSUE",
+  "COMPETITOR_WON",
+  "ALREADY_HIRED_AGENCY",
+  "INTERNAL_TEAM",
+  "POSTPONED",
+  "CANCELLED",
+  "NO_RESPONSE",
+] as const;
+
 export const createSalesLeadSchema = z.object({
   businessName: z.string().trim().min(2, "Business name is required"),
   ownerName: z.string().trim().min(2, "Owner name is required"),
@@ -66,6 +81,7 @@ export const updateSalesLeadSchema = z.object({
   status: z.enum(SALES_LEAD_STATUSES).optional(),
   priority: z.enum(LEAD_PRIORITIES).optional(),
   estimatedValue: z.coerce.number().int().min(0).optional(),
+  lostReason: z.enum(LOST_REASONS).optional(),
 });
 export type UpdateSalesLeadInput = z.infer<typeof updateSalesLeadSchema>;
 

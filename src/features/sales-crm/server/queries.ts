@@ -31,12 +31,10 @@ function scopedAssignedToId(filters: SalesLeadFilters, viewer: SalesCrmViewer): 
   return filters.assignedToId;
 }
 
-/** Same pagination shape as src/lib/queries/leads.ts's getLeads - kept consistent deliberately. */
-export async function getSalesLeads(filters: SalesLeadFilters, viewer: SalesCrmViewer): Promise<PaginatedSalesLeads> {
-  const page = filters.page && filters.page > 0 ? filters.page : 1;
+/** Shared by getSalesLeads (paginated) and getAllSalesLeadsForExport (unpaginated) - one filter-building path, not two. */
+function buildSalesLeadWhere(filters: SalesLeadFilters, viewer: SalesCrmViewer) {
   const assignedToId = scopedAssignedToId(filters, viewer);
-
-  const where = {
+  return {
     ...(filters.status ? { status: filters.status } : {}),
     ...(filters.priority ? { priority: filters.priority } : {}),
     ...(filters.source ? { source: filters.source } : {}),
@@ -53,6 +51,12 @@ export async function getSalesLeads(filters: SalesLeadFilters, viewer: SalesCrmV
         }
       : {}),
   };
+}
+
+/** Same pagination shape as src/lib/queries/leads.ts's getLeads - kept consistent deliberately. */
+export async function getSalesLeads(filters: SalesLeadFilters, viewer: SalesCrmViewer): Promise<PaginatedSalesLeads> {
+  const page = filters.page && filters.page > 0 ? filters.page : 1;
+  const where = buildSalesLeadWhere(filters, viewer);
 
   const [leads, totalCount] = await Promise.all([
     prisma.salesLead.findMany({
@@ -66,6 +70,12 @@ export async function getSalesLeads(filters: SalesLeadFilters, viewer: SalesCrmV
   ]);
 
   return { leads, totalCount, totalPages: Math.max(1, Math.ceil(totalCount / SALES_LEAD_PAGE_SIZE)), page };
+}
+
+/** All leads matching the current filters, no pagination limit - CSV export needs the full matching set, not just the visible page. Capped at 5000 as a sanity ceiling. */
+export async function getAllSalesLeadsForExport(filters: SalesLeadFilters, viewer: SalesCrmViewer): Promise<SalesLeadWithOwner[]> {
+  const where = buildSalesLeadWhere(filters, viewer);
+  return prisma.salesLead.findMany({ where, orderBy: { createdAt: "desc" }, take: 5000, include: { assignedTo: true } });
 }
 
 /** Returns null both when the lead doesn't exist AND when a restricted viewer isn't its owner - same "not found and not yours look identical" precedent used throughout this app's ownership-scoped queries. */
@@ -160,5 +170,208 @@ export async function getFollowUpsForLead(salesLeadId: string) {
     where: { salesLeadId },
     orderBy: { dueAt: "desc" },
     include: { assignedTo: true },
+  });
+}
+
+export interface SalesDashboardStats {
+  assignedLeads: number;
+  todaysFollowUps: number;
+  interested: number;
+  proposalSent: number;
+  negotiation: number;
+  won: number;
+  lost: number;
+  /** Paise - sum of PAID SalesProjectPayment amounts recorded this calendar month. */
+  monthlyRevenue: number;
+  /** Paise. */
+  pendingCommission: number;
+  paidCommission: number;
+  /** Paise - every commission ever generated, any status. */
+  totalCommission: number;
+  /** Paise - PAID commission whose paidAt falls in the current calendar month. */
+  monthlyEarnings: number;
+}
+
+/**
+ * The /sales/dashboard's numbers - real queries throughout. SalesProject/
+ * SalesProjectPayment/SalesCommission rows don't exist yet until the
+ * Convert-to-Project and Commission phases are built, so the revenue/
+ * commission cards read zero until then - an honest empty state, not a
+ * placeholder.
+ */
+export async function getSalesDashboardStats(viewer: SalesCrmViewer): Promise<SalesDashboardStats> {
+  const assignedToId = viewer.hasFullAccess ? undefined : viewer.teamMemberId;
+  const salesPersonId = viewer.hasFullAccess ? undefined : viewer.teamMemberId;
+
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
+  const startOfTomorrow = new Date(startOfToday);
+  startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
+
+  const leadWhere = assignedToId ? { assignedToId } : {};
+
+  const [
+    assignedLeads,
+    todaysFollowUps,
+    interested,
+    proposalSent,
+    negotiation,
+    won,
+    lost,
+    monthlyPayments,
+    pendingCommissions,
+    paidCommissions,
+    allCommissions,
+    monthlyPaidCommissions,
+  ] = await Promise.all([
+    prisma.salesLead.count({ where: leadWhere }),
+    prisma.salesFollowUp.count({
+      where: { status: "PENDING", dueAt: { gte: startOfToday, lt: startOfTomorrow }, ...(assignedToId ? { assignedToId } : {}) },
+    }),
+    prisma.salesLead.count({ where: { ...leadWhere, status: "INTERESTED" } }),
+    prisma.salesLead.count({ where: { ...leadWhere, status: "PROPOSAL_SENT" } }),
+    prisma.salesLead.count({ where: { ...leadWhere, status: "NEGOTIATION" } }),
+    prisma.salesLead.count({ where: { ...leadWhere, status: "WON" } }),
+    prisma.salesLead.count({ where: { ...leadWhere, status: "LOST" } }),
+    prisma.salesProjectPayment.findMany({
+      where: {
+        status: "PAID",
+        paidAt: { gte: startOfMonth },
+        ...(salesPersonId ? { salesProject: { salesPersonId } } : {}),
+      },
+      select: { amount: true },
+    }),
+    prisma.salesCommission.findMany({
+      where: { status: "PENDING", ...(salesPersonId ? { salesPersonId } : {}) },
+      select: { commissionAmount: true },
+    }),
+    prisma.salesCommission.findMany({
+      where: { status: "PAID", ...(salesPersonId ? { salesPersonId } : {}) },
+      select: { commissionAmount: true },
+    }),
+    prisma.salesCommission.findMany({
+      where: salesPersonId ? { salesPersonId } : {},
+      select: { commissionAmount: true },
+    }),
+    prisma.salesCommission.findMany({
+      where: { status: "PAID", paidAt: { gte: startOfMonth }, ...(salesPersonId ? { salesPersonId } : {}) },
+      select: { commissionAmount: true },
+    }),
+  ]);
+
+  const sum = (rows: { amount?: number; commissionAmount?: number }[], key: "amount" | "commissionAmount") =>
+    rows.reduce((total, row) => total + (row[key] ?? 0), 0);
+
+  return {
+    assignedLeads,
+    todaysFollowUps,
+    interested,
+    proposalSent,
+    negotiation,
+    won,
+    lost,
+    monthlyRevenue: sum(monthlyPayments, "amount"),
+    pendingCommission: sum(pendingCommissions, "commissionAmount"),
+    paidCommission: sum(paidCommissions, "commissionAmount"),
+    totalCommission: sum(allCommissions, "commissionAmount"),
+    monthlyEarnings: sum(monthlyPaidCommissions, "commissionAmount"),
+  };
+}
+
+/** Every SalesTask visible to this viewer, open ones first - the /sales/tasks page. */
+export async function getSalesTasksForViewer(viewer: SalesCrmViewer) {
+  return prisma.salesTask.findMany({
+    where: viewer.hasFullAccess ? {} : { assignedToId: viewer.teamMemberId },
+    orderBy: [{ status: "asc" }, { dueDate: "asc" }],
+    include: { salesLead: { select: { id: true, businessName: true } }, assignedTo: true },
+  });
+}
+
+export interface SalesCommissionFilters {
+  status?: Prisma.SalesCommissionWhereInput["status"];
+  salesPersonId?: string;
+}
+
+/** Every SalesCommission visible to this viewer, newest first - the /sales/commission page and the admin commission CMS. Naturally empty until the Convert-to-Project and payment-recording flows exist to generate any. */
+export async function getSalesCommissionsForViewer(viewer: SalesCrmViewer, filters: SalesCommissionFilters = {}) {
+  return prisma.salesCommission.findMany({
+    where: {
+      ...(viewer.hasFullAccess ? {} : { salesPersonId: viewer.teamMemberId }),
+      ...(filters.status ? { status: filters.status } : {}),
+      ...(filters.salesPersonId ? { salesPersonId: filters.salesPersonId } : {}),
+    },
+    orderBy: { createdAt: "desc" },
+    include: { salesPerson: true, salesProject: { select: { id: true, clientName: true } } },
+  });
+}
+
+/** Lazily flips PENDING -> DUE for payments whose dueDate has passed - same "flip on read" pattern as InterviewLink's EXPIRED status, called before any project read. */
+async function promoteDuePayments(salesProjectId: string): Promise<void> {
+  await prisma.salesProjectPayment.updateMany({
+    where: { salesProjectId, status: "PENDING", dueDate: { lt: new Date() } },
+    data: { status: "DUE" },
+  });
+}
+
+export type SalesProjectWithRelations = NonNullable<Awaited<ReturnType<typeof getSalesProjectById>>>;
+
+/** Returns null both when the project doesn't exist and when a restricted viewer isn't its salesperson - same "not found and not yours look identical" precedent as getSalesLeadById. */
+export async function getSalesProjectById(id: string, viewer: SalesCrmViewer) {
+  const gate = await prisma.salesProject.findUnique({ where: { id }, select: { salesPersonId: true } });
+  if (!gate) return null;
+  if (!viewer.hasFullAccess && gate.salesPersonId !== viewer.teamMemberId) return null;
+
+  await promoteDuePayments(id);
+
+  return prisma.salesProject.findUnique({
+    where: { id },
+    include: {
+      salesLead: true,
+      salesPerson: true,
+      projectManager: true,
+      assignedDeveloper: true,
+      payments: { orderBy: { createdAt: "asc" } },
+      commissions: true,
+    },
+  });
+}
+
+export type SalesProjectListItem = Prisma.SalesProjectGetPayload<{
+  include: { salesPerson: true; payments: { select: { amount: true; status: true } } };
+}>;
+
+/** Every project visible to this viewer, newest first - /admin/sales-crm/projects and (scoped) a salesperson's own list. */
+export async function getSalesProjectsForViewer(viewer: SalesCrmViewer): Promise<SalesProjectListItem[]> {
+  return prisma.salesProject.findMany({
+    where: viewer.hasFullAccess ? {} : { salesPersonId: viewer.teamMemberId },
+    orderBy: { createdAt: "desc" },
+    include: { salesPerson: true, payments: { select: { amount: true, status: true } } },
+  });
+}
+
+export interface OfferingForQuote {
+  id: string;
+  title: string;
+  price: number | null;
+  currency: string;
+}
+
+/** Real catalog offerings, for the "base this quote on" picker - only ones actually live and buyable, so a salesperson never quotes off a draft/archived listing. */
+export async function getOfferingsForQuotePicker(): Promise<OfferingForQuote[]> {
+  return prisma.offering.findMany({
+    where: { status: "PUBLISHED", visible: true },
+    orderBy: { title: "asc" },
+    select: { id: true, title: true, price: true, currency: true },
+  });
+}
+
+/** Every quote sent for one lead, newest first - the lead detail page's Quotes panel. */
+export async function getQuotesForLead(salesLeadId: string) {
+  return prisma.salesQuote.findMany({
+    where: { salesLeadId },
+    orderBy: { createdAt: "desc" },
+    include: { offering: { select: { title: true } }, createdBy: true },
   });
 }

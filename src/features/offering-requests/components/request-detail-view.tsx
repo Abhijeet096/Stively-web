@@ -7,10 +7,21 @@ import { formatRequestNumber } from "../lib/request-number";
 import { REQUEST_TYPE_LABEL } from "../lib/status-labels";
 import { RequestStatusBadge } from "./request-status-badge";
 import { RequestTimeline } from "./request-timeline";
+import { QuoteNegotiationPanel } from "./quote-negotiation-panel";
 import type { OfferingRequestWithDetail } from "../server/queries";
 
-/** The full request detail page body - number, timeline, offering summary, and honest placeholders for the two surfaces that don't exist yet (messaging, staff assignment), same anti-fabrication discipline as Phase 4's Testimonials placeholder. */
-function RequestDetailView({ request }: { request: OfferingRequestWithDetail }) {
+export interface RequestDetailViewProps {
+  request: OfferingRequestWithDetail;
+  userName?: string;
+  userEmail?: string;
+  /** /student/requests or /client/requests - which portal this render is for. */
+  detailPathPrefix: string;
+  /** CSP nonce from src/proxy.ts, read via `headers()` on the page - threaded down to the quote panel's Razorpay <Script>. */
+  nonce?: string;
+}
+
+/** The full request detail page body - number, timeline, offering summary, pricing negotiation, and an honest placeholder for the one surface that doesn't exist yet (messaging), same anti-fabrication discipline as Phase 4's Testimonials placeholder. */
+function RequestDetailView({ request, userName, userEmail, detailPathPrefix, nonce }: RequestDetailViewProps) {
   return (
     <div className="flex flex-col gap-10">
       <header className="flex flex-col gap-3">
@@ -42,6 +53,17 @@ function RequestDetailView({ request }: { request: OfferingRequestWithDetail }) 
             </CardContent>
           </Card>
         </Link>
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <h3 className="font-display text-lg font-semibold">Pricing</h3>
+        <QuoteNegotiationPanel
+          request={request}
+          userName={userName}
+          userEmail={userEmail}
+          detailPathPrefix={detailPathPrefix}
+          nonce={nonce}
+        />
       </section>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
