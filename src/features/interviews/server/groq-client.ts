@@ -3,9 +3,7 @@ import "server-only";
 import type Groq from "groq-sdk";
 import { z } from "zod";
 
-import { groq, requestValidatedJson, DEFAULT_GROQ_MODEL } from "@/lib/groq";
-
-export { groq };
+import { requestValidatedJson, DEFAULT_GROQ_MODEL } from "@/lib/groq";
 
 /**
  * Llama 3.1 8B Instant on Groq - see src/lib/groq.ts's DEFAULT_GROQ_MODEL

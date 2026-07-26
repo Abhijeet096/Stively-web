@@ -3,11 +3,27 @@ import "server-only";
 import Groq from "groq-sdk";
 import { z } from "zod";
 
-if (!process.env.GROQ_API_KEY) {
-  console.warn("GROQ_API_KEY is not set - Groq-backed features will fail to generate content.");
-}
+/**
+ * Lazily constructed, not a module-level singleton - the Groq SDK's
+ * constructor throws synchronously when apiKey is empty, which would crash
+ * on import alone (e.g. during Next's build-time page-data collection for
+ * any page that transitively imports this file) before any feature even
+ * needs Groq. Same reasoning/precedent as src/lib/razorpay.ts's
+ * getRazorpayClient(). Deferring construction to first real use means the
+ * app/build succeeds fine with no key configured yet, and only an actual
+ * attempt to call Groq fails (caught by requestValidatedJson's callers).
+ */
+let client: Groq | null = null;
 
-export const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+function getGroqClient(): Groq {
+  if (!client) {
+    if (!process.env.GROQ_API_KEY) {
+      console.warn("GROQ_API_KEY is not set - Groq-backed features will fail to generate content.");
+    }
+    client = new Groq({ apiKey: process.env.GROQ_API_KEY ?? "" });
+  }
+  return client;
+}
 
 /**
  * The one small/instant model every feature on this Groq org account can
@@ -38,7 +54,7 @@ export async function requestValidatedJson<T>(
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const completion = await groq.chat.completions.create({
+      const completion = await getGroqClient().chat.completions.create({
         model: options?.model ?? DEFAULT_GROQ_MODEL,
         messages,
         response_format: { type: "json_object" },
