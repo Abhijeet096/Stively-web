@@ -10,6 +10,11 @@ import { LEAD_PRIORITY_LABEL, LEAD_PRIORITY_VARIANT, SALES_LEAD_SOURCE_LABEL } f
 import { SalesLeadStatusChanger } from "./sales-lead-status-changer";
 import { SalesLeadLostReason } from "./sales-lead-lost-reason";
 import { SalesLeadOwnerPanel } from "./sales-lead-owner-panel";
+import { SalesLeadOutreachPanel } from "./sales-lead-outreach-panel";
+import { DiscoveryChecklistPanel, type DiscoveryOfferingOption } from "@/features/proposals/components/admin/discovery-checklist-panel";
+import { ProposalSummaryPanel } from "@/features/proposals/components/admin/proposal-summary-panel";
+import { computeProposalReadiness } from "@/features/proposals/server/discovery-queries";
+import type { Proposal } from "@prisma/client";
 import { SalesLeadNotesPanel } from "./sales-lead-notes-panel";
 import { SalesLeadAttachmentsPanel } from "./sales-lead-attachments-panel";
 import { SalesLeadTimeline } from "./sales-lead-timeline";
@@ -24,7 +29,7 @@ import type {
   getQuotesForLead,
   OfferingForQuote,
 } from "../../server/queries";
-import type { TeamMember } from "@prisma/client";
+import type { TeamMember, SalesLeadDiscovery } from "@prisma/client";
 
 type SalesLead = NonNullable<Awaited<ReturnType<typeof getSalesLeadById>>>;
 
@@ -36,9 +41,13 @@ export interface SalesLeadDetailProps {
   followUps: Awaited<ReturnType<typeof getFollowUpsForLead>>;
   quotes: Awaited<ReturnType<typeof getQuotesForLead>>;
   offerings: OfferingForQuote[];
+  discovery: SalesLeadDiscovery | null;
+  activeProposal: Proposal | null;
   teamMembers: TeamMember[];
   /** Base path for the "View project" link - differs between the admin CMS and the /sales portal. */
   basePath?: string;
+  /** Base path for the proposal workspace link (`${proposalBasePath}/leads/${id}/proposal`) - differs between the admin CMS and the /sales portal. */
+  proposalBasePath?: string;
   /** Reassignment is Admin/Super Admin-only (see reassignSalesLead) - the /sales portal shows ownership read-only instead of a Reassign button that would always fail. */
   canReassign?: boolean;
   /** Rendered in place of the plain "ready to convert" hint when the lead is WON and un-converted - Admin/Super Admin-only (see convertLeadToProject), so the /sales portal omits this prop entirely. */
@@ -63,11 +72,15 @@ function SalesLeadDetail({
   followUps,
   quotes,
   offerings,
+  discovery,
+  activeProposal,
   teamMembers,
   basePath = "/admin/sales-crm/projects",
+  proposalBasePath = "/admin/sales-crm",
   canReassign = true,
   convertPanel,
 }: SalesLeadDetailProps) {
+  const readiness = computeProposalReadiness(discovery);
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -109,6 +122,22 @@ function SalesLeadDetail({
             </CardContent>
           </Card>
 
+          <DiscoveryChecklistPanel salesLeadId={lead.id} discovery={discovery} offerings={offerings as DiscoveryOfferingOption[]} />
+
+          <ProposalSummaryPanel
+            salesLeadId={lead.id}
+            activeProposal={activeProposal}
+            readiness={readiness}
+            workspaceBasePath={proposalBasePath}
+          />
+
+          <SalesLeadOutreachPanel
+            salesLeadId={lead.id}
+            outreach={lead.outreach[0]}
+            whatsappOrPhone={lead.whatsapp || lead.phone}
+            phone={lead.phone}
+            email={lead.email}
+          />
           <SalesFollowUpsPanel salesLeadId={lead.id} followUps={followUps} teamMembers={teamMembers} defaultAssigneeId={lead.assignedToId ?? undefined} />
           <SalesQuotesPanel salesLeadId={lead.id} leadEmail={lead.email} quotes={quotes} offerings={offerings} />
           <SalesLeadNotesPanel salesLeadId={lead.id} notes={notes} />

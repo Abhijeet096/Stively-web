@@ -16,6 +16,8 @@ import {
   getOfferingsForQuotePicker,
 } from "@/features/sales-crm/server/queries";
 import { SalesLeadDetail } from "@/features/sales-crm/components/admin/sales-lead-detail";
+import { getSalesLeadDiscovery } from "@/features/proposals/server/discovery-queries";
+import { getActiveProposalForLead } from "@/features/proposals/server/proposal-queries";
 
 interface SalesPortalLeadDetailPageProps {
   params: Promise<{ id: string }>;
@@ -31,14 +33,16 @@ export default async function SalesPortalLeadDetailPage({ params }: SalesPortalL
   const lead = await getSalesLeadById(id, viewer);
   if (!lead) notFound();
 
-  const [activities, notes, attachments, followUps, quotes, offerings, teamMembers] = await Promise.all([
+  const [activities, notes, attachments, followUps, quotes, offerings, discovery, teamMembers, activeProposal] = await Promise.all([
     getSalesLeadTimeline(id),
     getSalesLeadNotes(id),
     getSalesLeadAttachments(id),
     getFollowUpsForLead(id),
     getQuotesForLead(id),
     getOfferingsForQuotePicker(),
+    getSalesLeadDiscovery(id),
     getSalesTeamMembers(),
+    getActiveProposalForLead(id, viewer),
   ]);
 
   return (
@@ -53,8 +57,11 @@ export default async function SalesPortalLeadDetailPage({ params }: SalesPortalL
           followUps={followUps}
           quotes={quotes}
           offerings={offerings}
+          discovery={discovery}
+          activeProposal={activeProposal}
           teamMembers={teamMembers}
           basePath="/sales/projects"
+          proposalBasePath="/sales"
           canReassign={false}
         />
       </Container>

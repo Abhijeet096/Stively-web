@@ -15,6 +15,15 @@ export const metadata: Metadata = {
 };
 
 /**
+ * submitInterviewTurn (invoked from InterviewSession below) can retry the
+ * Groq call up to 3 times (requestValidatedJson) - comfortably clears a
+ * platform's default ~10s serverless function timeout on a slow attempt.
+ * Raises the ceiling for this route's Server Actions; a no-op on plans that
+ * cap lower than this regardless.
+ */
+export const maxDuration = 60;
+
+/**
  * Requires an Interview row to already exist for this link - candidates
  * only ever reach this route via the landing page's "Start Interview"
  * button, which creates it first. Anyone hitting this URL directly without

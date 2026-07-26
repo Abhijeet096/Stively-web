@@ -20,6 +20,8 @@ const turnSchema = z.object({
     .trim()
     .min(1, "Groq returned a blank message"),
   moveToNextCategory: z.boolean().default(false),
+  /** True only when the candidate's last answer clearly asked to end/submit the interview now - forces immediate wrap-up regardless of category coverage, see interview-engine.ts's forceEnd handling. */
+  candidateWantsToEnd: z.boolean().default(false),
 });
 
 export type GroqTurnResult = z.infer<typeof turnSchema>;
@@ -45,9 +47,15 @@ const evaluationSchema = z.object({
   problemSolving: z.number().min(0).max(100),
   leadershipPotential: z.number().min(0).max(100),
   learningAbility: z.number().min(0).max(100),
-  strengths: z.array(z.string()).min(1),
-  weaknesses: z.array(z.string()).min(1),
-  suggestedTraining: z.array(z.string()).min(1),
+  // Not .min(1) - a candidate-ended interview can leave too little transcript
+  // for a genuine strength/weakness to honestly point to. An empty array is
+  // an honest signal ("not enough to judge"); forcing a minimum would either
+  // fail validation on a real short interview or push the model to invent
+  // filler to satisfy it - see generateInterviewScore's caller-side comment
+  // on this scoring pass never blocking a candidate's interview completion.
+  strengths: z.array(z.string()),
+  weaknesses: z.array(z.string()),
+  suggestedTraining: z.array(z.string()),
   recommendation: z.enum(["STRONG_HIRE", "HIRE", "HOLD", "REJECT"]),
 });
 

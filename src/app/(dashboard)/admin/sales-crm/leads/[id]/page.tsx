@@ -16,6 +16,8 @@ import {
 import { getAllTeamMembers } from "@/lib/queries/team-members";
 import { SalesLeadDetail } from "@/features/sales-crm/components/admin/sales-lead-detail";
 import { ConvertToProjectDialog } from "@/features/sales-crm/components/admin/convert-to-project-dialog";
+import { getSalesLeadDiscovery } from "@/features/proposals/server/discovery-queries";
+import { getAcceptedProposalPackagePrice, getActiveProposalForLead } from "@/features/proposals/server/proposal-queries";
 
 interface SalesLeadDetailPageProps {
   params: Promise<{ id: string }>;
@@ -31,16 +33,20 @@ export default async function SalesLeadDetailPage({ params }: SalesLeadDetailPag
   const lead = await getSalesLeadById(id, viewer);
   if (!lead) notFound();
 
-  const [activities, notes, attachments, followUps, quotes, offerings, teamMembers, allTeamMembers] = await Promise.all([
-    getSalesLeadTimeline(id),
-    getSalesLeadNotes(id),
-    getSalesLeadAttachments(id),
-    getFollowUpsForLead(id),
-    getQuotesForLead(id),
-    getOfferingsForQuotePicker(),
-    getSalesTeamMembers(),
-    getAllTeamMembers(),
-  ]);
+  const [activities, notes, attachments, followUps, quotes, offerings, discovery, teamMembers, allTeamMembers, acceptedPackagePrice, activeProposal] =
+    await Promise.all([
+      getSalesLeadTimeline(id),
+      getSalesLeadNotes(id),
+      getSalesLeadAttachments(id),
+      getFollowUpsForLead(id),
+      getQuotesForLead(id),
+      getOfferingsForQuotePicker(),
+      getSalesLeadDiscovery(id),
+      getSalesTeamMembers(),
+      getAllTeamMembers(),
+      getAcceptedProposalPackagePrice(id),
+      getActiveProposalForLead(id, viewer),
+    ]);
 
   return (
     <div className="p-6">
@@ -52,8 +58,12 @@ export default async function SalesLeadDetailPage({ params }: SalesLeadDetailPag
         followUps={followUps}
         quotes={quotes}
         offerings={offerings}
+        discovery={discovery}
+        activeProposal={activeProposal}
         teamMembers={teamMembers}
-        convertPanel={<ConvertToProjectDialog salesLeadId={lead.id} suggestedValue={lead.estimatedValue} teamMembers={allTeamMembers} />}
+        convertPanel={
+          <ConvertToProjectDialog salesLeadId={lead.id} suggestedValue={acceptedPackagePrice ?? lead.estimatedValue} teamMembers={allTeamMembers} />
+        }
       />
     </div>
   );

@@ -106,7 +106,7 @@ export async function advanceInterview(interviewId: string, candidateAnswer?: st
 
   const isAdvancing = forceAdvance || result.moveToNextCategory;
 
-  if (!isAdvancing) {
+  if (!isAdvancing && !result.candidateWantsToEnd) {
     await prisma.response.create({
       data: {
         interviewId,
@@ -119,8 +119,12 @@ export async function advanceInterview(interviewId: string, candidateAnswer?: st
     return { done: false, message: result.message };
   }
 
-  // Advancing: either to a new category, or - if there is none left - the interview is over.
-  if (!nextCategoryIfAdvancing) {
+  // Advancing: either to a new category, or - if there is none left, or the
+  // candidate explicitly asked to stop - the interview is over. A candidate
+  // wrap-up request always wins, even mid-category with topics still
+  // uncovered - the recruiter would rather have a shorter real interview
+  // than force a candidate who wants to stop into looping through the rest.
+  if (!nextCategoryIfAdvancing || result.candidateWantsToEnd) {
     const startedAt = interview.startedAt ?? interview.createdAt;
     await prisma.$transaction([
       prisma.interview.update({

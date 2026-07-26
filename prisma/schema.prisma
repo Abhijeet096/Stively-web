@@ -428,25 +428,30 @@ model TeamMember {
   /// "parallel, not merged" reasoning as `assignedOperationItems` above -
   /// this is outbound B2B sales prospecting, a different data shape and
   /// pipeline entirely.
-  salesProfile             SalesProfile?
-  ownedSalesLeads          SalesLead[]           @relation("SalesLeadAssignedTo")
-  createdSalesLeads        SalesLead[]           @relation("SalesLeadCreatedBy")
-  salesLeadAssignments     SalesLeadAssignment[] @relation("SalesAssignmentOwner")
-  salesLeadAssignmentsMade SalesLeadAssignment[] @relation("SalesAssignmentAssignedBy")
-  salesLeadActivities      SalesLeadActivity[]
-  salesLeadNotes           SalesLeadNote[]
-  salesLeadAttachments     SalesLeadAttachment[]
-  salesQuotesCreated       SalesQuote[]
-  assignedFollowUps        SalesFollowUp[]       @relation("FollowUpAssignee")
-  createdFollowUps         SalesFollowUp[]       @relation("FollowUpCreatedBy")
-  assignedTasks            SalesTask[]           @relation("TaskAssignee")
-  createdTasks             SalesTask[]           @relation("TaskAssignedBy")
-  salesProjectsAsSales     SalesProject[]        @relation("ProjectSalesPerson")
-  salesProjectsAsManager   SalesProject[]        @relation("ProjectManager")
-  salesProjectsAsDev       SalesProject[]        @relation("ProjectDeveloper")
-  recordedPayments         SalesProjectPayment[]
-  commissionsEarned        SalesCommission[]     @relation("CommissionSalesPerson")
-  commissionsApproved      SalesCommission[]     @relation("CommissionApprovedBy")
+  salesProfile                SalesProfile?
+  ownedSalesLeads             SalesLead[]           @relation("SalesLeadAssignedTo")
+  createdSalesLeads           SalesLead[]           @relation("SalesLeadCreatedBy")
+  salesLeadAssignments        SalesLeadAssignment[] @relation("SalesAssignmentOwner")
+  salesLeadAssignmentsMade    SalesLeadAssignment[] @relation("SalesAssignmentAssignedBy")
+  salesLeadActivities         SalesLeadActivity[]
+  salesLeadOutreachGenerated  SalesLeadOutreach[]
+  salesLeadDiscoveriesUpdated SalesLeadDiscovery[]
+  proposalsCreated            Proposal[]
+  proposalVersionsCreated     ProposalVersion[]
+  proposalMeetingsConfirmed   ProposalMeetingRequest[]
+  salesLeadNotes              SalesLeadNote[]
+  salesLeadAttachments        SalesLeadAttachment[]
+  salesQuotesCreated          SalesQuote[]
+  assignedFollowUps           SalesFollowUp[]       @relation("FollowUpAssignee")
+  createdFollowUps            SalesFollowUp[]       @relation("FollowUpCreatedBy")
+  assignedTasks               SalesTask[]           @relation("TaskAssignee")
+  createdTasks                SalesTask[]           @relation("TaskAssignedBy")
+  salesProjectsAsSales        SalesProject[]        @relation("ProjectSalesPerson")
+  salesProjectsAsManager      SalesProject[]        @relation("ProjectManager")
+  salesProjectsAsDev          SalesProject[]        @relation("ProjectDeveloper")
+  recordedPayments            SalesProjectPayment[]
+  commissionsEarned           SalesCommission[]     @relation("CommissionSalesPerson")
+  commissionsApproved         SalesCommission[]     @relation("CommissionApprovedBy")
 
   /// AI Lead Intelligence Platform - see Business below. Upstream of the
   /// Sales CRM above, deliberately not merged into it.
@@ -2120,6 +2125,20 @@ enum NotificationType {
   BUSINESS_HIGH_OPPORTUNITY_SCORE
   /// A LeadIntelligenceSearchRun (connector run) ends in status FAILED.
   LEAD_INTELLIGENCE_RUN_FAILED
+
+  // --- AI Proposal Management ---
+  /// The client opens a sent Proposal's public link for the first time.
+  PROPOSAL_VIEWED
+  /// The client leaves a comment or question on a Proposal.
+  PROPOSAL_COMMENTED
+  /// The client requests a meeting via a Proposal's comment box.
+  PROPOSAL_MEETING_REQUESTED
+  /// The client requests changes to a Proposal.
+  PROPOSAL_REVISION_REQUESTED
+  /// The client accepts a Proposal.
+  PROPOSAL_ACCEPTED
+  /// The client rejects a Proposal.
+  PROPOSAL_REJECTED
 }
 
 model Notification {
@@ -2510,8 +2529,17 @@ model SalesLead {
   followUps   SalesFollowUp[]
   tasks       SalesTask[]
   quotes      SalesQuote[]
+  outreach    SalesLeadOutreach[]
   /// Set once this lead is WON and converted - see convertLeadToProject().
   project     SalesProject?
+
+  /// AI Proposal Management - the discovery readiness checklist and any
+  /// proposals generated for this lead. A lead can accumulate more than one
+  /// Proposal over its lifetime (e.g. rejected, salesperson later pitches
+  /// something materially different) - the UI surfaces the latest
+  /// non-expired one as "the active proposal."
+  discovery SalesLeadDiscovery?
+  proposals Proposal[]
 
   /// AI Lead Intelligence Platform - set when this SalesLead was created via
   /// promoteToSalesLead() from a discovered Business. The FK actually lives
@@ -2570,6 +2598,16 @@ enum SalesLeadActivityType {
   QUOTE_SENT
   QUOTE_ACCEPTED
   QUOTE_REJECTED
+  OUTREACH_GENERATED
+  PROPOSAL_GENERATED
+  PROPOSAL_SENT
+  PROPOSAL_VIEWED
+  PROPOSAL_COMMENTED
+  PROPOSAL_REVISION_REQUESTED
+  PROPOSAL_ACCEPTED
+  PROPOSAL_REJECTED
+  PROPOSAL_MEETING_REQUESTED
+  PROPOSAL_MEETING_CONFIRMED
 }
 
 /// Every meaningful action on a SalesLead gets an activity row - the
@@ -2591,6 +2629,303 @@ model SalesLeadActivity {
   createdAt DateTime @default(now())
 
   @@index([salesLeadId])
+}
+
+/// One AI-generated outreach pack per generation run - kept as history (not
+/// upserted in place), same "one row per run" convention as
+/// BusinessWebsiteAnalysis/AILeadReport in the Lead Intelligence platform.
+/// Regenerating creates a new row; the UI shows the latest.
+model SalesLeadOutreach {
+  id          String    @id @default(cuid())
+  salesLeadId String
+  salesLead   SalesLead @relation(fields: [salesLeadId], references: [id], onDelete: Cascade)
+
+  whatsappMessage String  @db.Text
+  emailSubject    String
+  emailBody       String  @db.Text
+  coldCallScript  String  @db.Text
+  /// Null when there's no real named contact to address (e.g. ownerName is
+  /// "Unknown") - never a generic "Hi there" LinkedIn request standing in
+  /// for a real one.
+  linkedinMessage String? @db.Text
+
+  modelUsed String
+
+  generatedById String?
+  generatedBy   TeamMember? @relation(fields: [generatedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([salesLeadId])
+}
+
+// ============================================
+// AI PROPOSAL MANAGEMENT
+// ============================================
+// Not a PDF generator - a real hosted proposal page at a unique unguessable
+// URL (same token pattern as InterviewLink), AI-personalized from real
+// discovery data, that the client can view/comment/accept without ever
+// logging in. See SalesLeadDiscovery below for the readiness gate: a
+// proposal should never be generated before discovery is captured.
+
+/// The proposal readiness checklist - a mutable working draft the
+/// salesperson fills in until it's ready (same 1:1, edit-in-place shape as
+/// SalesProfile), not an append-only event log. "Ready for proposal" is
+/// computed in the query layer from these fields, never stored as a
+/// separate boolean.
+model SalesLeadDiscovery {
+  id          String    @id @default(cuid())
+  salesLeadId String    @unique
+  salesLead   SalesLead @relation(fields: [salesLeadId], references: [id], onDelete: Cascade)
+
+  budgetDiscussed Boolean @default(false)
+  /// Paise.
+  budgetMin       Int?
+  /// Paise.
+  budgetMax       Int?
+  budgetNotes     String? @db.Text
+
+  timelineDiscussed   Boolean @default(false)
+  timelineExpectation String?
+
+  decisionMakerIdentified Boolean @default(false)
+  decisionMakerName       String?
+  decisionMakerRole       String?
+
+  requirementsCaptured Boolean @default(false)
+  requirementsNotes    String? @db.Text
+  /// Salesperson-observed problems - distinct from AI-detected website
+  /// issues (BusinessWebsiteAnalysis), never invented, merged with those in
+  /// the proposal's "Problems Found" section when both exist.
+  painPoints           String? @db.Text
+
+  /// Offering.id[] the salesperson picked - grounds "Proposed Solution".
+  selectedOfferingIds String[]
+  /// Add-on asks not in the Offering catalog.
+  customServiceNotes  String?  @db.Text
+
+  updatedById String?
+  updatedBy   TeamMember? @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum ProposalStatus {
+  DRAFT
+  INTERNAL_REVIEW
+  SENT
+  VIEWED
+  COMMENTED
+  REVISION_REQUESTED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+/// The durable proposal identity - one row per proposal "workspace", never
+/// deleted, its content lives in ProposalVersion snapshots. status +
+/// respondedAt + clientResponseNote directly here (no separate approval
+/// table), same shape as SalesQuote.status/respondedAt.
+model Proposal {
+  id       String @id @default(cuid())
+  /// Human-readable reference, e.g. PR-000123 - same convention as SalesLead.sequence.
+  sequence Int    @unique @default(autoincrement())
+
+  salesLeadId String
+  salesLead   SalesLead @relation(fields: [salesLeadId], references: [id], onDelete: Cascade)
+
+  /// crypto.randomBytes(24) base64url - unguessable, identical pattern to InterviewLink.token.
+  token String @unique
+
+  title  String
+  status ProposalStatus @default(DRAFT)
+
+  /// Convenience pointer - ProposalVersion.versionNumber is the source of truth.
+  currentVersionNumber Int     @default(0)
+  /// Key into currentVersion.content.packages[].id - set on Accept.
+  selectedPackageId    String?
+  /// Keys into currentVersion.content.calculator.items[].id - set on Accept
+  /// instead of selectedPackageId when the proposal uses the interactive
+  /// calculator (content.calculator non-empty) rather than fixed packages.
+  selectedCalculatorItemIds String[] @default([])
+
+  expiresAt          DateTime?
+  sentAt             DateTime?
+  firstViewedAt      DateTime?
+  lastViewedAt       DateTime?
+  viewCount          Int       @default(0)
+  respondedAt        DateTime?
+  clientResponseNote String?   @db.Text
+
+  /// Fixed-window rate-limit state for the public, token-authenticated
+  /// client actions (comment/accept/reject/request-changes) - same
+  /// DB-stored pattern InterviewLink uses, needed since this app runs
+  /// across stateless serverless instances.
+  rateLimitWindowStart DateTime?
+  rateLimitCount       Int       @default(0)
+
+  createdById String?
+  createdBy   TeamMember? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  versions        ProposalVersion[]
+  comments        ProposalComment[]
+  meetingRequests ProposalMeetingRequest[]
+  pageViews       ProposalPageView[]
+  sectionViews    ProposalSectionView[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([salesLeadId])
+  @@index([status])
+}
+
+enum ProposalVersionSource {
+  AI_INITIAL
+  AI_REGENERATED
+  AI_COPILOT_UPDATE
+  MANUAL_EDIT
+}
+
+/// Immutable snapshot - regenerating (AI or manual edit) always appends a
+/// new version and bumps Proposal.currentVersionNumber, never mutates a
+/// past one. "History via more rows, not diffing" - same precedent as
+/// BusinessWebsiteAnalysis/AILeadReport.
+model ProposalVersion {
+  id         String   @id @default(cuid())
+  proposalId String
+  proposal   Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  versionNumber Int
+  source        ProposalVersionSource
+
+  /// The whole structured document for this version: coverTagline,
+  /// executiveSummary, businessUnderstanding, problemsFound[],
+  /// opportunityScore (nullable - only present when the lead has a real
+  /// AILeadReport, never fabricated), proposedSolution[], featureBreakdown[],
+  /// timeline stages[], deliverables[], packages[]
+  /// ({id,name,priceAmount,whatsIncluded[]} - price always human-entered,
+  /// never AI-proposed), paymentSchedule[] (percentages editable, paise
+  /// amounts always computed, never AI-produced), roiEstimate (nullable -
+  /// omitted entirely unless the salesperson entered real assumptions),
+  /// whyStively, faq[]. Zod-enforced, not Prisma-enforced - same convention
+  /// as AILeadReport.recommendations/SalesLeadOutreach's content fields.
+  content Json
+
+  /// The salesperson's free-text instruction that produced this version -
+  /// null except for AI_COPILOT_UPDATE.
+  copilotInstruction String? @db.Text
+  /// Null for MANUAL_EDIT.
+  modelUsed          String?
+
+  createdById String?
+  createdBy   TeamMember? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@unique([proposalId, versionNumber])
+  @@index([proposalId])
+}
+
+enum ProposalCommentType {
+  COMMENT
+  QUESTION
+  MEETING_REQUEST
+  AI_CHAT
+}
+
+/// A real relation (not JSON) since comments are queried/counted/timelined
+/// independently of the proposal content itself.
+model ProposalComment {
+  id         String   @id @default(cuid())
+  proposalId String
+  proposal   Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  type       ProposalCommentType @default(COMMENT)
+  content    String              @db.Text
+  /// Whatever name the unauthenticated client typed in - not a verified identity.
+  clientName String?
+  /// The grounded AI answer, only set for type AI_CHAT - the question itself
+  /// lives in `content` above, kept as one row per exchange.
+  aiAnswer   String?             @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([proposalId])
+}
+
+enum MeetingRequestStatus {
+  PENDING
+  CONFIRMED
+  DECLINED
+}
+
+/// A client-requested meeting time on a proposal, confirmed manually by the
+/// salesperson (real meeting link pasted in, not auto-generated - no Google
+/// Calendar/Meet API integration exists in this codebase). Deliberately a
+/// separate model from Meeting (which is tied to a post-sale OperationItem
+/// and can't represent a pre-sale proposal meeting).
+model ProposalMeetingRequest {
+  id         String   @id @default(cuid())
+  proposalId String
+  proposal   Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  preferredAt DateTime
+  clientNote  String?  @db.Text
+  /// Whatever name the unauthenticated client typed in - not a verified identity.
+  clientName  String?
+
+  status MeetingRequestStatus @default(PENDING)
+
+  confirmedAt     DateTime?
+  confirmedMethod PreferredContactMethod?
+  meetingLink     String?
+
+  confirmedById String?
+  confirmedBy   TeamMember? @relation(fields: [confirmedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([proposalId])
+}
+
+/// One row per browser session that opens a proposal's public page - real
+/// engagement time, not the simple render-counter Proposal.viewCount already
+/// is. sessionId is a client-generated crypto.randomUUID() kept in
+/// sessionStorage, never a cookie or cross-visit identifier - no PII beyond
+/// what's already collected.
+model ProposalPageView {
+  id         String   @id @default(cuid())
+  proposalId String
+  proposal   Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  sessionId     String
+  /// Milliseconds the tab was actually visible (Page Visibility API), not wall-clock.
+  totalActiveMs Int    @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([proposalId, sessionId])
+  @@index([proposalId])
+}
+
+/// Per-section active time within one session - same sessionId as
+/// ProposalPageView. sectionKey is a fixed vocabulary the public page's
+/// section wrappers emit (e.g. "businessAudit", "pricing", "timeline"), not
+/// free text.
+model ProposalSectionView {
+  id         String   @id @default(cuid())
+  proposalId String
+  proposal   Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  sessionId  String
+  sectionKey String
+  activeMs   Int    @default(0)
+
+  @@unique([proposalId, sessionId, sectionKey])
+  @@index([proposalId])
 }
 
 enum SalesQuoteStatus {

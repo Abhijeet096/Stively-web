@@ -86,6 +86,7 @@ export async function getSalesLeadById(id: string, viewer: SalesCrmViewer) {
       assignedTo: true,
       createdBy: true,
       project: { select: { id: true } },
+      outreach: { orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
   if (!lead) return null;
