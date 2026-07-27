@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Copy, Check, ExternalLink, Send, Plus, Trash2, History } from "lucide-react";
+import { Sparkles, Copy, Check, ExternalLink, Send, Plus, Trash2, History, CalendarClock, BarChart3 } from "lucide-react";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,22 +10,43 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogClose,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { PROPOSAL_STATUS_LABEL, PROPOSAL_STATUS_VARIANT } from "../../lib/labels";
 import type { ProposalContent, ProposalPackageContent, ProposalCalculatorItemContent } from "../../lib/content-types";
 import type { ProposalDetail } from "../../server/proposal-queries";
+import type { ProposalEngagement } from "../../server/analytics-queries";
+import { computeDealHealth, type DealHealthLevel } from "../../lib/deal-health";
 import {
   regenerateWithCopilot,
   updatePackagesAndPricing,
   updateCalculatorPricing,
   updateRoiAssumptions,
   sendProposal,
+  confirmProposalMeeting,
+  declineProposalMeeting,
+  suggestFollowUpMessage,
 } from "../../actions/proposal-actions";
 import { DEFAULT_PAYMENT_MILESTONE_SPLIT } from "../../server/roi-calculator";
 
 interface ProposalWorkspaceProps {
   proposal: ProposalDetail;
   proposalUrl: string;
+  engagement: ProposalEngagement | null;
 }
+
+const SECTION_LABEL: Record<string, string> = {
+  pricing: "Pricing",
+  timeline: "Timeline",
+};
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = React.useState(false);
@@ -46,13 +67,230 @@ function formatDateTime(date: Date) {
   return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
+/** Local datetime-local input needs "YYYY-MM-DDTHH:mm" in the browser's own timezone, not UTC. */
+function toDatetimeLocalValue(date: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+const MEETING_REQUEST_STATUS_VARIANT: Record<ProposalDetail["meetingRequests"][number]["status"], "secondary" | "success" | "destructive"> = {
+  PENDING: "secondary",
+  CONFIRMED: "success",
+  DECLINED: "destructive",
+};
+
+const DEAL_HEALTH_LABEL: Record<DealHealthLevel, string> = {
+  COLD: "Cold",
+  AT_RISK: "At risk",
+  WARM: "Warm",
+  ON_TRACK: "On track",
+  CLOSED: "Closed",
+};
+
+const DEAL_HEALTH_VARIANT: Record<DealHealthLevel, "default" | "secondary" | "success" | "warning" | "destructive" | "outline"> = {
+  COLD: "outline",
+  AT_RISK: "destructive",
+  WARM: "warning",
+  ON_TRACK: "default",
+  CLOSED: "secondary",
+};
+
+/**
+ * Health level is computed client-side - computeDealHealth is pure/zero-I/O
+ * and every field it needs (status/sentAt/viewCount/lastViewedAt) is already
+ * on the proposal prop, so no extra server round-trip is needed just to
+ * render the badge. Only the AI-drafted follow-up copy needs a server call.
+ */
+function DealHealthCard({ proposal }: { proposal: ProposalDetail }) {
+  const health = React.useMemo(() => computeDealHealth(proposal), [proposal]);
+  const [draft, setDraft] = React.useState<string | null>(null);
+  const [isSuggesting, setIsSuggesting] = React.useState(false);
+  const [error, setError] = React.useState<string | undefined>();
+
+  if (health.level === "CLOSED") return null;
+
+  async function handleSuggest() {
+    setIsSuggesting(true);
+    setError(undefined);
+    const result = await suggestFollowUpMessage({ proposalId: proposal.id });
+    setIsSuggesting(false);
+    if (!result.success) {
+      setError(result.error);
+      return;
+    }
+    setDraft(result.message ?? null);
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          Deal health
+          <Badge variant={DEAL_HEALTH_VARIANT[health.level]}>{DEAL_HEALTH_LABEL[health.level]}</Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        {health.reasons.map((reason, i) => (
+          <p key={i} className="text-muted-foreground text-sm">
+            {reason}
+          </p>
+        ))}
+        {health.suggestFollowUp && (
+          <div className="flex flex-col gap-2">
+            <Button type="button" variant="outline" size="sm" loading={isSuggesting} onClick={handleSuggest} className="w-fit">
+              <Sparkles className="size-3.5" aria-hidden="true" />
+              Suggest follow-up message
+            </Button>
+            {error && <p className="text-destructive text-sm">{error}</p>}
+            {draft && (
+              <div className="flex flex-col gap-2">
+                <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={4} className="text-sm" />
+                <p className="text-muted-foreground text-xs">Draft only - review, edit, and send it yourself over WhatsApp or email.</p>
+                <CopyButton text={draft} />
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * One row per client-requested meeting time. No real Google Calendar/Meet
+ * API integration exists in this codebase - meetingLink is whatever real
+ * link the salesperson generated themselves and pastes in on confirm.
+ */
+function MeetingRequestRow({ meetingRequest, onChanged }: { meetingRequest: ProposalDetail["meetingRequests"][number]; onChanged: () => void }) {
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [confirmedAt, setConfirmedAt] = React.useState(toDatetimeLocalValue(meetingRequest.preferredAt));
+  const [confirmedMethod, setConfirmedMethod] = React.useState<"EMAIL" | "PHONE" | "WHATSAPP" | "GOOGLE_MEET" | "ZOOM">("GOOGLE_MEET");
+  const [meetingLink, setMeetingLink] = React.useState("");
+  const [isConfirming, setIsConfirming] = React.useState(false);
+  const [isDeclining, setIsDeclining] = React.useState(false);
+  const [error, setError] = React.useState<string | undefined>();
+
+  async function handleConfirm() {
+    setIsConfirming(true);
+    setError(undefined);
+    const result = await confirmProposalMeeting({
+      meetingRequestId: meetingRequest.id,
+      confirmedAt: new Date(confirmedAt).toISOString(),
+      confirmedMethod,
+      meetingLink: meetingLink || undefined,
+    });
+    setIsConfirming(false);
+    if (!result.success) {
+      setError(result.error);
+      return;
+    }
+    setConfirmOpen(false);
+    onChanged();
+  }
+
+  async function handleDecline() {
+    setIsDeclining(true);
+    await declineProposalMeeting({ meetingRequestId: meetingRequest.id });
+    setIsDeclining(false);
+    onChanged();
+  }
+
+  return (
+    <div className="border-border flex flex-col gap-2 rounded-lg border p-3 text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-foreground font-medium">{formatDateTime(meetingRequest.preferredAt)}</span>
+        <Badge variant={MEETING_REQUEST_STATUS_VARIANT[meetingRequest.status]}>{meetingRequest.status}</Badge>
+      </div>
+      {meetingRequest.clientName && <span className="text-muted-foreground text-xs">From {meetingRequest.clientName}</span>}
+      {meetingRequest.clientNote && <p className="text-muted-foreground text-xs">{meetingRequest.clientNote}</p>}
+
+      {meetingRequest.status === "CONFIRMED" && meetingRequest.confirmedAt && (
+        <p className="text-muted-foreground text-xs">
+          Confirmed for {formatDateTime(meetingRequest.confirmedAt)}
+          {meetingRequest.confirmedMethod ? ` via ${meetingRequest.confirmedMethod.replace(/_/g, " ")}` : ""}
+          {meetingRequest.meetingLink ? ` · ${meetingRequest.meetingLink}` : ""}
+        </p>
+      )}
+
+      {meetingRequest.status === "PENDING" && (
+        <div className="flex gap-2">
+          <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" variant="outline">
+                <CalendarClock className="size-3.5" aria-hidden="true" />
+                Confirm
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Confirm meeting</DialogTitle>
+                <DialogDescription>Paste a real meeting link if you have one - no Calendar/Meet integration generates one automatically.</DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor={`confirmed-at-${meetingRequest.id}`}>Confirmed date &amp; time</Label>
+                  <Input
+                    id={`confirmed-at-${meetingRequest.id}`}
+                    type="datetime-local"
+                    value={confirmedAt}
+                    onChange={(e) => setConfirmedAt(e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor={`confirmed-method-${meetingRequest.id}`}>Method</Label>
+                  {/* Native <select>, not Radix Select - see proposal-response-panel.tsx's package picker comment for why, inside a Dialog. */}
+                  <select
+                    id={`confirmed-method-${meetingRequest.id}`}
+                    value={confirmedMethod}
+                    onChange={(e) => setConfirmedMethod(e.target.value as typeof confirmedMethod)}
+                    className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/30 h-10 w-full rounded-md border px-3 text-sm outline-none focus-visible:ring-2"
+                  >
+                    <option value="GOOGLE_MEET">Google Meet</option>
+                    <option value="ZOOM">Zoom</option>
+                    <option value="WHATSAPP">WhatsApp</option>
+                    <option value="PHONE">Phone</option>
+                    <option value="EMAIL">Email</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor={`meeting-link-${meetingRequest.id}`}>Meeting link (optional)</Label>
+                  <Input
+                    id={`meeting-link-${meetingRequest.id}`}
+                    value={meetingLink}
+                    onChange={(e) => setMeetingLink(e.target.value)}
+                    placeholder="https://meet.google.com/..."
+                  />
+                </div>
+                {error && <p className="text-destructive text-sm">{error}</p>}
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button type="button" variant="ghost">
+                      Cancel
+                    </Button>
+                  </DialogClose>
+                  <Button onClick={handleConfirm} loading={isConfirming}>
+                    Confirm meeting
+                  </Button>
+                </DialogFooter>
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Button size="sm" variant="ghost" loading={isDeclining} onClick={handleDecline}>
+            Decline
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * The full authoring surface for one proposal - AI co-pilot, package/
  * pricing editor, ROI assumptions, send, and version history. Every
  * mutation here goes through proposal-actions.ts's role/viewer-scoped
  * server actions (never the public token-authenticated ones).
  */
-function ProposalWorkspace({ proposal, proposalUrl }: ProposalWorkspaceProps) {
+function ProposalWorkspace({ proposal, proposalUrl, engagement }: ProposalWorkspaceProps) {
   const router = useRouter();
   const currentVersion = proposal.versions[0];
   const content = currentVersion?.content as unknown as ProposalContent | undefined;
@@ -217,6 +455,40 @@ function ProposalWorkspace({ proposal, proposalUrl }: ProposalWorkspaceProps) {
       </div>
 
       {error && <p className="text-destructive text-sm">{error}</p>}
+
+      <DealHealthCard proposal={proposal} />
+
+      {engagement && engagement.totalSessions > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="size-4" aria-hidden="true" />
+              Engagement
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <p className="text-muted-foreground text-xs">
+              Real time spent reading, not just page loads (that&apos;s the {proposal.viewCount} view{proposal.viewCount === 1 ? "" : "s"} count above).
+            </p>
+            <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+              <span>
+                <span className="text-foreground font-medium">{engagement.totalSessions}</span>{" "}
+                <span className="text-muted-foreground">engaged session{engagement.totalSessions === 1 ? "" : "s"}</span>
+              </span>
+              <span>
+                <span className="text-foreground font-medium">{engagement.totalActiveMinutes}</span>{" "}
+                <span className="text-muted-foreground">total minutes reading</span>
+              </span>
+              {engagement.sectionMinutes.map((s) => (
+                <span key={s.key}>
+                  <span className="text-foreground font-medium">{s.minutes}</span>{" "}
+                  <span className="text-muted-foreground">min on {SECTION_LABEL[s.key] ?? s.key}</span>
+                </span>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -414,6 +686,22 @@ function ProposalWorkspace({ proposal, proposalUrl }: ProposalWorkspaceProps) {
         </CardContent>
       </Card>
 
+      {proposal.meetingRequests.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarClock className="size-4" aria-hidden="true" />
+              Meeting requests
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            {proposal.meetingRequests.map((mr) => (
+              <MeetingRequestRow key={mr.id} meetingRequest={mr} onChanged={() => router.refresh()} />
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -449,7 +737,14 @@ function ProposalWorkspace({ proposal, proposalUrl }: ProposalWorkspaceProps) {
                     Meeting request
                   </Badge>
                 )}
+                {c.type === "AI_CHAT" && (
+                  <Badge variant="secondary" className="mb-1.5">
+                    <Sparkles className="size-3" aria-hidden="true" />
+                    AI chat
+                  </Badge>
+                )}
                 <p className="text-foreground text-sm">{c.content}</p>
+                {c.type === "AI_CHAT" && c.aiAnswer && <p className="text-muted-foreground mt-1 text-sm italic">{c.aiAnswer}</p>}
                 <p className="text-muted-foreground mt-1 text-xs">
                   {c.clientName ?? "Client"} · {formatDateTime(c.createdAt)}
                 </p>

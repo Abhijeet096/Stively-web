@@ -78,3 +78,31 @@ export const requestProposalChangesSchema = z.object({
   token: z.string().min(1),
   note: z.string().trim().min(1).max(2000),
 });
+
+export const requestProposalMeetingSchema = z.object({
+  token: z.string().min(1),
+  preferredAt: z.string().trim().min(1),
+  note: z.string().trim().max(1000).optional(),
+  clientName: z.string().trim().max(200).optional(),
+});
+
+export const confirmProposalMeetingSchema = z.object({
+  meetingRequestId: z.string().min(1),
+  confirmedAt: z.string().trim().min(1),
+  confirmedMethod: z.enum(["EMAIL", "PHONE", "WHATSAPP", "GOOGLE_MEET", "ZOOM"]),
+  meetingLink: z.string().trim().max(500).optional(),
+});
+
+export const declineProposalMeetingSchema = z.object({
+  meetingRequestId: z.string().min(1),
+});
+
+export const askProposalQuestionSchema = z.object({
+  token: z.string().min(1),
+  question: z.string().trim().min(1).max(500),
+  clientName: z.string().trim().max(200).optional(),
+});
+
+export const suggestFollowUpMessageSchema = z.object({
+  proposalId: z.string().min(1),
+});

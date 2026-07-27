@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { Proposal, ProposalVersion, SalesLead } from "@prisma/client";
+import type { Proposal, ProposalVersion, SalesLead, ProposalMeetingRequest } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
@@ -18,6 +18,9 @@ import {
   updateCalculatorPricingSchema,
   updateRoiAssumptionsSchema,
   sendProposalSchema,
+  confirmProposalMeetingSchema,
+  declineProposalMeetingSchema,
+  suggestFollowUpMessageSchema,
 } from "../validation/proposal-schemas";
 import { getSalesLeadDiscovery, computeProposalReadiness } from "../server/discovery-queries";
 import { generateProposalNarrative } from "../server/proposal-engine";
@@ -25,6 +28,8 @@ import type { ProposalGenerationContext } from "../server/proposal-prompt-servic
 import { computeRoiEstimate } from "../server/roi-calculator";
 import { generateProposalToken, computeProposalExpiry } from "../lib/token";
 import { buildBusinessAudit } from "../lib/business-audit";
+import { computeDealHealth } from "../lib/deal-health";
+import { generateFollowUpMessage } from "../server/deal-health-engine";
 import type { ProposalContent, ProposalOpportunityScoreContent } from "../lib/content-types";
 
 async function resolveActorId(userId: string): Promise<string | undefined> {
@@ -500,6 +505,164 @@ export async function sendProposal(input: unknown): Promise<SendProposalResult> 
   } catch (error) {
     console.error("sendProposal failed:", error);
     return { success: false, error: "Something went wrong. Please try again." };
+  }
+}
+
+function buildMeetingConfirmedEmailHtml(params: { businessName: string; preferredAt: Date; confirmedAt: Date; method: string; meetingLink: string | null }) {
+  const when = new Intl.DateTimeFormat("en-IN", { dateStyle: "full", timeStyle: "short" }).format(params.confirmedAt);
+  return `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; color: #111827;">
+      <p>Hi ${params.businessName},</p>
+      <p>Your meeting request has been confirmed for <strong>${when}</strong> (${params.method.replace(/_/g, " ")}).</p>
+      ${params.meetingLink ? `<div style="text-align:center;margin:32px 0;"><a href="${params.meetingLink}" style="background:#4f46e5;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">Join the meeting</a></div>` : ""}
+      <p>Looking forward to speaking with you.</p>
+      <p style="margin-top:32px;">Best regards,<br/>Stively</p>
+    </div>
+  `;
+}
+
+type MeetingRequestWithProposal = ProposalMeetingRequest & { proposal: Proposal & { salesLead: SalesLead } };
+
+/** Shared by confirm/decline below - loads the meeting request with the same viewer-scoping as loadProposalForEdit, since a ProposalMeetingRequest is only ever touched through its parent proposal's access rules. */
+async function loadMeetingRequestForEdit(
+  meetingRequestId: string,
+  userId: string,
+  role: Parameters<typeof resolveSalesCrmViewer>[1]
+): Promise<{ ok: false; error: string } | { ok: true; meetingRequest: MeetingRequestWithProposal }> {
+  const viewer = await resolveSalesCrmViewer(userId, role);
+  const meetingRequest = await prisma.proposalMeetingRequest.findUnique({
+    where: { id: meetingRequestId },
+    include: { proposal: { include: { salesLead: true } } },
+  });
+  if (!meetingRequest) return { ok: false, error: "Meeting request not found." };
+  if (!viewer.hasFullAccess && meetingRequest.proposal.salesLead.assignedToId !== viewer.teamMemberId) {
+    return { ok: false, error: "Meeting request not found." };
+  }
+  return { ok: true, meetingRequest: meetingRequest as MeetingRequestWithProposal };
+}
+
+export type ConfirmProposalMeetingResult = ActionResult & { emailSent?: boolean };
+
+/** Confirms a real time the salesperson has agreed to - meetingLink is whatever real link they generated themselves (Google Meet/Zoom/etc), never auto-created, since no Calendar API integration exists here. Emails the client a real confirmation, non-fatal if it fails. */
+export async function confirmProposalMeeting(input: unknown): Promise<ConfirmProposalMeetingResult> {
+  const user = await requireRole("ADMIN", "SUPER_ADMIN", "SALES");
+
+  const parsed = confirmProposalMeetingSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  const data = parsed.data;
+
+  const confirmedAt = new Date(data.confirmedAt);
+  if (Number.isNaN(confirmedAt.getTime())) return { success: false, error: "Please choose a valid date and time." };
+
+  try {
+    const loaded = await loadMeetingRequestForEdit(data.meetingRequestId, user.id, user.role);
+    if (!loaded.ok) return { success: false, error: loaded.error };
+    const { meetingRequest } = loaded;
+
+    const actorId = await resolveActorId(user.id);
+
+    await prisma.proposalMeetingRequest.update({
+      where: { id: meetingRequest.id },
+      data: {
+        status: "CONFIRMED",
+        confirmedAt,
+        confirmedMethod: data.confirmedMethod,
+        meetingLink: data.meetingLink || null,
+        confirmedById: actorId ?? null,
+      },
+    });
+
+    await logSalesLeadActivity({
+      salesLeadId: meetingRequest.proposal.salesLeadId,
+      type: "PROPOSAL_MEETING_CONFIRMED",
+      description: `Confirmed for ${confirmedAt.toLocaleString("en-IN")}`,
+      performedById: actorId ?? null,
+    });
+
+    let emailSent = false;
+    if (meetingRequest.proposal.salesLead.email) {
+      try {
+        const html = buildMeetingConfirmedEmailHtml({
+          businessName: meetingRequest.proposal.salesLead.businessName,
+          preferredAt: meetingRequest.preferredAt,
+          confirmedAt,
+          method: data.confirmedMethod,
+          meetingLink: data.meetingLink || null,
+        });
+        await resend.emails.send({
+          from: EMAIL_FROM,
+          to: meetingRequest.proposal.salesLead.email,
+          subject: `Your meeting with Stively is confirmed`,
+          html,
+        });
+        emailSent = true;
+      } catch (error) {
+        console.error("confirmProposalMeeting email failed:", error);
+      }
+    }
+
+    revalidatePath(`/admin/sales-crm/leads/${meetingRequest.proposal.salesLeadId}/proposal`);
+    revalidatePath(`/sales/leads/${meetingRequest.proposal.salesLeadId}/proposal`);
+    revalidatePath(`/proposal/${meetingRequest.proposal.token}`);
+    return { success: true, emailSent };
+  } catch (error) {
+    console.error("confirmProposalMeeting failed:", error);
+    return { success: false, error: "Something went wrong. Please try again." };
+  }
+}
+
+export type DeclineProposalMeetingResult = ActionResult;
+
+export async function declineProposalMeeting(input: unknown): Promise<DeclineProposalMeetingResult> {
+  const user = await requireRole("ADMIN", "SUPER_ADMIN", "SALES");
+
+  const parsed = declineProposalMeetingSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  const data = parsed.data;
+
+  try {
+    const loaded = await loadMeetingRequestForEdit(data.meetingRequestId, user.id, user.role);
+    if (!loaded.ok) return { success: false, error: loaded.error };
+    const { meetingRequest } = loaded;
+
+    await prisma.proposalMeetingRequest.update({ where: { id: meetingRequest.id }, data: { status: "DECLINED" } });
+
+    revalidatePath(`/admin/sales-crm/leads/${meetingRequest.proposal.salesLeadId}/proposal`);
+    revalidatePath(`/sales/leads/${meetingRequest.proposal.salesLeadId}/proposal`);
+    return { success: true };
+  } catch (error) {
+    console.error("declineProposalMeeting failed:", error);
+    return { success: false, error: "Something went wrong. Please try again." };
+  }
+}
+
+export type SuggestFollowUpMessageResult = ActionResult & { message?: string };
+
+/** Only proceeds if computeDealHealth says a follow-up is genuinely warranted - never wastes a Groq call otherwise. Returns a draft; the salesperson decides whether/how to send it, exactly like every other client-facing message in this codebase. */
+export async function suggestFollowUpMessage(input: unknown): Promise<SuggestFollowUpMessageResult> {
+  const user = await requireRole("ADMIN", "SUPER_ADMIN", "SALES");
+
+  const parsed = suggestFollowUpMessageSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  const loaded = await loadProposalForEdit(parsed.data.proposalId, user.id, user.role);
+  if (!loaded.ok) return { success: false, error: loaded.error };
+
+  const health = computeDealHealth(loaded.proposal);
+  if (!health.suggestFollowUp) return { success: false, error: "This proposal doesn't need a follow-up right now." };
+
+  try {
+    const message = await generateFollowUpMessage({
+      businessName: loaded.proposal.salesLead.businessName,
+      proposalTitle: loaded.proposal.title,
+      level: health.level,
+      daysSinceLastActivity: health.daysSinceLastActivity,
+      viewCount: loaded.proposal.viewCount,
+    });
+    return { success: true, message };
+  } catch (error) {
+    console.error("suggestFollowUpMessage failed:", error);
+    return { success: false, error: "Couldn't generate a suggestion right now. Please try again." };
   }
 }
 

@@ -12,8 +12,11 @@ import {
   acceptProposalSchema,
   rejectProposalSchema,
   requestProposalChangesSchema,
+  requestProposalMeetingSchema,
+  askProposalQuestionSchema,
 } from "../validation/proposal-schemas";
 import type { ProposalContent } from "../lib/content-types";
+import { answerProposalQuestion } from "../server/proposal-chat-engine";
 
 const TERMINAL_STATUSES = ["ACCEPTED", "REJECTED", "EXPIRED"];
 
@@ -214,6 +217,63 @@ export async function rejectProposal(input: unknown): Promise<RejectProposalResu
   }
 }
 
+export type RequestProposalMeetingResult = ActionResult;
+
+/**
+ * Creates a real ProposalMeetingRequest (real preferredAt, not just a canned
+ * comment) - the salesperson confirms/declines it from the workspace (see
+ * proposal-actions.ts's confirmProposalMeeting/declineProposalMeeting). No
+ * real Google Calendar/Meet API integration exists in this codebase - the
+ * salesperson pastes a real meeting link they generated themselves on
+ * confirm, same manual-scheduling precedent as Operations' Meeting model.
+ */
+export async function requestProposalMeeting(input: unknown): Promise<RequestProposalMeetingResult> {
+  const parsed = requestProposalMeetingSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  const data = parsed.data;
+
+  const preferredAt = new Date(data.preferredAt);
+  if (Number.isNaN(preferredAt.getTime())) return { success: false, error: "Please choose a valid date and time." };
+
+  const resolution = await resolveProposalToken(data.token);
+  if (resolution.status === "not_found") return { success: false, error: "This proposal link is invalid." };
+  if (resolution.status === "expired") return { success: false, error: "This proposal has expired." };
+
+  const { proposal } = resolution;
+  if (!(await checkProposalRateLimit(proposal.id))) {
+    return { success: false, error: "Too many requests. Please wait a moment and try again." };
+  }
+
+  try {
+    await prisma.proposalMeetingRequest.create({
+      data: { proposalId: proposal.id, preferredAt, clientNote: data.note, clientName: data.clientName },
+    });
+
+    await logSalesLeadActivity({
+      salesLeadId: proposal.salesLeadId,
+      type: "PROPOSAL_MEETING_REQUESTED",
+      description: `Requested a meeting for ${preferredAt.toLocaleString("en-IN")}`,
+      performedById: null,
+    });
+
+    await notifySalespersonOnProposalEvent({
+      salesLeadId: proposal.salesLeadId,
+      proposalId: proposal.id,
+      type: "PROPOSAL_MEETING_REQUESTED",
+      title: "Meeting requested",
+      body: `${proposal.salesLead.businessName} would like to meet on ${preferredAt.toLocaleString("en-IN")}.`,
+    });
+
+    revalidatePath(`/proposal/${data.token}`);
+    revalidatePath(`/admin/sales-crm/leads/${proposal.salesLeadId}/proposal`);
+    revalidatePath(`/sales/leads/${proposal.salesLeadId}/proposal`);
+    return { success: true };
+  } catch (error) {
+    console.error("requestProposalMeeting failed:", error);
+    return { success: false, error: "Something went wrong. Please try again." };
+  }
+}
+
 export type RequestProposalChangesResult = ActionResult;
 
 export async function requestProposalChanges(input: unknown): Promise<RequestProposalChangesResult> {
@@ -266,6 +326,54 @@ export async function requestProposalChanges(input: unknown): Promise<RequestPro
     return { success: true };
   } catch (error) {
     console.error("requestProposalChanges failed:", error);
+    return { success: false, error: "Something went wrong. Please try again." };
+  }
+}
+
+export type AskProposalQuestionResult = ActionResult & { answer?: string };
+
+const AI_CHAT_WINDOW_MS = 60_000;
+// Real client Q&A during one reading session is nowhere close to this - this
+// is the first Groq call in this codebase reachable by an anonymous public
+// token holder, so it gets a tighter cap than the general 10/60s limiter.
+const AI_CHAT_MAX_PER_WINDOW = 5;
+
+/** Grounds the answer only in this proposal's own already-generated content (proposal-chat-engine.ts) - never a general-purpose chatbot. Persists both question and answer as one ProposalComment row (type AI_CHAT) so the salesperson sees every exchange in the existing comments card. */
+export async function askProposalQuestion(input: unknown): Promise<AskProposalQuestionResult> {
+  const parsed = askProposalQuestionSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  const data = parsed.data;
+
+  const resolution = await resolveProposalToken(data.token);
+  if (resolution.status === "not_found") return { success: false, error: "This proposal link is invalid." };
+  if (resolution.status === "expired") return { success: false, error: "This proposal has expired." };
+
+  const { proposal } = resolution;
+  if (!(await checkProposalRateLimit(proposal.id))) {
+    return { success: false, error: "Too many requests. Please wait a moment and try again." };
+  }
+
+  const recentChatCount = await prisma.proposalComment.count({
+    where: { proposalId: proposal.id, type: "AI_CHAT", createdAt: { gte: new Date(Date.now() - AI_CHAT_WINDOW_MS) } },
+  });
+  if (recentChatCount >= AI_CHAT_MAX_PER_WINDOW) {
+    return { success: false, error: "Too many questions at once. Please wait a moment and try again." };
+  }
+
+  const content = proposal.versions[0]?.content as unknown as ProposalContent | undefined;
+  if (!content) return { success: false, error: "This proposal isn't ready yet." };
+
+  try {
+    const answer = await answerProposalQuestion(content, data.question);
+
+    await prisma.proposalComment.create({
+      data: { proposalId: proposal.id, type: "AI_CHAT", content: data.question, aiAnswer: answer, clientName: data.clientName },
+    });
+
+    revalidatePath(`/proposal/${data.token}`);
+    return { success: true, answer };
+  } catch (error) {
+    console.error("askProposalQuestion failed:", error);
     return { success: false, error: "Something went wrong. Please try again." };
   }
 }

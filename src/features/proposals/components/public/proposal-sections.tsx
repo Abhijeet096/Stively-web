@@ -128,12 +128,13 @@ export function ProposalProblems({ content }: { content: ProposalContent }) {
 }
 
 export function ProposalBeforeAfter({ content }: { content: ProposalContent }) {
-  if (content.beforeAfterVision.length === 0) return null;
+  const beforeAfterVision = content.beforeAfterVision ?? [];
+  if (beforeAfterVision.length === 0) return null;
   return (
     <div className="flex flex-col gap-4">
       <SectionHeading eyebrow="Before / after" title="What changes for you" />
       <div className="grid gap-3 sm:grid-cols-2">
-        {content.beforeAfterVision.map((pair, i) => (
+        {beforeAfterVision.map((pair, i) => (
           <Card key={i}>
             <CardContent className="flex items-center gap-3 pt-6">
               <div className="flex flex-1 items-center gap-2">
@@ -228,12 +229,13 @@ export function ProposalSolution({ content }: { content: ProposalContent }) {
 
 /** Qualitative outcomes only - never a number or revenue figure, that's the separate human-entered ROI calculator below. */
 export function ProposalEstimatedImpact({ content }: { content: ProposalContent }) {
-  if (content.estimatedImpact.length === 0) return null;
+  const estimatedImpact = content.estimatedImpact ?? [];
+  if (estimatedImpact.length === 0) return null;
   return (
     <div className="flex flex-col gap-4">
       <SectionHeading eyebrow="Estimated business impact" title="What you can expect" />
       <div className="grid gap-3 sm:grid-cols-2">
-        {content.estimatedImpact.map((item, i) => (
+        {estimatedImpact.map((item, i) => (
           <div key={i} className="border-border flex items-start gap-2.5 rounded-lg border p-3">
             <Rocket className="text-primary mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <div className="flex flex-col">

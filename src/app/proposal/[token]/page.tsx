@@ -23,6 +23,8 @@ import {
 } from "@/features/proposals/components/public/proposal-sections";
 import { ProposalCalculator } from "@/features/proposals/components/public/proposal-calculator";
 import { ProposalResponsePanel } from "@/features/proposals/components/public/proposal-response-panel";
+import { ProposalAiChat } from "@/features/proposals/components/public/proposal-ai-chat";
+import { ProposalAnalyticsBeacon } from "@/features/proposals/components/public/proposal-analytics-beacon";
 import type { ProposalContent } from "@/features/proposals/lib/content-types";
 
 interface ProposalTokenPageProps {
@@ -104,10 +106,14 @@ export default async function ProposalTokenPage({ params }: ProposalTokenPagePro
         <ProposalBeforeAfter content={content} />
         <ProposalSolution content={content} />
         <ProposalEstimatedImpact content={content} />
-        <ProposalTimeline content={content} />
+        <div data-proposal-section="timeline">
+          <ProposalTimeline content={content} />
+        </div>
         <ProposalDeliverables content={content} />
-        <ProposalPricing content={content} />
-        <ProposalCalculator calculator={content.calculator} />
+        <div data-proposal-section="pricing" className="flex flex-col gap-14">
+          <ProposalPricing content={content} />
+          <ProposalCalculator calculator={content.calculator} />
+        </div>
         <ProposalRoi content={content} />
         <ProposalWhyStively content={content} />
         <ProposalFaq content={content} />
@@ -116,9 +122,18 @@ export default async function ProposalTokenPage({ params }: ProposalTokenPagePro
           status={proposal.status}
           packages={content.packages}
           calculator={content.calculator}
-          comments={proposal.comments}
+          comments={proposal.comments.filter((c) => c.type !== "AI_CHAT")}
+          meetingRequests={proposal.meetingRequests}
         />
       </Container>
+
+      <ProposalAiChat
+        token={token}
+        initialExchanges={proposal.comments
+          .filter((c) => c.type === "AI_CHAT" && c.aiAnswer)
+          .map((c) => ({ id: c.id, question: c.content, answer: c.aiAnswer as string }))}
+      />
+      <ProposalAnalyticsBeacon token={token} />
     </div>
   );
 }

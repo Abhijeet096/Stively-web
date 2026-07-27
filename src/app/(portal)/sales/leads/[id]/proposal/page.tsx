@@ -6,6 +6,7 @@ import { SetPageTitle } from "@/components/dashboard-shell/layout/dashboard-titl
 import { Container } from "@/components/shared/container";
 import { resolveSalesCrmViewer } from "@/features/sales-crm/server/rbac";
 import { getActiveProposalForLead } from "@/features/proposals/server/proposal-queries";
+import { getProposalEngagement } from "@/features/proposals/server/analytics-queries";
 import { ProposalWorkspace } from "@/features/proposals/components/admin/proposal-workspace";
 import { siteConfig } from "@/config/site";
 
@@ -22,12 +23,13 @@ export default async function SalesPortalProposalWorkspacePage({ params }: Sales
   const viewer = await resolveSalesCrmViewer(user.id, user.role);
   const proposal = await getActiveProposalForLead(id, viewer);
   if (!proposal) notFound();
+  const engagement = await getProposalEngagement(proposal.id, viewer);
 
   return (
     <>
       <SetPageTitle title={proposal.title} />
       <Container className="py-8">
-        <ProposalWorkspace proposal={proposal} proposalUrl={`${siteConfig.url}/proposal/${proposal.token}`} />
+        <ProposalWorkspace proposal={proposal} proposalUrl={`${siteConfig.url}/proposal/${proposal.token}`} engagement={engagement} />
       </Container>
     </>
   );

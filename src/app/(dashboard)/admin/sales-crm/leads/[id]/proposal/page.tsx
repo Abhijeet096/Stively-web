@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/session";
 import { resolveSalesCrmViewer } from "@/features/sales-crm/server/rbac";
 import { getActiveProposalForLead } from "@/features/proposals/server/proposal-queries";
+import { getProposalEngagement } from "@/features/proposals/server/analytics-queries";
 import { ProposalWorkspace } from "@/features/proposals/components/admin/proposal-workspace";
 import { siteConfig } from "@/config/site";
 
@@ -20,10 +21,11 @@ export default async function AdminProposalWorkspacePage({ params }: ProposalWor
   const viewer = await resolveSalesCrmViewer(user.id, user.role);
   const proposal = await getActiveProposalForLead(id, viewer);
   if (!proposal) notFound();
+  const engagement = await getProposalEngagement(proposal.id, viewer);
 
   return (
     <div className="p-6">
-      <ProposalWorkspace proposal={proposal} proposalUrl={`${siteConfig.url}/proposal/${proposal.token}`} />
+      <ProposalWorkspace proposal={proposal} proposalUrl={`${siteConfig.url}/proposal/${proposal.token}`} engagement={engagement} />
     </div>
   );
 }

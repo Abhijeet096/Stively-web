@@ -1,12 +1,13 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
-import type { Proposal, ProposalVersion, ProposalComment, SalesLead } from "@prisma/client";
+import type { Proposal, ProposalVersion, ProposalComment, ProposalMeetingRequest, SalesLead } from "@prisma/client";
 
 export type ResolvedProposal = Proposal & {
   salesLead: SalesLead;
   versions: ProposalVersion[];
   comments: ProposalComment[];
+  meetingRequests: ProposalMeetingRequest[];
 };
 
 export type ProposalResolution =
@@ -29,6 +30,7 @@ export async function resolveProposalToken(token: string): Promise<ProposalResol
       salesLead: true,
       versions: { orderBy: { versionNumber: "desc" } },
       comments: { orderBy: { createdAt: "asc" } },
+      meetingRequests: { orderBy: { createdAt: "desc" } },
     },
   });
   if (!proposal) return { status: "not_found" };

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, XCircle, MessageSquareText, CalendarClock, Send } from "lucide-react";
-import type { ProposalStatus, ProposalComment } from "@prisma/client";
+import type { ProposalStatus, ProposalComment, ProposalMeetingRequest } from "@prisma/client";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +24,13 @@ import {
 import { formatPrice } from "@/lib/utils";
 import type { ProposalPackageContent, ProposalCalculatorContent } from "../../lib/content-types";
 import { PROPOSAL_STATUS_LABEL, PROPOSAL_STATUS_VARIANT } from "../../lib/labels";
-import { postProposalComment, acceptProposal, rejectProposal, requestProposalChanges } from "../../actions/client-proposal-actions";
+import {
+  postProposalComment,
+  acceptProposal,
+  rejectProposal,
+  requestProposalChanges,
+  requestProposalMeeting,
+} from "../../actions/client-proposal-actions";
 
 interface ProposalResponsePanelProps {
   token: string;
@@ -32,6 +38,38 @@ interface ProposalResponsePanelProps {
   packages: ProposalPackageContent[];
   calculator: ProposalCalculatorContent | null;
   comments: ProposalComment[];
+  meetingRequests: ProposalMeetingRequest[];
+}
+
+function MeetingStatusCard({ meetingRequest }: { meetingRequest: ProposalMeetingRequest }) {
+  const formatDateTime = (date: Date) => new Intl.DateTimeFormat("en-IN", { dateStyle: "full", timeStyle: "short" }).format(date);
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+        <CardTitle>Meeting</CardTitle>
+        <Badge variant={meetingRequest.status === "CONFIRMED" ? "success" : meetingRequest.status === "DECLINED" ? "destructive" : "secondary"}>
+          {meetingRequest.status === "CONFIRMED" ? "Confirmed" : meetingRequest.status === "DECLINED" ? "Declined" : "Pending confirmation"}
+        </Badge>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-1.5 text-sm">
+        {meetingRequest.status === "CONFIRMED" && meetingRequest.confirmedAt ? (
+          <>
+            <p className="text-foreground font-medium">{formatDateTime(meetingRequest.confirmedAt)}</p>
+            {meetingRequest.confirmedMethod && <p className="text-muted-foreground">Via {meetingRequest.confirmedMethod.replace(/_/g, " ")}</p>}
+            {meetingRequest.meetingLink && (
+              <a href={meetingRequest.meetingLink} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-4">
+                Join the meeting
+              </a>
+            )}
+          </>
+        ) : meetingRequest.status === "DECLINED" ? (
+          <p className="text-muted-foreground">We weren&apos;t able to make the requested time - reach out to find another slot.</p>
+        ) : (
+          <p className="text-muted-foreground">You requested {formatDateTime(meetingRequest.preferredAt)} - we&apos;ll confirm shortly.</p>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 const TERMINAL_STATUSES: ProposalStatus[] = ["ACCEPTED", "REJECTED", "EXPIRED"];
@@ -63,7 +101,7 @@ function CommentThread({ comments }: { comments: ProposalComment[] }) {
  * hits a public, token-authenticated server action (client-proposal-
  * actions.ts) - no login, exactly what a proposal recipient expects.
  */
-function ProposalResponsePanel({ token, status, packages, calculator, comments }: ProposalResponsePanelProps) {
+function ProposalResponsePanel({ token, status, packages, calculator, comments, meetingRequests }: ProposalResponsePanelProps) {
   const router = useRouter();
   const isTerminal = TERMINAL_STATUSES.includes(status);
   const calculatorItems = calculator?.items ?? [];
@@ -97,7 +135,11 @@ function ProposalResponsePanel({ token, status, packages, calculator, comments }
   const [isRequestingChanges, setIsRequestingChanges] = React.useState(false);
   const [changesOpen, setChangesOpen] = React.useState(false);
 
+  const [meetingPreferredAt, setMeetingPreferredAt] = React.useState("");
+  const [meetingNote, setMeetingNote] = React.useState("");
   const [isSchedulingMeeting, setIsSchedulingMeeting] = React.useState(false);
+  const [meetingOpen, setMeetingOpen] = React.useState(false);
+  const latestMeetingRequest = meetingRequests[0];
 
   const [error, setError] = React.useState<string | undefined>();
 
@@ -116,12 +158,13 @@ function ProposalResponsePanel({ token, status, packages, calculator, comments }
   }
 
   async function handleScheduleMeeting() {
+    if (!meetingPreferredAt) return;
     setIsSchedulingMeeting(true);
     setError(undefined);
-    const result = await postProposalComment({
+    const result = await requestProposalMeeting({
       token,
-      type: "MEETING_REQUEST",
-      content: "I'd like to schedule a meeting to discuss this proposal.",
+      preferredAt: meetingPreferredAt,
+      note: meetingNote || undefined,
       clientName: clientName || undefined,
     });
     setIsSchedulingMeeting(false);
@@ -129,6 +172,9 @@ function ProposalResponsePanel({ token, status, packages, calculator, comments }
       setError(result.error);
       return;
     }
+    setMeetingOpen(false);
+    setMeetingPreferredAt("");
+    setMeetingNote("");
     router.refresh();
   }
 
@@ -290,10 +336,43 @@ function ProposalResponsePanel({ token, status, packages, calculator, comments }
                 </DialogContent>
               </Dialog>
 
-              <Button size="lg" variant="outline" loading={isSchedulingMeeting} onClick={handleScheduleMeeting}>
-                <CalendarClock className="size-4" aria-hidden="true" />
-                Schedule Meeting
-              </Button>
+              <Dialog open={meetingOpen} onOpenChange={setMeetingOpen}>
+                <DialogTrigger asChild>
+                  <Button size="lg" variant="outline">
+                    <CalendarClock className="size-4" aria-hidden="true" />
+                    Schedule Meeting
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Schedule a meeting</DialogTitle>
+                    <DialogDescription>Tell us a time that works for you and we&apos;ll confirm it.</DialogDescription>
+                  </DialogHeader>
+                  <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="meeting-preferred-at">Preferred date &amp; time</Label>
+                      <Input
+                        id="meeting-preferred-at"
+                        type="datetime-local"
+                        value={meetingPreferredAt}
+                        onChange={(e) => setMeetingPreferredAt(e.target.value)}
+                      />
+                    </div>
+                    <Textarea placeholder="Anything you'd like to cover (optional)" rows={3} value={meetingNote} onChange={(e) => setMeetingNote(e.target.value)} />
+                    {error && <p className="text-destructive text-sm">{error}</p>}
+                    <DialogFooter>
+                      <DialogClose asChild>
+                        <Button type="button" variant="ghost">
+                          Cancel
+                        </Button>
+                      </DialogClose>
+                      <Button onClick={handleScheduleMeeting} loading={isSchedulingMeeting} disabled={!meetingPreferredAt}>
+                        Send request
+                      </Button>
+                    </DialogFooter>
+                  </div>
+                </DialogContent>
+              </Dialog>
 
               <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
                 <DialogTrigger asChild>
@@ -328,6 +407,8 @@ function ProposalResponsePanel({ token, status, packages, calculator, comments }
           </CardContent>
         )}
       </Card>
+
+      {latestMeetingRequest && <MeetingStatusCard meetingRequest={latestMeetingRequest} />}
 
       <Card>
         <CardHeader>

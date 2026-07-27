@@ -7,6 +7,7 @@ const proposalDetailInclude = {
   salesLead: true,
   versions: { orderBy: { versionNumber: "desc" as const } },
   comments: { orderBy: { createdAt: "asc" as const } },
+  meetingRequests: { orderBy: { createdAt: "desc" as const } },
 };
 
 /** Every proposal ever generated for this lead, newest first - RBAC-scoped the same way every other sales-crm read is (full access, or only the assigned salesperson's own lead). */
