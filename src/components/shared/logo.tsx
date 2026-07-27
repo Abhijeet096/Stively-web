@@ -1,28 +1,55 @@
+import Image from "next/image";
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 
+/** Real intrinsic size of both public/brand/logo-*-surface.png exports - keeps next/image from guessing an aspect ratio. */
+const LOGO_WIDTH = 900;
+const LOGO_HEIGHT = 263;
+
+export interface LogoProps {
+  className?: string;
+  /**
+   * "auto" (default) shows the navy-on-transparent mark in light mode and
+   * the white-on-transparent mark in dark mode via `dark:` classes - no JS,
+   * no hydration flicker, matches next-themes' class-based dark mode.
+   * Force "dark" for surfaces that are always dark regardless of site theme
+   * (e.g. Footer's `bg-ink`), or "light" for surfaces that are always light.
+   */
+  variant?: "auto" | "light" | "dark";
+}
+
 /**
- * Text wordmark plus a small signal-gradient mark, not an image - there's
- * no logo asset yet. Swap the JSX below for an <Image>/SVG mark whenever
- * one exists; every place that renders <Logo /> updates automatically.
- * `className` overrides text color for the ink surfaces (Footer) - see
- * callers passing `text-ink-foreground`.
+ * Real logo asset (public/brand/logo-*-surface.png), trimmed and derived
+ * from the brand kit (D:\Stively\Stively Brand kit) - light-surface is a
+ * navy recolor of the same transparent wordmark, not a separate design.
  */
-function Logo({ className }: { className?: string }) {
+function Logo({ className, variant = "auto" }: LogoProps) {
   return (
     <Link
       href="/"
-      className={cn(
-        "group text-foreground inline-flex items-center gap-2 transition-opacity hover:opacity-80",
-        className
-      )}
+      className={cn("group inline-flex items-center transition-opacity hover:opacity-80", className)}
     >
-      <span
-        aria-hidden="true"
-        className="from-primary via-brand-iris to-brand-teal ring-primary/15 size-2.5 shrink-0 rounded-full bg-linear-to-br ring-4 transition-transform duration-300 group-hover:scale-110"
-      />
-      <span className="font-display text-lg font-semibold tracking-tight">Stively</span>
+      {(variant === "auto" || variant === "light") && (
+        <Image
+          src="/brand/logo-light-surface.png"
+          alt="Stively"
+          width={LOGO_WIDTH}
+          height={LOGO_HEIGHT}
+          priority
+          className={cn("h-6 w-auto", variant === "auto" && "dark:hidden")}
+        />
+      )}
+      {(variant === "auto" || variant === "dark") && (
+        <Image
+          src="/brand/logo-dark-surface.png"
+          alt="Stively"
+          width={LOGO_WIDTH}
+          height={LOGO_HEIGHT}
+          priority
+          className={cn("h-6 w-auto", variant === "auto" && "hidden dark:block")}
+        />
+      )}
     </Link>
   );
 }

@@ -4,9 +4,10 @@ import { siteConfig } from "@/config/site";
 
 /**
  * Auto-detected by Next.js (no manual <link rel="manifest"> needed).
- * Colors match the real logo (public/logo.png): navy background, and the
- * same teal used for its "i" as the manifest's theme_color, not the site's
- * CSS --primary token - see the note in icon.tsx.
+ * Colors sampled directly from the real brand kit (public/logo.png's navy
+ * background) - not approximated. Static src/app/icon.png + apple-icon.png
+ * are served at literal /icon.png + /apple-icon.png (unlike the old
+ * code-generated icon.tsx, which resolved at the extension-less /icon).
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
@@ -15,11 +16,12 @@ export default function manifest(): MetadataRoute.Manifest {
     description: siteConfig.description,
     start_url: "/",
     display: "standalone",
-    background_color: "#2a353f",
-    theme_color: "#2a353f",
+    background_color: "#2e3a46",
+    theme_color: "#2e3a46",
     icons: [
-      { src: "/icon", sizes: "32x32", type: "image/png" },
-      { src: "/apple-icon", sizes: "180x180", type: "image/png" },
+      { src: "/icon.png", sizes: "32x32", type: "image/png" },
+      { src: "/apple-icon.png", sizes: "180x180", type: "image/png" },
+      { src: "/brand/icon-512.png", sizes: "512x512", type: "image/png" },
     ],
   };
 }

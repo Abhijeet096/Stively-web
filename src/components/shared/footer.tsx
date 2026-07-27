@@ -66,7 +66,7 @@ function Footer() {
       <Container className="relative py-20">
         <div className="grid grid-cols-1 gap-12 md:grid-cols-5 md:gap-10">
           <div className="md:col-span-2 flex flex-col gap-4">
-            <Logo className="text-ink-foreground" />
+            <Logo variant="dark" />
             <p className="text-ink-muted-foreground max-w-xs text-sm text-pretty">
               {siteConfig.description}
             </p>

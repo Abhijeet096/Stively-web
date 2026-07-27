@@ -12,10 +12,10 @@ export const contentType = "image/png";
 /**
  * Uses the real logo (public/logo.png), not a generated substitute -
  * public/logo-mark.png is a tightly-cropped, pre-optimized version of the
- * same file (the source is a 2000x2000 canvas with the wordmark occupying
+ * same file (the source is a 6250x6250 canvas with the wordmark occupying
  * a small fraction of it; cropping it here once, ahead of time, keeps the
  * wordmark legible at social-preview size instead of shrinking the whole
- * canvas down). Background (#2a353f) and the teal accent are sampled
+ * canvas down). Background (#2e3a46) and the teal accent are sampled
  * directly from the source file so this blends into the real logo with no
  * visible seam, not approximated.
  */
@@ -33,11 +33,11 @@ export default async function OGImage() {
           flexDirection: "column",
           justifyContent: "center",
           padding: "80px",
-          background: "#2a353f",
+          background: "#2e3a46",
         }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- ImageResponse (Satori) requires a plain <img>, not next/image */}
-        <img src={logoSrc} width={520} height={173} alt={siteConfig.name} />
+        <img src={logoSrc} width={520} height={191} alt={siteConfig.name} />
         <div
           style={{
             display: "flex",

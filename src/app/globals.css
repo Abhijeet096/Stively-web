@@ -48,9 +48,9 @@
   --ink-border: oklch(1 0 0 / 10%);
   --ink-border-strong: oklch(1 0 0 / 18%);
 
-  /* Brand - Stively Indigo (primary) + Stively Teal (accent) - both sampled
-     precisely from the real logo (public/logo.png: navy #2a353f bg, teal
-     #00c4cc "i"), converted to OKLCH rather than dropped in as raw hex, so
+  /* Brand - Stively Indigo (primary) + Stively Teal (accent) - teal sampled
+     precisely from the real logo (public/logo.png: navy #2e3a46 bg, teal
+     #21d2ba "i"), converted to OKLCH rather than dropped in as raw hex, so
      they mix cleanly with the rest of this OKLCH token system. Indigo stays
      the dominant, high-frequency color (buttons, links, focus - unchanged
      everywhere it already appears); teal is a second, sparingly-used accent
