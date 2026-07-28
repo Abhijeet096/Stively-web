@@ -8,9 +8,10 @@ export interface OfferingGridProps {
   offerings: Offering[];
   hasActiveFilters?: boolean;
   clearFiltersHref?: string;
+  hrefBase?: string;
 }
 
-function OfferingGrid({ offerings, hasActiveFilters, clearFiltersHref }: OfferingGridProps) {
+function OfferingGrid({ offerings, hasActiveFilters, clearFiltersHref, hrefBase }: OfferingGridProps) {
   if (offerings.length === 0) {
     return (
       <EmptyState
@@ -31,7 +32,7 @@ function OfferingGrid({ offerings, hasActiveFilters, clearFiltersHref }: Offerin
   return (
     <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
       {offerings.map((offering) => (
-        <OfferingCard key={offering.id} offering={offering} />
+        <OfferingCard key={offering.id} offering={offering} hrefBase={hrefBase} />
       ))}
     </div>
   );

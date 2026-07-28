@@ -85,6 +85,15 @@ model User {
   sessionAttendance   MentorSessionAttendee[]
   notifications       Notification[]
 
+  /// Client Workspace - every SalesLead this CLIENT-role user has been
+  /// linked to as the business's contact (see SalesLead.clientUserId).
+  /// Usually one, but a repeat client's second engagement is a second,
+  /// separate SalesLead - see the field comment there.
+  clientOfLeads SalesLead[] @relation("SalesLeadClient")
+  /// Sales Negotiation Loop - every message this user has sent on a
+  /// SalesLead thread, either side (client or staff).
+  salesLeadMessages SalesLeadMessage[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -318,6 +327,7 @@ enum LeadSource {
   PROGRAM_INTEREST
   CAREERS
   NEWSLETTER_POPUP
+  CLIENT_PORTAL
   OTHER
 }
 
@@ -429,10 +439,10 @@ model TeamMember {
   /// this is outbound B2B sales prospecting, a different data shape and
   /// pipeline entirely.
   salesProfile                SalesProfile?
-  ownedSalesLeads             SalesLead[]           @relation("SalesLeadAssignedTo")
-  createdSalesLeads           SalesLead[]           @relation("SalesLeadCreatedBy")
-  salesLeadAssignments        SalesLeadAssignment[] @relation("SalesAssignmentOwner")
-  salesLeadAssignmentsMade    SalesLeadAssignment[] @relation("SalesAssignmentAssignedBy")
+  ownedSalesLeads             SalesLead[]              @relation("SalesLeadAssignedTo")
+  createdSalesLeads           SalesLead[]              @relation("SalesLeadCreatedBy")
+  salesLeadAssignments        SalesLeadAssignment[]    @relation("SalesAssignmentOwner")
+  salesLeadAssignmentsMade    SalesLeadAssignment[]    @relation("SalesAssignmentAssignedBy")
   salesLeadActivities         SalesLeadActivity[]
   salesLeadOutreachGenerated  SalesLeadOutreach[]
   salesLeadDiscoveriesUpdated SalesLeadDiscovery[]
@@ -442,16 +452,21 @@ model TeamMember {
   salesLeadNotes              SalesLeadNote[]
   salesLeadAttachments        SalesLeadAttachment[]
   salesQuotesCreated          SalesQuote[]
-  assignedFollowUps           SalesFollowUp[]       @relation("FollowUpAssignee")
-  createdFollowUps            SalesFollowUp[]       @relation("FollowUpCreatedBy")
-  assignedTasks               SalesTask[]           @relation("TaskAssignee")
-  createdTasks                SalesTask[]           @relation("TaskAssignedBy")
-  salesProjectsAsSales        SalesProject[]        @relation("ProjectSalesPerson")
-  salesProjectsAsManager      SalesProject[]        @relation("ProjectManager")
-  salesProjectsAsDev          SalesProject[]        @relation("ProjectDeveloper")
+  scheduledSalesLeadMeetings  SalesLeadMeeting[]
+  assignedFollowUps           SalesFollowUp[]          @relation("FollowUpAssignee")
+  createdFollowUps            SalesFollowUp[]          @relation("FollowUpCreatedBy")
+  assignedTasks               SalesTask[]              @relation("TaskAssignee")
+  createdTasks                SalesTask[]              @relation("TaskAssignedBy")
+  salesProjectsAsSales        SalesProject[]           @relation("ProjectSalesPerson")
+  salesProjectsAsManager      SalesProject[]           @relation("ProjectManager")
+  salesProjectsAsDev          SalesProject[]           @relation("ProjectDeveloper")
   recordedPayments            SalesProjectPayment[]
-  commissionsEarned           SalesCommission[]     @relation("CommissionSalesPerson")
-  commissionsApproved         SalesCommission[]     @relation("CommissionApprovedBy")
+  commissionsEarned           SalesCommission[]        @relation("CommissionSalesPerson")
+  commissionsApproved         SalesCommission[]        @relation("CommissionApprovedBy")
+
+  /// Client Workspace - see ClientDocument/ProjectUpdate above.
+  uploadedClientDocuments ClientDocument[]
+  postedProjectUpdates    ProjectUpdate[]
 
   /// AI Lead Intelligence Platform - see Business below. Upstream of the
   /// Sales CRM above, deliberately not merged into it.
@@ -2139,6 +2154,33 @@ enum NotificationType {
   PROPOSAL_ACCEPTED
   /// The client rejects a Proposal.
   PROPOSAL_REJECTED
+
+  // --- Client Workspace ---
+  /// A staff member invites a SalesLead's contact to activate a CLIENT
+  /// portal account - see inviteClientToPortal().
+  CLIENT_ACCOUNT_INVITED
+  /// A ClientDocument (contract, invoice, welcome packet, handover,
+  /// warranty...) is uploaded against a SalesLead the client owns.
+  DOCUMENT_UPLOADED
+  /// A SalesProjectPayment's dueDate has arrived/passed and it's still
+  /// unpaid - written eagerly on creation like FOLLOW_UP_REMINDER, no cron.
+  PROJECT_PAYMENT_DUE
+  /// A ProjectUpdate (daily progress) is posted against the client's project.
+  PROJECT_UPDATE_POSTED
+  /// A ProjectMilestone's status/percentComplete changes.
+  MILESTONE_UPDATED
+
+  // --- Sales Negotiation Loop ---
+  /// A SalesLeadMeeting is scheduled against a SalesLead the client owns -
+  /// deliberately distinct from MEETING_SCHEDULED (Operations/OperationItem
+  /// only) - see notifySalesMeetingScheduled().
+  SALES_MEETING_SCHEDULED
+  /// A SalesQuote is sent to a SalesLead's linked client account - see
+  /// createAndSendQuote() (src/features/sales-crm/actions/quote-actions.ts).
+  SALES_QUOTE_SENT
+  /// The client accepts/declines a SalesQuote themselves, in-portal - see
+  /// respondToQuote() (src/features/client-workspace/actions/quote-actions.ts).
+  SALES_QUOTE_RESPONDED
 }
 
 model Notification {
@@ -2522,6 +2564,18 @@ model SalesLead {
   createdById  String?
   createdBy    TeamMember? @relation("SalesLeadCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
+  /// Client Workspace - set once the business's contact activates a CLIENT
+  /// portal account via inviteClientToPortal(). Deliberately NOT @unique:
+  /// one User can be the client on more than one SalesLead over time (a
+  /// repeat client's second engagement is a new, separate SalesLead, not a
+  /// second project bolted onto the first) - resolveClientProjectViewer
+  /// aggregates every SalesLead where clientUserId matches this User.
+  clientUserId String?
+  clientUser   User?            @relation("SalesLeadClient", fields: [clientUserId], references: [id], onDelete: SetNull)
+  /// Client Workspace - every document delivered to this business (contract,
+  /// invoice, welcome packet, handover, warranty...). See ClientDocument.
+  documents    ClientDocument[]
+
   assignments SalesLeadAssignment[]
   activities  SalesLeadActivity[]
   notes       SalesLeadNote[]
@@ -2530,6 +2584,11 @@ model SalesLead {
   tasks       SalesTask[]
   quotes      SalesQuote[]
   outreach    SalesLeadOutreach[]
+  /// Sales Negotiation Loop - pre-sale meetings and the client<->staff
+  /// message thread, both visible in the Client Workspace before a project
+  /// exists (same tier as documents/quotes).
+  meetings    SalesLeadMeeting[]
+  messages    SalesLeadMessage[]
   /// Set once this lead is WON and converted - see convertLeadToProject().
   project     SalesProject?
 
@@ -2554,6 +2613,7 @@ model SalesLead {
   @@index([status])
   @@index([source])
   @@index([city])
+  @@index([clientUserId])
 }
 
 /// Append-only ownership log - identical pattern to LeadAssignment above.
@@ -2608,6 +2668,13 @@ enum SalesLeadActivityType {
   PROPOSAL_REJECTED
   PROPOSAL_MEETING_REQUESTED
   PROPOSAL_MEETING_CONFIRMED
+
+  // --- Client Workspace ---
+  CLIENT_ACCOUNT_INVITED
+  CLIENT_ACCOUNT_ACTIVATED
+  CLIENT_DOCUMENT_UPLOADED
+  PROJECT_UPDATE_POSTED
+  MILESTONE_UPDATED
 }
 
 /// Every meaningful action on a SalesLead gets an activity row - the
@@ -2742,9 +2809,9 @@ model Proposal {
   status ProposalStatus @default(DRAFT)
 
   /// Convenience pointer - ProposalVersion.versionNumber is the source of truth.
-  currentVersionNumber Int     @default(0)
+  currentVersionNumber      Int      @default(0)
   /// Key into currentVersion.content.packages[].id - set on Accept.
-  selectedPackageId    String?
+  selectedPackageId         String?
   /// Keys into currentVersion.content.calculator.items[].id - set on Accept
   /// instead of selectedPackageId when the proposal uses the interactive
   /// calculator (content.calculator non-empty) rather than fixed packages.
@@ -2972,6 +3039,56 @@ model SalesQuote {
   @@index([salesLeadId])
 }
 
+/// A pre-sale meeting scheduled against a SalesLead - deliberately a
+/// separate model from Meeting (tied to a post-sale OperationItem) and
+/// ProposalMeetingRequest (tied to the public, unauthenticated proposal
+/// page). Admin-initiated only: the client sees/receives it, doesn't
+/// propose times themselves. Reuses MeetingStatus/PreferredContactMethod
+/// as-is - no domain coupling in either enum.
+model SalesLeadMeeting {
+  id String @id @default(cuid())
+
+  salesLeadId String
+  salesLead   SalesLead @relation(fields: [salesLeadId], references: [id], onDelete: Cascade)
+
+  scheduledAt DateTime
+  method      PreferredContactMethod?
+  meetingLink String?
+  notes       String?                 @db.Text
+  status      MeetingStatus           @default(SCHEDULED)
+
+  scheduledById String?
+  scheduledBy   TeamMember? @relation(fields: [scheduledById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([salesLeadId])
+  @@index([scheduledAt])
+}
+
+/// 1:1 client<->staff messaging on a SalesLead - flat, no wrapper
+/// Conversation table needed since a SalesLead already IS the unique
+/// pairing (one clientUserId; staff-side is "whoever has access to this
+/// lead", not a second fixed identity), same shape as SalesLeadActivity/
+/// SalesLeadNote. No per-message readAt tracking (ambiguous with multiple
+/// possible staff readers) - createNotification carries the "unread" signal
+/// instead. Never logged to SalesLeadActivity - would flood the timeline.
+model SalesLeadMessage {
+  id String @id @default(cuid())
+
+  salesLeadId String
+  salesLead   SalesLead @relation(fields: [salesLeadId], references: [id], onDelete: Cascade)
+
+  senderId String?
+  sender   User?   @relation(fields: [senderId], references: [id], onDelete: SetNull)
+
+  content String @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([salesLeadId])
+}
+
 /// Manual, human notes - create-only, no edit/delete, same as LeadNote.
 model SalesLeadNote {
   id String @id @default(cuid())
@@ -3130,8 +3247,21 @@ model SalesProject {
   targetEndDate DateTime?
   description   String?   @db.Text
 
+  /// Client Workspace - admin-set (never derived from milestones/tasks, no
+  /// such subsystem exists yet), shown on the client's project card.
+  progressPercent   Int       @default(0)
+  /// Client Workspace - set by admin at delivery; null means no warranty
+  /// window has started yet. Shown to the client once set.
+  warrantyExpiresAt DateTime?
+
   payments    SalesProjectPayment[]
   commissions SalesCommission[]
+
+  /// Client Workspace - daily progress posts and the ordered milestone/
+  /// timeline list, both admin-managed in this pass (see ProjectUpdate,
+  /// ProjectMilestone below).
+  updates    ProjectUpdate[]
+  milestones ProjectMilestone[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3162,17 +3292,34 @@ model SalesProjectPayment {
   amount Int
   status SalesProjectPaymentStatus @default(PENDING)
 
+  /// Client-facing label, e.g. "Advance Payment (50%)" / "Final Payment (50%)".
+  /// Null falls back to a generic "Payment" in the UI.
+  label String?
+
   dueDate   DateTime?
   paidAt    DateTime?
-  /// Free text - "Bank Transfer", "UPI", "Cheque #4521" etc. These are
-  /// custom B2B deals settled outside Razorpay, not Offering checkout.
+  /// Free text - "Bank Transfer", "UPI", "Cheque #4521", or "Razorpay" once
+  /// set automatically by verifyProjectPayment(). Custom B2B deals can still
+  /// be settled outside Razorpay and recorded manually, same as before.
   method    String?
   reference String?
+
+  /// Client Workspace - set only when this installment is paid through the
+  /// portal's own Razorpay checkout (verifyProjectPayment), mirroring
+  /// Order's razorpayOrderId/PaymentId/Signature trio exactly. Null for
+  /// every manually-recorded payment.
+  razorpayOrderId   String? @unique
+  razorpayPaymentId String?
+  razorpaySignature String?
 
   recordedById String?
   recordedBy   TeamMember? @relation(fields: [recordedById], references: [id], onDelete: SetNull)
 
   commission SalesCommission?
+
+  /// Client Workspace - the invoice/receipt PDF(s) admin uploaded against
+  /// this specific installment, if any (see ClientDocument.relatedPaymentId).
+  documents ClientDocument[]
 
   createdAt DateTime @default(now())
 
@@ -3223,6 +3370,109 @@ model SalesCommission {
   createdAt DateTime @default(now())
 
   @@index([salesPersonId, status])
+}
+
+// ============================================
+// CLIENT WORKSPACE
+// ============================================
+// Bridges the Sales CRM pipeline to an authenticated CLIENT portal account
+// (see SalesLead.clientUserId). Deliberately does NOT generate any document
+// content - every ClientDocument is a real file admin/sales uploads (Canva-
+// designed contracts/invoices/welcome packets), never AI-authored. Progress
+// (ProjectUpdate/ProjectMilestone) is likewise always admin-posted, not
+// derived from a task/Kanban subsystem that doesn't exist yet.
+
+enum ClientDocumentType {
+  CONTRACT
+  INVOICE
+  RECEIPT
+  WELCOME_PACKET
+  HANDOVER_PACKAGE
+  WARRANTY_CERTIFICATE
+  OTHER
+}
+
+/// One uploaded file delivered to a client - the whole "no more email
+/// attachments" mechanism. Always anchored to a SalesLead (not SalesProject)
+/// since documents like the contract are delivered before a project exists.
+model ClientDocument {
+  id       String @id @default(cuid())
+  sequence Int    @unique @default(autoincrement())
+
+  salesLeadId String
+  salesLead   SalesLead @relation(fields: [salesLeadId], references: [id], onDelete: Cascade)
+
+  type  ClientDocumentType
+  title String
+
+  fileUrl  String
+  fileSize Int?
+
+  /// Optional - set when this document is the invoice/receipt for one
+  /// specific installment, so the client's Payments tab can link straight
+  /// to it instead of the client hunting through a flat Documents list.
+  relatedPaymentId String?
+  relatedPayment   SalesProjectPayment? @relation(fields: [relatedPaymentId], references: [id], onDelete: SetNull)
+
+  uploadedById String?
+  uploadedBy   TeamMember? @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([salesLeadId])
+  @@index([relatedPaymentId])
+}
+
+/// The "Today / Tomorrow" daily-progress feed on a client's project page -
+/// distinct from SalesLeadActivity (an internal CRM audit trail), this is
+/// client-facing content the team deliberately writes for the client to read.
+model ProjectUpdate {
+  id String @id @default(cuid())
+
+  salesProjectId String
+  salesProject   SalesProject @relation(fields: [salesProjectId], references: [id], onDelete: Cascade)
+
+  completedItems   String[]
+  plannedNextItems String[]
+  blockers         String?  @db.Text
+
+  postedById String?
+  postedBy   TeamMember? @relation(fields: [postedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([salesProjectId])
+}
+
+enum ProjectMilestoneStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+}
+
+/// The ordered "Planning -> Design -> Development -> Testing -> Deployment"
+/// timeline shown to the client - a simple admin-managed list, not a full
+/// Gantt/task-dependency system (out of scope for this pass).
+model ProjectMilestone {
+  id String @id @default(cuid())
+
+  salesProjectId String
+  salesProject   SalesProject @relation(fields: [salesProjectId], references: [id], onDelete: Cascade)
+
+  label           String
+  status          ProjectMilestoneStatus @default(PENDING)
+  /// Only meaningful while status is IN_PROGRESS - e.g. "Development, 65%".
+  percentComplete Int?
+  /// Display order - admin-set, not derived from createdAt so milestones
+  /// can be reordered without deleting/recreating rows.
+  order           Int
+
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([salesProjectId, order])
 }
 
 /// 1:1 with a TeamMember whose role is SALESPERSON or SALES_MANAGER - the

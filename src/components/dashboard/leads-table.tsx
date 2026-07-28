@@ -20,6 +20,7 @@ const SOURCE_LABEL: Record<string, string> = {
   PROGRAM_INTEREST: "Program Interest",
   CAREERS: "Careers",
   NEWSLETTER_POPUP: "Newsletter",
+  CLIENT_PORTAL: "Client Portal",
   OTHER: "Other",
 };
 

@@ -87,6 +87,7 @@ export async function getSalesLeadById(id: string, viewer: SalesCrmViewer) {
       createdBy: true,
       project: { select: { id: true } },
       outreach: { orderBy: { createdAt: "desc" }, take: 1 },
+      clientUser: { select: { id: true, name: true, email: true } },
     },
   });
   if (!lead) return null;
@@ -335,6 +336,8 @@ export async function getSalesProjectById(id: string, viewer: SalesCrmViewer) {
       assignedDeveloper: true,
       payments: { orderBy: { createdAt: "asc" } },
       commissions: true,
+      updates: { orderBy: { createdAt: "desc" }, include: { postedBy: { select: { name: true } } } },
+      milestones: { orderBy: { order: "asc" } },
     },
   });
 }
@@ -374,5 +377,22 @@ export async function getQuotesForLead(salesLeadId: string) {
     where: { salesLeadId },
     orderBy: { createdAt: "desc" },
     include: { offering: { select: { title: true } }, createdBy: true },
+  });
+}
+
+/** Every meeting scheduled for one lead, soonest first - the lead detail page's Meetings panel. */
+export async function getMeetingsForLead(salesLeadId: string) {
+  return prisma.salesLeadMeeting.findMany({
+    where: { salesLeadId },
+    orderBy: { scheduledAt: "desc" },
+    include: { scheduledBy: { select: { name: true } } },
+  });
+}
+
+/** The full client<->staff message thread for one lead, oldest first (chat reads chronologically, unlike every other newest-first feed in this feature). */
+export async function getMessagesForLead(salesLeadId: string) {
+  return prisma.salesLeadMessage.findMany({
+    where: { salesLeadId },
+    orderBy: { createdAt: "asc" },
   });
 }

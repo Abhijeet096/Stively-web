@@ -50,6 +50,7 @@ function MarkPaidButton({ paymentId }: { paymentId: string }) {
 function SalesProjectPaymentsPanel({ salesProjectId, payments }: { salesProjectId: string; payments: SalesProjectPayment[] }) {
   const router = useRouter();
   const [amount, setAmount] = React.useState("");
+  const [label, setLabel] = React.useState("");
   const [dueDate, setDueDate] = React.useState("");
   const [method, setMethod] = React.useState("");
   const [reference, setReference] = React.useState("");
@@ -64,6 +65,7 @@ function SalesProjectPaymentsPanel({ salesProjectId, payments }: { salesProjectI
     const result = await createProjectPayment({
       salesProjectId,
       amount: Math.round(Number(amount) * 100),
+      label: label.trim() || undefined,
       dueDate: dueDate ? new Date(dueDate) : undefined,
       method: method || undefined,
       reference: reference || undefined,
@@ -74,6 +76,7 @@ function SalesProjectPaymentsPanel({ salesProjectId, payments }: { salesProjectI
       return;
     }
     setAmount("");
+    setLabel("");
     setDueDate("");
     setMethod("");
     setReference("");
@@ -94,6 +97,10 @@ function SalesProjectPaymentsPanel({ salesProjectId, payments }: { salesProjectI
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="pay-amount">Amount (₹)</Label>
             <Input id="pay-amount" type="number" min={1} value={amount} onChange={(e) => setAmount(e.target.value)} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="pay-label">Label (client-facing)</Label>
+            <Input id="pay-label" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Advance Payment (50%)" />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="pay-due">Due date</Label>
@@ -120,7 +127,10 @@ function SalesProjectPaymentsPanel({ salesProjectId, payments }: { salesProjectI
             {payments.map((payment) => (
               <li key={payment.id} className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-col">
-                  <span className="text-foreground text-sm font-medium">{formatPrice(payment.amount)}</span>
+                  <span className="text-foreground text-sm font-medium">
+                    {payment.label ? `${payment.label} · ` : ""}
+                    {formatPrice(payment.amount)}
+                  </span>
                   <span className="text-muted-foreground text-xs">
                     {payment.method || "No method"} {payment.reference ? `· ${payment.reference}` : ""}
                     {payment.dueDate ? ` · Due ${formatDate(payment.dueDate)}` : ""}

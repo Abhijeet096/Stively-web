@@ -11,6 +11,9 @@ import { SalesLeadStatusChanger } from "./sales-lead-status-changer";
 import { SalesLeadLostReason } from "./sales-lead-lost-reason";
 import { SalesLeadOwnerPanel } from "./sales-lead-owner-panel";
 import { SalesLeadOutreachPanel } from "./sales-lead-outreach-panel";
+import { ClientInvitePanel } from "./client-invite-panel";
+import { ClientDocumentsPanel } from "@/features/client-workspace/components/admin/client-documents-panel";
+import type { getClientDocumentsForLead } from "@/features/client-workspace/server/queries";
 import { DiscoveryChecklistPanel, type DiscoveryOfferingOption } from "@/features/proposals/components/admin/discovery-checklist-panel";
 import { ProposalSummaryPanel } from "@/features/proposals/components/admin/proposal-summary-panel";
 import { computeProposalReadiness } from "@/features/proposals/server/discovery-queries";
@@ -20,6 +23,8 @@ import { SalesLeadAttachmentsPanel } from "./sales-lead-attachments-panel";
 import { SalesLeadTimeline } from "./sales-lead-timeline";
 import { SalesFollowUpsPanel } from "./sales-follow-ups-panel";
 import { SalesQuotesPanel } from "./sales-quotes-panel";
+import { SalesLeadMeetingPanel } from "./sales-lead-meeting-panel";
+import { SalesLeadMessagePanel } from "./sales-lead-message-panel";
 import type {
   getSalesLeadById,
   getSalesLeadTimeline,
@@ -27,6 +32,8 @@ import type {
   getSalesLeadAttachments,
   getFollowUpsForLead,
   getQuotesForLead,
+  getMeetingsForLead,
+  getMessagesForLead,
   OfferingForQuote,
 } from "../../server/queries";
 import type { TeamMember, SalesLeadDiscovery } from "@prisma/client";
@@ -40,10 +47,14 @@ export interface SalesLeadDetailProps {
   attachments: Awaited<ReturnType<typeof getSalesLeadAttachments>>;
   followUps: Awaited<ReturnType<typeof getFollowUpsForLead>>;
   quotes: Awaited<ReturnType<typeof getQuotesForLead>>;
+  meetings: Awaited<ReturnType<typeof getMeetingsForLead>>;
+  messages: Awaited<ReturnType<typeof getMessagesForLead>>;
+  currentUserId: string;
   offerings: OfferingForQuote[];
   discovery: SalesLeadDiscovery | null;
   activeProposal: Proposal | null;
   teamMembers: TeamMember[];
+  clientDocuments: Awaited<ReturnType<typeof getClientDocumentsForLead>>;
   /** Base path for the "View project" link - differs between the admin CMS and the /sales portal. */
   basePath?: string;
   /** Base path for the proposal workspace link (`${proposalBasePath}/leads/${id}/proposal`) - differs between the admin CMS and the /sales portal. */
@@ -71,10 +82,14 @@ function SalesLeadDetail({
   attachments,
   followUps,
   quotes,
+  meetings,
+  messages,
+  currentUserId,
   offerings,
   discovery,
   activeProposal,
   teamMembers,
+  clientDocuments,
   basePath = "/admin/sales-crm/projects",
   proposalBasePath = "/admin/sales-crm",
   canReassign = true,
@@ -140,7 +155,15 @@ function SalesLeadDetail({
           />
           <SalesFollowUpsPanel salesLeadId={lead.id} followUps={followUps} teamMembers={teamMembers} defaultAssigneeId={lead.assignedToId ?? undefined} />
           <SalesQuotesPanel salesLeadId={lead.id} leadEmail={lead.email} quotes={quotes} offerings={offerings} />
+          <SalesLeadMeetingPanel salesLeadId={lead.id} meetings={meetings} />
+          <SalesLeadMessagePanel
+            salesLeadId={lead.id}
+            currentUserId={currentUserId}
+            otherPartyName={lead.clientUser?.name ?? lead.ownerName}
+            messages={messages}
+          />
           <SalesLeadNotesPanel salesLeadId={lead.id} notes={notes} />
+          <ClientDocumentsPanel salesLeadId={lead.id} documents={clientDocuments} />
           <SalesLeadAttachmentsPanel salesLeadId={lead.id} attachments={attachments} />
           <SalesLeadTimeline activities={activities} />
         </div>
@@ -158,6 +181,8 @@ function SalesLeadDetail({
               {lead.status === "LOST" && <SalesLeadLostReason salesLeadId={lead.id} currentReason={lead.lostReason} />}
             </CardContent>
           </Card>
+
+          <ClientInvitePanel salesLeadId={lead.id} clientUser={lead.clientUser} leadHasEmail={!!lead.email} />
 
           {canReassign ? (
             <SalesLeadOwnerPanel salesLeadId={lead.id} currentOwner={lead.assignedTo} teamMembers={teamMembers} />

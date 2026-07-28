@@ -37,6 +37,7 @@ const SOURCE_OPTIONS = [
   { value: "PROGRAM_INTEREST", label: "Program Interest" },
   { value: "CAREERS", label: "Careers" },
   { value: "NEWSLETTER_POPUP", label: "Newsletter" },
+  { value: "CLIENT_PORTAL", label: "Client Portal" },
   { value: "OTHER", label: "Other" },
 ];
 

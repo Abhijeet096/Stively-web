@@ -6,9 +6,11 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { resend, EMAIL_FROM } from "@/lib/resend";
 import { formatPrice } from "@/lib/utils";
+import { siteConfig } from "@/config/site";
 import type { ActionResult } from "@/actions/leads";
 import { createAndSendQuoteSchema, markQuoteResponseSchema } from "../validation/quote-schemas";
 import { resolveSalesCrmViewer } from "../server/rbac";
+import { createNotification } from "@/features/notifications/server/creation";
 
 async function actorTeamMember(userId: string) {
   return prisma.teamMember.findUnique({ where: { userId } });
@@ -26,6 +28,8 @@ function buildQuoteEmailHtml(params: {
   standardAmount: number | null;
   currency: string;
   message?: string;
+  /** Set only when the lead's contact already has a CLIENT portal account - gives them a real in-app place to respond instead of "reply to this email". */
+  portalLink?: string;
 }) {
   const quotedFormatted = formatPrice(params.quotedAmount, params.currency);
   const standardLine =
@@ -33,6 +37,9 @@ function buildQuoteEmailHtml(params: {
       ? `<p style="color:#6b7280;text-decoration:line-through;margin:0 0 4px;font-size:14px;">${formatPrice(params.standardAmount, params.currency)}</p>`
       : "";
   const messageHtml = params.message ? `<p style="color:#374151;line-height:1.6;">${params.message.replace(/\n/g, "<br/>")}</p>` : "";
+  const portalCta = params.portalLink
+    ? `<p style="margin-top:24px;"><a href="${params.portalLink}" style="display:inline-block;background:#111827;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;">View & respond in your dashboard</a></p>`
+    : "";
 
   return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; color: #111827;">
@@ -44,6 +51,7 @@ function buildQuoteEmailHtml(params: {
         <p style="font-size:28px;font-weight:600;margin:0;">${quotedFormatted}</p>
       </div>
       ${messageHtml}
+      ${portalCta}
       <p>Feel free to reply to this email or call us with any questions.</p>
       <p style="margin-top:32px;">Best regards,<br/>${params.salesperson}<br/>Stively</p>
     </div>
@@ -108,6 +116,8 @@ export async function createAndSendQuote(input: unknown): Promise<CreateAndSendQ
       }
     });
 
+    const portalLink = lead.clientUserId ? `${siteConfig.url}/client/projects/${lead.id}` : undefined;
+
     let emailSent = false;
     if (lead.email) {
       try {
@@ -120,6 +130,7 @@ export async function createAndSendQuote(input: unknown): Promise<CreateAndSendQ
           standardAmount,
           currency: "INR",
           message: data.message,
+          portalLink,
         });
         await resend.emails.send({ from: EMAIL_FROM, to: lead.email, subject: `Your quote from Stively - ${data.title}`, html });
         emailSent = true;
@@ -128,8 +139,19 @@ export async function createAndSendQuote(input: unknown): Promise<CreateAndSendQ
       }
     }
 
+    if (lead.clientUserId) {
+      await createNotification({
+        userId: lead.clientUserId,
+        type: "SALES_QUOTE_SENT",
+        title: `New quote: ${data.title}`,
+        body: formatPrice(data.quotedAmount),
+        link: `/client/projects/${lead.id}`,
+      }).catch((error) => console.error("createAndSendQuote notification failed:", error));
+    }
+
     revalidatePath(`/admin/sales-crm/leads/${data.salesLeadId}`);
     revalidatePath(`/sales/leads/${data.salesLeadId}`);
+    revalidatePath(`/client/projects/${lead.id}`);
     return { success: true, emailSent };
   } catch (error) {
     console.error("createAndSendQuote failed:", error);
@@ -137,7 +159,7 @@ export async function createAndSendQuote(input: unknown): Promise<CreateAndSendQ
   }
 }
 
-/** Records the client's response after the salesperson calls to follow up - no client-facing portal exists yet, so this is a deliberate manual step, not automation. */
+/** Admin manually records the client's response after a call/email - stays available alongside the client's own in-portal Accept/Decline (client-workspace/actions/quote-actions.ts's respondToQuote); whichever happens first wins, since SENT->ACCEPTED/REJECTED is a one-way transition. */
 export async function markQuoteResponse(input: unknown): Promise<ActionResult> {
   const user = await requireRole("ADMIN", "SUPER_ADMIN", "SALES");
 

@@ -44,7 +44,7 @@ export default async function ClientRequestsPage({ searchParams }: ClientRequest
           hrefFor={(r) => (r.status === "DRAFT" ? `/request-proposal/${r.offering.slug}` : `/client/requests/${r.id}`)}
           hasActiveFilters={hasActiveFilters}
           clearFiltersHref="/client/requests"
-          emptyStateHref="/offerings"
+          emptyStateHref="/client/offerings"
           emptyStateLabel="Browse offerings"
         />
 

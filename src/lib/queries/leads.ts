@@ -265,6 +265,7 @@ export const LEAD_SOURCES = [
   "PROGRAM_INTEREST",
   "CAREERS",
   "NEWSLETTER_POPUP",
+  "CLIENT_PORTAL",
   "OTHER",
 ] as const;
 export const LEAD_STATUSES = [

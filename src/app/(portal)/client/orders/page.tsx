@@ -29,7 +29,7 @@ export default async function ClientOrdersPage({ searchParams }: ClientOrdersPag
         <OrderList
           orders={orders}
           hrefFor={(order) => `/client/orders/${order.id}`}
-          emptyStateHref="/offerings"
+          emptyStateHref="/client/offerings"
         />
 
         <OrderPagination page={currentPage} totalPages={totalPages} basePath="/client/orders" />

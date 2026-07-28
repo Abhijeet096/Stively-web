@@ -7,26 +7,8 @@ import Script from "next/script";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import "@/lib/razorpay-client-types";
 import { createOrder, verifyPayment, markOrderFailed } from "../actions/order-actions";
-
-declare global {
-  interface Window {
-    Razorpay: new (options: RazorpayOptions) => { open: () => void; on: (event: string, handler: (response: unknown) => void) => void };
-  }
-}
-
-interface RazorpayOptions {
-  key: string;
-  amount: number;
-  currency: string;
-  order_id: string;
-  name: string;
-  description: string;
-  prefill?: { name?: string; email?: string; contact?: string };
-  theme?: { color?: string };
-  handler: (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => void;
-  modal?: { ondismiss?: () => void };
-}
 
 export interface CheckoutButtonProps {
   offeringId: string;

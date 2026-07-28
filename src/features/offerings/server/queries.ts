@@ -129,11 +129,17 @@ export async function getFeaturedOfferings(limit = 6): Promise<Offering[]> {
  */
 export async function getOfferingsForAudience(
   audience: "STUDENT" | "BUSINESS",
-  limit = 6
+  limit = 6,
+  category?: OfferingCategory
 ): Promise<Offering[]> {
   try {
     return await prisma.offering.findMany({
-      where: { status: "PUBLISHED", visible: true, audience: { in: [audience, "BOTH"] } },
+      where: {
+        status: "PUBLISHED",
+        visible: true,
+        audience: { in: [audience, "BOTH"] },
+        ...(category ? { category } : {}),
+      },
       orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
       take: limit,
     });

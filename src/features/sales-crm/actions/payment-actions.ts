@@ -37,6 +37,7 @@ export async function createProjectPayment(input: unknown): Promise<ActionResult
       data: {
         salesProjectId: data.salesProjectId,
         amount: data.amount,
+        label: data.label,
         dueDate: data.dueDate,
         method: data.method,
         reference: data.reference,

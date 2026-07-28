@@ -5,7 +5,7 @@ export const leadSchema = z.object({
   email: z.string().trim().email("Enter a valid email address"),
   phone: z.string().trim().min(7, "Enter a valid phone number so we can reach you"),
   message: z.string().trim().optional(),
-  source: z.enum(["CONTACT_FORM", "PROGRAM_INTEREST", "CAREERS", "NEWSLETTER_POPUP", "OTHER"]),
+  source: z.enum(["CONTACT_FORM", "PROGRAM_INTEREST", "CAREERS", "NEWSLETTER_POPUP", "CLIENT_PORTAL", "OTHER"]),
   programId: z.string().optional(),
   leadType: z.enum(["STUDENT", "BUSINESS"]).optional(),
   companyName: z.string().trim().optional(),

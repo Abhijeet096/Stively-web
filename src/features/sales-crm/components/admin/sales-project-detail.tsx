@@ -8,6 +8,9 @@ import { formatSalesProjectNumber } from "../../lib/reference-number";
 import { SALES_PROJECT_STATUS_LABEL, SALES_PROJECT_STATUS_VARIANT, SALES_COMMISSION_STATUS_LABEL, SALES_COMMISSION_STATUS_VARIANT } from "../../lib/labels";
 import { SalesProjectStatusChanger } from "./sales-project-status-changer";
 import { SalesProjectPaymentsPanel } from "./sales-project-payments-panel";
+import { SalesProjectUpdatesPanel } from "./sales-project-updates-panel";
+import { SalesProjectMilestonesPanel } from "./sales-project-milestones-panel";
+import { SalesProjectProgressEditor } from "./sales-project-progress-editor";
 import type { SalesProjectWithRelations } from "../../server/queries";
 
 function formatDate(date: Date | null) {
@@ -63,6 +66,10 @@ function SalesProjectDetail({ project, leadBasePath = "/admin/sales-crm/leads" }
 
           <SalesProjectPaymentsPanel salesProjectId={project.id} payments={project.payments} />
 
+          <SalesProjectUpdatesPanel salesProjectId={project.id} updates={project.updates} />
+
+          <SalesProjectMilestonesPanel salesProjectId={project.id} milestones={project.milestones} />
+
           <Card>
             <CardHeader>
               <CardTitle>Commission</CardTitle>
@@ -95,6 +102,19 @@ function SalesProjectDetail({ project, leadBasePath = "/admin/sales-crm/leads" }
             </CardHeader>
             <CardContent>
               <SalesProjectStatusChanger salesProjectId={project.id} currentStatus={project.status} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Client-facing progress</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <SalesProjectProgressEditor
+                salesProjectId={project.id}
+                progressPercent={project.progressPercent}
+                warrantyExpiresAt={project.warrantyExpiresAt}
+              />
             </CardContent>
           </Card>
         </div>

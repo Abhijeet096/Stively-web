@@ -13,10 +13,11 @@ import { CATEGORY_LABEL, MODE_LABEL, formatOfferingPrice } from "../lib/labels";
  * off the record, nothing is category-specific), same role ProgramCard
  * plays for Program but not hardcoded to Training.
  */
-function OfferingCard({ offering }: { offering: Offering }) {
+/** hrefBase lets a portal-embedded catalog (e.g. /client/offerings) point every card at its own detail route instead of the public /offerings catalog - the card markup itself is identical either way. */
+function OfferingCard({ offering, hrefBase = "/offerings" }: { offering: Offering; hrefBase?: string }) {
   return (
     <Link
-      href={`/offerings/${offering.slug}`}
+      href={`${hrefBase}/${offering.slug}`}
       className="block rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       <Card variant="interactive" className="h-full">

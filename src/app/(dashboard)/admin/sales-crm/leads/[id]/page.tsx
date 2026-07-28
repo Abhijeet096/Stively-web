@@ -11,6 +11,8 @@ import {
   getFollowUpsForLead,
   getSalesTeamMembers,
   getQuotesForLead,
+  getMeetingsForLead,
+  getMessagesForLead,
   getOfferingsForQuotePicker,
 } from "@/features/sales-crm/server/queries";
 import { getAllTeamMembers } from "@/lib/queries/team-members";
@@ -18,6 +20,7 @@ import { SalesLeadDetail } from "@/features/sales-crm/components/admin/sales-lea
 import { ConvertToProjectDialog } from "@/features/sales-crm/components/admin/convert-to-project-dialog";
 import { getSalesLeadDiscovery } from "@/features/proposals/server/discovery-queries";
 import { getAcceptedProposalPackagePrice, getActiveProposalForLead } from "@/features/proposals/server/proposal-queries";
+import { getClientDocumentsForLead } from "@/features/client-workspace/server/queries";
 
 interface SalesLeadDetailPageProps {
   params: Promise<{ id: string }>;
@@ -33,19 +36,22 @@ export default async function SalesLeadDetailPage({ params }: SalesLeadDetailPag
   const lead = await getSalesLeadById(id, viewer);
   if (!lead) notFound();
 
-  const [activities, notes, attachments, followUps, quotes, offerings, discovery, teamMembers, allTeamMembers, acceptedPackagePrice, activeProposal] =
+  const [activities, notes, attachments, followUps, quotes, meetings, messages, offerings, discovery, teamMembers, allTeamMembers, acceptedPackagePrice, activeProposal, clientDocuments] =
     await Promise.all([
       getSalesLeadTimeline(id),
       getSalesLeadNotes(id),
       getSalesLeadAttachments(id),
       getFollowUpsForLead(id),
       getQuotesForLead(id),
+      getMeetingsForLead(id),
+      getMessagesForLead(id),
       getOfferingsForQuotePicker(),
       getSalesLeadDiscovery(id),
       getSalesTeamMembers(),
       getAllTeamMembers(),
       getAcceptedProposalPackagePrice(id),
       getActiveProposalForLead(id, viewer),
+      getClientDocumentsForLead(id, viewer),
     ]);
 
   return (
@@ -57,10 +63,14 @@ export default async function SalesLeadDetailPage({ params }: SalesLeadDetailPag
         attachments={attachments}
         followUps={followUps}
         quotes={quotes}
+        meetings={meetings}
+        messages={messages}
+        currentUserId={user.id}
         offerings={offerings}
         discovery={discovery}
         activeProposal={activeProposal}
         teamMembers={teamMembers}
+        clientDocuments={clientDocuments}
         convertPanel={
           <ConvertToProjectDialog salesLeadId={lead.id} suggestedValue={acceptedPackagePrice ?? lead.estimatedValue} teamMembers={allTeamMembers} />
         }

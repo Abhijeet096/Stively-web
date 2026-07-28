@@ -10,6 +10,7 @@ import type {
   SalesQuoteStatus,
   LeadPriority,
   TeamMemberRole,
+  ProjectMilestoneStatus,
 } from "@prisma/client";
 import type { BadgeProps } from "@/components/ui/badge";
 
@@ -136,6 +137,18 @@ export const SALES_PROJECT_PAYMENT_STATUS_VARIANT: Record<SalesProjectPaymentSta
   PENDING: "outline",
   DUE: "warning",
   PAID: "success",
+};
+
+export const PROJECT_MILESTONE_STATUS_LABEL: Record<ProjectMilestoneStatus, string> = {
+  PENDING: "Pending",
+  IN_PROGRESS: "In progress",
+  DONE: "Done",
+};
+
+export const PROJECT_MILESTONE_STATUS_VARIANT: Record<ProjectMilestoneStatus, NonNullable<BadgeProps["variant"]>> = {
+  PENDING: "outline",
+  IN_PROGRESS: "default",
+  DONE: "success",
 };
 
 export const SALES_COMMISSION_STATUS_LABEL: Record<SalesCommissionStatus, string> = {

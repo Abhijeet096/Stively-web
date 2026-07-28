@@ -19,6 +19,7 @@ export type UpdateProjectStatusInput = z.infer<typeof updateProjectStatusSchema>
 export const createProjectPaymentSchema = z.object({
   salesProjectId: z.string().min(1),
   amount: z.coerce.number().int().min(1, "Enter a payment amount"),
+  label: z.string().trim().max(100).optional(),
   dueDate: z.coerce.date().optional(),
   method: z.string().trim().optional(),
   reference: z.string().trim().optional(),
@@ -38,3 +39,36 @@ export const rejectCommissionSchema = z.object({
   reason: z.string().trim().min(1, "A reason is required"),
 });
 export type RejectCommissionInput = z.infer<typeof rejectCommissionSchema>;
+
+const stringList = z.array(z.string().trim().min(1)).default([]);
+
+export const postProjectUpdateSchema = z.object({
+  salesProjectId: z.string().min(1),
+  completedItems: stringList.refine((items) => items.length > 0, "Add at least one completed item"),
+  plannedNextItems: stringList,
+  blockers: z.string().trim().max(1000).optional(),
+});
+export type PostProjectUpdateInput = z.infer<typeof postProjectUpdateSchema>;
+
+export const createMilestoneSchema = z.object({
+  salesProjectId: z.string().min(1),
+  label: z.string().trim().min(1, "Enter a milestone name").max(120),
+});
+export type CreateMilestoneInput = z.infer<typeof createMilestoneSchema>;
+
+export const updateMilestoneSchema = z.object({
+  milestoneId: z.string().min(1),
+  status: z.enum(["PENDING", "IN_PROGRESS", "DONE"]),
+  percentComplete: z.coerce.number().int().min(0).max(100).optional(),
+});
+export type UpdateMilestoneInput = z.infer<typeof updateMilestoneSchema>;
+
+export const deleteMilestoneSchema = z.object({ milestoneId: z.string().min(1) });
+export type DeleteMilestoneInput = z.infer<typeof deleteMilestoneSchema>;
+
+export const updateProjectProgressSchema = z.object({
+  salesProjectId: z.string().min(1),
+  progressPercent: z.coerce.number().int().min(0).max(100),
+  warrantyExpiresAt: z.coerce.date().optional().nullable(),
+});
+export type UpdateProjectProgressInput = z.infer<typeof updateProjectProgressSchema>;

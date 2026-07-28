@@ -4,7 +4,7 @@ import { Section } from "@/components/shared/section";
 import { Container } from "@/components/shared/container";
 import { OfferingCard } from "./offering-card";
 
-function RelatedOfferings({ offerings }: { offerings: Offering[] }) {
+function RelatedOfferings({ offerings, hrefBase }: { offerings: Offering[]; hrefBase?: string }) {
   if (offerings.length === 0) return null;
 
   return (
@@ -15,7 +15,7 @@ function RelatedOfferings({ offerings }: { offerings: Offering[] }) {
         </h2>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {offerings.map((offering) => (
-            <OfferingCard key={offering.id} offering={offering} />
+            <OfferingCard key={offering.id} offering={offering} hrefBase={hrefBase} />
           ))}
         </div>
       </Container>

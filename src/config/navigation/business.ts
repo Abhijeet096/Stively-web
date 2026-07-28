@@ -3,13 +3,14 @@ import { LayoutDashboard, LayoutGrid, Briefcase, FileText, CalendarClock, Folder
 import type { NavigationConfig } from "./types";
 
 /**
- * The Business/Client nav. "Request Proposal" and "Book Consultation" both
- * point at the existing public lead-capture form (`/contact?type=business`,
- * see src/components/forms/contact-form.tsx) rather than a second,
- * duplicate intake form living inside the dashboard - one lead pipeline,
- * not two. Current Projects / Invoices are real portal routes with empty
- * states today (Payments/Project Management aren't built yet - see
- * src/config/navigation/README.md's future-extension notes).
+ * The Business/Client nav. Every "Work with us" item is a real in-portal
+ * route (src/app/(portal)/client/offerings, .../consultation) - a logged-in
+ * client never gets bounced out to the public marketing site just for
+ * browsing offerings or reaching sales. "Book Consultation" is the only
+ * item that creates a new Lead (via bookConsultation, reusing the same
+ * pipeline the public Contact form writes to - one Lead table, not two);
+ * "Request Proposal" browses the in-app catalog and hands off to the real
+ * per-offering wizard (/request-proposal/[slug]) once the client picks one.
  */
 export const businessNavigation: NavigationConfig = [
   {
@@ -18,15 +19,10 @@ export const businessNavigation: NavigationConfig = [
   {
     title: "Work with us",
     items: [
-      { label: "Offerings", href: "/offerings", icon: LayoutGrid, external: true },
-      { label: "Our Services", href: "/services", icon: Briefcase, external: true },
-      { label: "Request Proposal", href: "/contact?type=business", icon: FileText, external: true },
-      {
-        label: "Book Consultation",
-        href: "/contact?type=business",
-        icon: CalendarClock,
-        external: true,
-      },
+      { label: "Offerings", href: "/client/offerings", icon: LayoutGrid },
+      { label: "Our Services", href: "/client/offerings", icon: Briefcase },
+      { label: "Request Proposal", href: "/client/offerings", icon: FileText },
+      { label: "Book Consultation", href: "/client/consultation", icon: CalendarClock },
     ],
   },
   {
