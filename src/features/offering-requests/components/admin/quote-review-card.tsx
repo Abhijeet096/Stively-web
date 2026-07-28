@@ -13,10 +13,12 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/sections/empty-state";
 import { formatPrice } from "@/lib/utils";
 import { approveCustomQuote, rejectCustomQuote } from "@/features/offering-requests/actions/admin-quote-actions";
-import type { RequestQuoteStatus } from "@prisma/client";
+import type { RequestQuoteStatus, RequestType, Role } from "@prisma/client";
 
 export interface QuoteReviewCardRequest {
   id: string;
+  requestType: RequestType;
+  user: { role: Role };
   proposedAmount: number | null;
   proposedMessage: string | null;
   quoteStatus: RequestQuoteStatus | null;
@@ -24,6 +26,8 @@ export interface QuoteReviewCardRequest {
   quoteRejectionReason: string | null;
   quoteReviewedAt: Date | null;
 }
+
+const PERCENT_PRESETS = [50, 75, 100] as const;
 
 const STATUS_LABEL: Record<RequestQuoteStatus, string> = {
   PENDING: "Awaiting your review",
@@ -49,9 +53,12 @@ function formatDateTime(date: Date) {
  */
 function QuoteReviewCard({ request }: { request: QuoteReviewCardRequest }) {
   const router = useRouter();
+  const isClient = request.user.role === "CLIENT";
   const [approvedAmount, setApprovedAmount] = React.useState(
     request.proposedAmount != null ? String(request.proposedAmount / 100) : ""
   );
+  const [phone, setPhone] = React.useState("");
+  const [paymentPercent, setPaymentPercent] = React.useState<number>(50);
   const [rejectReason, setRejectReason] = React.useState("");
   const [isApproving, setIsApproving] = React.useState(false);
   const [isRejecting, setIsRejecting] = React.useState(false);
@@ -60,7 +67,11 @@ function QuoteReviewCard({ request }: { request: QuoteReviewCardRequest }) {
   async function handleApprove() {
     setIsApproving(true);
     setError(undefined);
-    const result = await approveCustomQuote({ requestId: request.id, approvedAmount: Math.round(Number(approvedAmount) * 100) });
+    const result = await approveCustomQuote({
+      requestId: request.id,
+      approvedAmount: Math.round(Number(approvedAmount) * 100),
+      ...(isClient ? { phone: phone.trim(), paymentPercent } : {}),
+    });
     setIsApproving(false);
     if (!result.success) {
       setError(result.error);
@@ -113,6 +124,7 @@ function QuoteReviewCard({ request }: { request: QuoteReviewCardRequest }) {
             {request.quoteReviewedAt && (
               <span className="text-muted-foreground text-xs">Reviewed {formatDateTime(request.quoteReviewedAt)}</span>
             )}
+            {isClient && <span className="text-muted-foreground text-xs">Moved to the Sales CRM - see the client&apos;s project workspace for payments, chat, and progress.</span>}
           </div>
         )}
 
@@ -137,14 +149,59 @@ function QuoteReviewCard({ request }: { request: QuoteReviewCardRequest }) {
                 onChange={(e) => setApprovedAmount(e.target.value)}
               />
             </div>
+
+            {isClient && (
+              <>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="quote-approve-phone">Client&apos;s phone number</Label>
+                  <Input
+                    id="quote-approve-phone"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="Never collected by the self-service wizard - needed to open their Sales CRM record"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label>Collect now</Label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {PERCENT_PRESETS.map((preset) => (
+                      <Button
+                        key={preset}
+                        type="button"
+                        size="sm"
+                        variant={paymentPercent === preset ? "primary" : "outline"}
+                        onClick={() => setPaymentPercent(preset)}
+                      >
+                        {preset}%
+                      </Button>
+                    ))}
+                    <Input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={paymentPercent}
+                      onChange={(e) => setPaymentPercent(Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
+                      className="w-20"
+                    />
+                  </div>
+                  {approvedAmount && Number(approvedAmount) > 0 && (
+                    <p className="text-muted-foreground text-xs">
+                      First installment: {formatPrice(Math.round(Number(approvedAmount) * paymentPercent))}
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+
             <Button
               size="sm"
               loading={isApproving}
-              disabled={!approvedAmount || Number(approvedAmount) <= 0}
+              disabled={!approvedAmount || Number(approvedAmount) <= 0 || (isClient && !phone.trim())}
               onClick={handleApprove}
             >
               <CheckCircle2 className="size-4" aria-hidden="true" />
-              Approve
+              {isClient ? "Approve & start project" : "Approve"}
             </Button>
 
             <div className="flex flex-col gap-1.5">

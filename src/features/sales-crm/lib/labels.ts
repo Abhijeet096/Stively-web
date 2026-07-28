@@ -25,6 +25,7 @@ export const SALES_LEAD_SOURCE_LABEL: Record<SalesLeadSource, string> = {
   FACEBOOK: "Facebook",
   INSTAGRAM: "Instagram",
   MANUAL: "Manual",
+  OFFERING_REQUEST: "Self-service request",
   OTHER: "Other",
 };
 

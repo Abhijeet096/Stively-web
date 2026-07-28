@@ -923,6 +923,17 @@ model OfferingRequest {
   orderId String? @unique
   order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
 
+  /// Set when a CLIENT-role request's custom quote is approved - bridges
+  /// this self-service request into the same rich Sales CRM pipeline
+  /// (quotes/meetings/chat/installments/documents) a cold-called SalesLead
+  /// already gets, instead of a second, thinner payment system just for
+  /// this origin. Origin-side FK (not created-side, unlike
+  /// OfferingEnrollment.offeringRequestId) so this page can redirect off a
+  /// single cheap field read, same shape as Business.promotedSalesLeadId.
+  /// See approveCustomQuote (admin-quote-actions.ts).
+  promotedSalesLeadId String?    @unique
+  promotedSalesLead   SalesLead? @relation("OfferingRequestPromotedTo", fields: [promotedSalesLeadId], references: [id], onDelete: SetNull)
+
   /// Requestype-specific wizard step data - one flexible field rather than
   /// a studentDetails/businessDetails pair that's always half-empty. Shape
   /// validated by src/features/offering-requests/validation/step-schemas.ts,
@@ -2504,6 +2515,10 @@ enum SalesLeadSource {
   FACEBOOK
   INSTAGRAM
   MANUAL
+  /// Self-registered and submitted a catalog OfferingRequest, later
+  /// bridged into the Sales CRM on quote approval - see
+  /// OfferingRequest.promotedSalesLeadId.
+  OFFERING_REQUEST
   OTHER
 }
 
@@ -2605,6 +2620,12 @@ model SalesLead {
   /// on Business.promotedSalesLeadId (unique, so a Business can back at most
   /// one SalesLead) - this is just the display-side back-reference.
   sourceBusiness Business? @relation("BusinessPromotedTo")
+
+  /// Set when this SalesLead was created by bridging a self-service
+  /// CLIENT OfferingRequest on quote approval - same display-side
+  /// back-reference shape as sourceBusiness above, FK lives on
+  /// OfferingRequest.promotedSalesLeadId.
+  sourceOfferingRequest OfferingRequest? @relation("OfferingRequestPromotedTo")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

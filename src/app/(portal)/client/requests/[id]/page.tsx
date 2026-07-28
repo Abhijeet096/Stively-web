@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { FileEdit } from "lucide-react";
 
@@ -27,6 +27,13 @@ export default async function ClientRequestDetailPage({ params }: ClientRequestD
   const request = await getRequestById(id, user.id);
   if (!request) {
     notFound();
+  }
+
+  // Once a custom quote is approved, this request is bridged into a real
+  // SalesLead - the Client Workspace (documents/payments/progress/chat) is
+  // the one durable URL from here on, not a parallel view of the same deal.
+  if (request.promotedSalesLeadId) {
+    redirect(`/client/projects/${request.promotedSalesLeadId}`);
   }
 
   const nonce = (await headers()).get("x-nonce") ?? undefined;

@@ -9,6 +9,8 @@ import { EmptyState } from "@/components/sections/empty-state";
 import { EnrollmentOpsCard } from "@/features/enrollments/components/enrollment-ops-card";
 import { MentorOpsCard } from "@/features/mentors/components/admin/mentor-ops-card";
 import { QuoteReviewCard } from "@/features/offering-requests/components/admin/quote-review-card";
+import { STUDENT_STEPS, BUSINESS_STEPS } from "@/features/offering-requests/lib/steps-config";
+import { CONTACT_METHOD_LABEL } from "@/features/offering-requests/lib/status-labels";
 import type { getMentorForOperationsCard } from "@/features/mentors/server/queries";
 import { formatOperationNumber } from "../lib/operation-number";
 import { OperationStatusBadge } from "./operation-status-badge";
@@ -23,6 +25,70 @@ import type { OperationItemDetail } from "../server/queries";
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(date);
+}
+
+const WIZARD_FIELD_BY_NAME = new Map(
+  [...STUDENT_STEPS, ...BUSINESS_STEPS].flatMap((step) => step.fields).map((field) => [field.name, field])
+);
+
+/** Renders a raw `details` Json value using the same label/option config the wizard itself used to collect it - "1-10" becomes "1-10 employees", not a raw code. */
+function formatWizardValue(fieldName: string, value: unknown): string {
+  if (typeof value !== "string" || !value) return "-";
+  const field = WIZARD_FIELD_BY_NAME.get(fieldName);
+  const option = field?.options?.find((o) => o.value === value);
+  return option?.label ?? value;
+}
+
+/** The full wizard submission, unfiltered - every field the client actually filled in, admin never had a way to see before this. */
+function RequestDetailsCard({
+  requestType,
+  details,
+  preferredContactMethod,
+  preferredMeetingTime,
+}: {
+  requestType: "STUDENT" | "BUSINESS";
+  details: unknown;
+  preferredContactMethod: string | null;
+  preferredMeetingTime: string | null;
+}) {
+  const steps = requestType === "BUSINESS" ? BUSINESS_STEPS : STUDENT_STEPS;
+  const record = details && typeof details === "object" ? (details as Record<string, unknown>) : {};
+  const rows = steps
+    .flatMap((step) => step.fields)
+    .filter((field) => field.name in record)
+    .map((field) => ({ label: field.label, value: formatWizardValue(field.name, record[field.name]) }));
+
+  if (rows.length === 0 && !preferredContactMethod && !preferredMeetingTime) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Request details</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <dl className="grid gap-4 sm:grid-cols-2">
+          {rows.map(({ label, value }) => (
+            <div key={label}>
+              <dt className="text-muted-foreground text-xs tracking-wide uppercase">{label}</dt>
+              <dd className="text-foreground text-sm">{value}</dd>
+            </div>
+          ))}
+          {preferredContactMethod && (
+            <div>
+              <dt className="text-muted-foreground text-xs tracking-wide uppercase">Preferred contact method</dt>
+              <dd className="text-foreground text-sm">{CONTACT_METHOD_LABEL[preferredContactMethod as keyof typeof CONTACT_METHOD_LABEL] ?? preferredContactMethod}</dd>
+            </div>
+          )}
+          {preferredMeetingTime && (
+            <div>
+              <dt className="text-muted-foreground text-xs tracking-wide uppercase">Preferred time</dt>
+              <dd className="text-foreground text-sm">{preferredMeetingTime}</dd>
+            </div>
+          )}
+        </dl>
+      </CardContent>
+    </Card>
+  );
 }
 
 /**
@@ -121,6 +187,15 @@ function OperationDetailView({
               </dl>
             </CardContent>
           </Card>
+
+          {item.type === "REQUEST" && item.request && (
+            <RequestDetailsCard
+              requestType={item.request.requestType}
+              details={item.request.details}
+              preferredContactMethod={item.request.preferredContactMethod}
+              preferredMeetingTime={item.request.preferredMeetingTime}
+            />
+          )}
 
           <Card>
             <CardHeader>
