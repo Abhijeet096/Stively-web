@@ -2,13 +2,42 @@ import { z } from "zod";
 
 export const leadSchema = z.object({
   name: z.string().trim().min(2, "Name must be at least 2 characters"),
-  email: z.string().trim().email("Enter a valid email address"),
+  // Optional - the /start-project ad-landing form deliberately doesn't
+  // require it (phone/WhatsApp is the real contact channel for that
+  // audience). Every other lead-capture form still validates a real email
+  // at its own (stricter) schema before calling submitLead. Blank strings
+  // are normalized to undefined so we never write "" into the DB - the
+  // @@unique([email, leadType]) constraint only tolerates multiple NULLs,
+  // not multiple empty strings.
+  email: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().trim().email("Enter a valid email address").optional()
+  ),
   phone: z.string().trim().min(7, "Enter a valid phone number so we can reach you"),
   message: z.string().trim().optional(),
-  source: z.enum(["CONTACT_FORM", "PROGRAM_INTEREST", "CAREERS", "NEWSLETTER_POPUP", "CLIENT_PORTAL", "OTHER"]),
+  source: z.enum(["CONTACT_FORM", "PROGRAM_INTEREST", "CAREERS", "NEWSLETTER_POPUP", "CLIENT_PORTAL", "START_PROJECT", "OTHER"]),
   programId: z.string().optional(),
   leadType: z.enum(["STUDENT", "BUSINESS"]).optional(),
   companyName: z.string().trim().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  estimatedValue: z.number().int().min(0).optional(),
+  acquisitionChannel: z
+    .enum([
+      "WEBSITE",
+      "GOOGLE_SEARCH",
+      "GOOGLE_ADS",
+      "INSTAGRAM",
+      "FACEBOOK",
+      "LINKEDIN",
+      "REFERRAL",
+      "DIRECT",
+      "INTERNSHALA",
+      "NAUKRI",
+      "INDEED",
+      "MANUAL_ENTRY",
+      "OTHER",
+    ])
+    .optional(),
 });
 
 export type LeadInput = z.infer<typeof leadSchema>;
@@ -54,3 +83,54 @@ export const contactEnquirySchema = z.discriminatedUnion("enquiryType", [
 ]);
 
 export type ContactEnquiryInput = z.infer<typeof contactEnquirySchema>;
+
+export const START_PROJECT_SERVICES = [
+  "WEBSITE",
+  "MOBILE_APP",
+  "WEB_APP",
+  "AI_AUTOMATION",
+  "UI_UX_DESIGN",
+  "SEO",
+] as const;
+
+export const START_PROJECT_SERVICE_LABEL: Record<(typeof START_PROJECT_SERVICES)[number], string> = {
+  WEBSITE: "Website",
+  MOBILE_APP: "Mobile App",
+  WEB_APP: "Web App",
+  AI_AUTOMATION: "AI Automation",
+  UI_UX_DESIGN: "UI/UX Design",
+  SEO: "SEO",
+};
+
+export const START_PROJECT_BUDGETS = ["UNDER_25K", "25K_50K", "50K_1L", "1L_PLUS"] as const;
+
+export const START_PROJECT_BUDGET_LABEL: Record<(typeof START_PROJECT_BUDGETS)[number], string> = {
+  UNDER_25K: "Under ₹25k",
+  "25K_50K": "₹25k–₹50k",
+  "50K_1L": "₹50k–₹1L",
+  "1L_PLUS": "₹1L+",
+};
+
+/**
+ * The /start-project ad-landing page's form - built for high-intent Google
+ * Ads traffic, so it asks for less than the Contact page (no message
+ * minimum, email optional) to keep drop-off low. `submitStartProjectLead`
+ * (src/actions/leads.ts) adapts this into `leadSchema`'s shape, folding
+ * service/budget/businessType/whatsapp into Lead.metadata Json.
+ */
+export const startProjectLeadSchema = z.object({
+  fullName: z.string().trim().min(2, "Enter your full name"),
+  companyName: z.string().trim().optional(),
+  email: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().trim().email("Enter a valid email address").optional()
+  ),
+  phone: z.string().trim().min(7, "Enter a valid phone number so we can reach you"),
+  whatsappNumber: z.string().trim().optional(),
+  businessType: z.string().trim().optional(),
+  service: z.enum(START_PROJECT_SERVICES).optional(),
+  budget: z.enum(START_PROJECT_BUDGETS).optional(),
+  description: z.string().trim().optional(),
+});
+
+export type StartProjectLeadInput = z.infer<typeof startProjectLeadSchema>;

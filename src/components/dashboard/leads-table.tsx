@@ -21,6 +21,7 @@ const SOURCE_LABEL: Record<string, string> = {
   CAREERS: "Careers",
   NEWSLETTER_POPUP: "Newsletter",
   CLIENT_PORTAL: "Client Portal",
+  START_PROJECT: "Start Project (Ads)",
   OTHER: "Other",
 };
 
@@ -61,7 +62,7 @@ function LeadsTable({ leads }: { leads: LeadWithOwner[] }) {
               <div className="flex flex-col">
                 <span className="text-foreground font-medium">{lead.name}</span>
                 <span className="text-muted-foreground text-xs">
-                  {lead.companyName ?? lead.email}
+                  {lead.companyName ?? lead.email ?? lead.phone ?? "—"}
                 </span>
               </div>
             </TableCell>

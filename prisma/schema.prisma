@@ -263,7 +263,12 @@ model Lead {
   id       String       @id @default(cuid())
   leadType LeadType     @default(STUDENT)
   name     String
-  email    String
+  /// Nullable - the /start-project ad-landing form deliberately doesn't
+  /// require email (phone/WhatsApp is the real contact channel for that
+  /// audience); every other lead-capture form on the site still collects
+  /// it. Postgres allows multiple NULLs under @@unique([email, leadType]),
+  /// so this doesn't weaken that constraint for leads that do have one.
+  email    String?
   phone    String?
   message  String?      @db.Text
   source   LeadSource
@@ -328,6 +333,9 @@ enum LeadSource {
   CAREERS
   NEWSLETTER_POPUP
   CLIENT_PORTAL
+  /// The dedicated /start-project landing page built for paid ad traffic
+  /// (Google Ads) - see submitStartProjectLead (src/actions/leads.ts).
+  START_PROJECT
   OTHER
 }
 
@@ -524,6 +532,9 @@ enum LeadEventType {
   RE_ENQUIRY
   ASSIGNED
   REASSIGNED
+  /// A Role.SALES rep self-assigns an unclaimed lead via claimLead -
+  /// distinct from ASSIGNED/REASSIGNED, which are admin-driven.
+  CLAIMED
   CALL_ATTEMPTED
   WHATSAPP_SENT
   FOLLOW_UP_SCHEDULED
@@ -2192,6 +2203,15 @@ enum NotificationType {
   /// The client accepts/declines a SalesQuote themselves, in-portal - see
   /// respondToQuote() (src/features/client-workspace/actions/quote-actions.ts).
   SALES_QUOTE_RESPONDED
+
+  // --- Lead Capture & Claiming ---
+  /// A new Lead is created via submitLead (any source) - fired to every
+  /// Role.SALES user - see notifyNewLeadCreated() (src/features/leads/server/notify.ts).
+  LEAD_NEW_INBOUND
+  /// A Role.SALES rep claims an unclaimed Lead via claimLead - fired to
+  /// ADMIN/SUPER_ADMIN for oversight - see notifyLeadClaimed()
+  /// (src/features/leads/server/notify.ts).
+  LEAD_CLAIMED
 }
 
 model Notification {

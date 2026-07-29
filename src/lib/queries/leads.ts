@@ -266,6 +266,7 @@ export const LEAD_SOURCES = [
   "CAREERS",
   "NEWSLETTER_POPUP",
   "CLIENT_PORTAL",
+  "START_PROJECT",
   "OTHER",
 ] as const;
 export const LEAD_STATUSES = [
@@ -300,4 +301,34 @@ export function isValidLeadSource(value: string | undefined): value is LeadSourc
 }
 export function isValidLeadStatus(value: string | undefined): value is LeadStatus {
   return !!value && (LEAD_STATUSES as readonly string[]).includes(value);
+}
+
+export interface InboundLeadsForViewer {
+  unclaimed: LeadWithOwner[];
+  mine: LeadWithOwner[];
+}
+
+/**
+ * The /sales/inbound page's data source - unclaimed leads (currentOwnerId
+ * null) any Role.SALES rep may claim, plus this rep's own already-claimed
+ * leads. Deliberately excludes leads claimed by other reps - once claimed,
+ * only the admin (getLeads/getLeadById, unfiltered) and the claiming rep
+ * (via `mine` here) can see a Lead, per the claim system's exclusivity rule.
+ */
+export async function getInboundLeadsForViewer(teamMemberId: string | null): Promise<InboundLeadsForViewer> {
+  const [unclaimed, mine] = await Promise.all([
+    prisma.lead.findMany({
+      where: { currentOwnerId: null },
+      orderBy: { createdAt: "desc" },
+      include: { currentOwner: true },
+    }),
+    teamMemberId
+      ? prisma.lead.findMany({
+          where: { currentOwnerId: teamMemberId },
+          orderBy: { createdAt: "desc" },
+          include: { currentOwner: true },
+        })
+      : Promise.resolve([]),
+  ]);
+  return { unclaimed, mine };
 }

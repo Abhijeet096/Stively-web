@@ -14,6 +14,8 @@ export const WHATSAPP_NUMBER = "918010881507";
 const WHATSAPP_MESSAGES: Record<string, string> = {
   "/website-development":
     "Hi Stively, I'm interested in your Website Development service. I'd like to discuss my project.",
+  "/start-project":
+    "Hi Stively, I'd like to start a project. Can we talk?",
 };
 
 const DEFAULT_MESSAGE = "Hi Stively, I'd like to know more about your services.";

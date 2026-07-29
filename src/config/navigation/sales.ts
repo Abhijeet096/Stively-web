@@ -1,4 +1,4 @@
-import { LayoutDashboard, Building2, Briefcase, CalendarClock, ListChecks, IndianRupee } from "lucide-react";
+import { LayoutDashboard, Inbox, Building2, Briefcase, CalendarClock, ListChecks, IndianRupee } from "lucide-react";
 
 import type { NavigationConfig } from "./types";
 
@@ -10,6 +10,7 @@ export const salesNavigation: NavigationConfig = [
   {
     title: "Pipeline",
     items: [
+      { label: "Inbound Leads", href: "/sales/inbound", icon: Inbox },
       { label: "My Leads", href: "/sales/leads", icon: Building2 },
       { label: "Projects", href: "/sales/projects", icon: Briefcase },
       { label: "Follow-ups", href: "/sales/follow-ups", icon: CalendarClock },

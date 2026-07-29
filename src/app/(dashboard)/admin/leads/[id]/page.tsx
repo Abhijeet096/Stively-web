@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import { getLeadById, getLeadTimeline, getLeadNotes } from "@/lib/queries/leads";
 import { getAllTeamMembers } from "@/lib/queries/team-members";
 import { formatPrice } from "@/lib/utils";
+import { START_PROJECT_SERVICE_LABEL, START_PROJECT_BUDGET_LABEL } from "@/lib/validations/lead";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { LeadStatusBadge } from "@/components/dashboard/lead-status-badge";
@@ -68,7 +69,7 @@ export default async function LeadDetailPage({ params }: LeadDetailPageProps) {
               <dl className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <dt className="text-muted-foreground text-xs tracking-wide uppercase">Email</dt>
-                  <dd className="text-foreground text-sm">{lead.email}</dd>
+                  <dd className="text-foreground text-sm">{lead.email ?? "—"}</dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground text-xs tracking-wide uppercase">Phone</dt>
@@ -128,6 +129,8 @@ export default async function LeadDetailPage({ params }: LeadDetailPageProps) {
                     <dd className="text-foreground text-sm whitespace-pre-line">{lead.message}</dd>
                   </div>
                 )}
+
+                {lead.source === "START_PROJECT" && <StartProjectMetadata metadata={lead.metadata} />}
               </dl>
             </CardContent>
           </Card>
@@ -154,5 +157,51 @@ export default async function LeadDetailPage({ params }: LeadDetailPageProps) {
         </div>
       </div>
     </div>
+  );
+}
+
+/** Renders the /start-project form's service/budget/businessType/whatsapp fields, saved as free-form Json since none of them has a dedicated Lead column. */
+function StartProjectMetadata({ metadata }: { metadata: unknown }) {
+  const record = metadata && typeof metadata === "object" ? (metadata as Record<string, unknown>) : {};
+  const service = typeof record.service === "string" ? record.service : undefined;
+  const budget = typeof record.budget === "string" ? record.budget : undefined;
+  const businessType = typeof record.businessType === "string" ? record.businessType : undefined;
+  const whatsappNumber = typeof record.whatsappNumber === "string" ? record.whatsappNumber : undefined;
+
+  if (!service && !budget && !businessType && !whatsappNumber) {
+    return null;
+  }
+
+  return (
+    <>
+      {service && (
+        <div>
+          <dt className="text-muted-foreground text-xs tracking-wide uppercase">Service needed</dt>
+          <dd className="text-foreground text-sm">
+            {START_PROJECT_SERVICE_LABEL[service as keyof typeof START_PROJECT_SERVICE_LABEL] ?? service}
+          </dd>
+        </div>
+      )}
+      {budget && (
+        <div>
+          <dt className="text-muted-foreground text-xs tracking-wide uppercase">Estimated budget</dt>
+          <dd className="text-foreground text-sm">
+            {START_PROJECT_BUDGET_LABEL[budget as keyof typeof START_PROJECT_BUDGET_LABEL] ?? budget}
+          </dd>
+        </div>
+      )}
+      {businessType && (
+        <div>
+          <dt className="text-muted-foreground text-xs tracking-wide uppercase">Business type</dt>
+          <dd className="text-foreground text-sm">{businessType}</dd>
+        </div>
+      )}
+      {whatsappNumber && (
+        <div>
+          <dt className="text-muted-foreground text-xs tracking-wide uppercase">WhatsApp number</dt>
+          <dd className="text-foreground text-sm">{whatsappNumber}</dd>
+        </div>
+      )}
+    </>
   );
 }
