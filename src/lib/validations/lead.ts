@@ -114,17 +114,16 @@ export const START_PROJECT_BUDGET_LABEL: Record<(typeof START_PROJECT_BUDGETS)[n
 /**
  * The /start-project ad-landing page's form - built for high-intent Google
  * Ads traffic, so it asks for less than the Contact page (no message
- * minimum, email optional) to keep drop-off low. `submitStartProjectLead`
+ * minimum) to keep drop-off low. Email IS required though (unlike the
+ * shared leadSchema.email below) - it's the only channel the acknowledgement
+ * email can reach the visitor on. `submitStartProjectLead`
  * (src/actions/leads.ts) adapts this into `leadSchema`'s shape, folding
  * service/budget/businessType/whatsapp into Lead.metadata Json.
  */
 export const startProjectLeadSchema = z.object({
   fullName: z.string().trim().min(2, "Enter your full name"),
   companyName: z.string().trim().optional(),
-  email: z.preprocess(
-    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
-    z.string().trim().email("Enter a valid email address").optional()
-  ),
+  email: z.string().trim().email("Enter a valid email address"),
   phone: z.string().trim().min(7, "Enter a valid phone number so we can reach you"),
   whatsappNumber: z.string().trim().optional(),
   businessType: z.string().trim().optional(),

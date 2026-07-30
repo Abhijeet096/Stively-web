@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { useActionState } from "react";
-import { MessageCircle, CheckCircle2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { MessageCircle } from "lucide-react";
 
 import { submitStartProjectLead, type StartProjectFormState } from "@/actions/leads";
 import {
@@ -65,6 +66,7 @@ function PillGroup<T extends string>({
  * can they spend) is visible at a glance, not hidden behind a dropdown.
  */
 function StartProjectForm() {
+  const router = useRouter();
   const [service, setService] = React.useState<(typeof START_PROJECT_SERVICES)[number] | "">("");
   const [budget, setBudget] = React.useState<(typeof START_PROJECT_BUDGETS)[number] | "">("");
   const [state, formAction, isPending] = useActionState<StartProjectFormState, FormData>(
@@ -72,21 +74,23 @@ function StartProjectForm() {
     null
   );
 
+  // Navigates to a dedicated URL (rather than swapping in an inline
+  // confirmation) so Google Ads/GA4 can track "reached /thank-you" as a
+  // real, reliable conversion event - the industry-standard approach for
+  // lead-gen funnels. @next/third-parties' GoogleAnalytics component
+  // already fires a pageview on App Router client-side navigation, so
+  // router.push here is enough - no manual gtag call needed.
+  React.useEffect(() => {
+    if (state?.success) {
+      router.push("/thank-you");
+    }
+  }, [state, router]);
+
   if (state?.success) {
     return (
-      <div aria-live="polite" className="flex flex-col items-center gap-3 py-6 text-center">
-        <CheckCircle2 className="text-primary size-10" aria-hidden="true" />
-        <h3 className="text-foreground text-lg font-semibold">Got it — we&apos;ll call you today</h3>
-        <p className="text-muted-foreground text-sm text-pretty">
-          One of our team will reach out on the number you shared. If it&apos;s urgent, message us on
-          WhatsApp right now instead.
-        </p>
-        <Button variant="outline" asChild className="mt-1">
-          <a href={getWhatsAppUrl("/start-project")} target="_blank" rel="noopener noreferrer">
-            <MessageCircle className="size-4" aria-hidden="true" />
-            Chat on WhatsApp
-          </a>
-        </Button>
+      <div aria-live="polite" className="flex flex-col items-center gap-3 py-10 text-center">
+        <div className="border-primary/30 border-t-primary size-8 animate-spin rounded-full border-2" />
+        <p className="text-muted-foreground text-sm">Redirecting…</p>
       </div>
     );
   }
@@ -103,8 +107,8 @@ function StartProjectForm() {
       </div>
 
       <div className="grid gap-5 sm:grid-cols-2">
-        <FormField id="email" label="Email" optional>
-          <Input name="email" type="email" autoComplete="email" />
+        <FormField id="email" label="Email">
+          <Input name="email" type="email" required autoComplete="email" />
         </FormField>
         <FormField id="phone" label="Phone Number">
           <Input name="phone" type="tel" required autoComplete="tel" />

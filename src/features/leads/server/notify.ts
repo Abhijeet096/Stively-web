@@ -5,7 +5,7 @@ import type { Lead } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { resend, EMAIL_FROM } from "@/lib/resend";
 import { siteConfig } from "@/config/site";
-import { createNotifications } from "@/features/notifications/server/creation";
+import { createNotification } from "@/features/notifications/server/creation";
 
 /**
  * Fired once, from submitLead (src/actions/leads.ts), right after a Lead is
@@ -24,38 +24,49 @@ export async function notifyNewLeadCreated(lead: Lead): Promise<void> {
     }
   }
 
+  let salesUsers: { id: string; email: string | null }[] = [];
   try {
-    const salesUsers = await prisma.user.findMany({
+    salesUsers = await prisma.user.findMany({
       where: { role: "SALES" },
       select: { id: true, email: true },
     });
-    if (salesUsers.length === 0) return;
+  } catch (error) {
+    console.error("notifyNewLeadCreated: could not load sales team:", error);
+    return;
+  }
 
-    await createNotifications(
-      salesUsers.map((u) => ({
+  // Sequential, not a batched Promise.allSettled fan-out - firing several
+  // concurrent notification.create calls right after the lead.create
+  // (itself just made on the same Neon connection) has been observed to
+  // silently drop individual writes under transient pool contention, with
+  // no error surfaced (Promise.allSettled results were never inspected).
+  // One rep failing to hear about a lead is a real problem (the whole
+  // point is speed-to-lead), so each write now gets its own try/catch and
+  // logs on failure instead of failing silently.
+  for (const u of salesUsers) {
+    try {
+      await createNotification({
         userId: u.id,
-        type: "LEAD_NEW_INBOUND" as const,
+        type: "LEAD_NEW_INBOUND",
         title: "New lead available",
         body: `${lead.name} - ${SOURCE_LABEL[lead.source] ?? lead.source}. First to claim it owns it.`,
         link: "/sales/inbound",
-      }))
-    );
-
-    for (const u of salesUsers) {
-      if (!u.email) continue;
-      try {
-        await resend.emails.send({
-          from: EMAIL_FROM,
-          to: u.email,
-          subject: `New lead: ${lead.name}`,
-          html: `<p>A new lead just came in - <strong>${lead.name}</strong> (${SOURCE_LABEL[lead.source] ?? lead.source}). First to claim it owns it.</p><p><a href="${siteConfig.url}/sales/inbound">Claim it now</a></p>`,
-        });
-      } catch (error) {
-        console.error("notifyNewLeadCreated: sales-team email failed for", u.email, error);
-      }
+      });
+    } catch (error) {
+      console.error("notifyNewLeadCreated: notification failed for", u.id, error);
     }
-  } catch (error) {
-    console.error("notifyNewLeadCreated: sales-team notify failed:", error);
+
+    if (!u.email) continue;
+    try {
+      await resend.emails.send({
+        from: EMAIL_FROM,
+        to: u.email,
+        subject: `New lead: ${lead.name}`,
+        html: `<p>A new lead just came in - <strong>${lead.name}</strong> (${SOURCE_LABEL[lead.source] ?? lead.source}). First to claim it owns it.</p><p><a href="${siteConfig.url}/sales/inbound">Claim it now</a></p>`,
+      });
+    } catch (error) {
+      console.error("notifyNewLeadCreated: sales-team email failed for", u.email, error);
+    }
   }
 }
 
@@ -67,15 +78,19 @@ export async function notifyLeadClaimed(lead: Lead, claimedByTeamMemberId: strin
   ]);
   if (admins.length === 0) return;
 
-  await createNotifications(
-    admins.map((admin) => ({
-      userId: admin.id,
-      type: "LEAD_CLAIMED" as const,
-      title: "Lead claimed",
-      body: `${claimant?.name ?? "A sales rep"} claimed ${lead.name}.`,
-      link: `/admin/leads/${lead.id}`,
-    }))
-  );
+  for (const admin of admins) {
+    try {
+      await createNotification({
+        userId: admin.id,
+        type: "LEAD_CLAIMED",
+        title: "Lead claimed",
+        body: `${claimant?.name ?? "A sales rep"} claimed ${lead.name}.`,
+        link: `/admin/leads/${lead.id}`,
+      });
+    } catch (error) {
+      console.error("notifyLeadClaimed: notification failed for", admin.id, error);
+    }
+  }
 }
 
 const SOURCE_LABEL: Record<string, string> = {
