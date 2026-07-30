@@ -102,7 +102,8 @@ export type StartProjectFormState = ActionResult | null;
  * estimate for reporting, not a quote. Matches the ₹*100 convention every
  * other estimatedValue in this codebase uses. */
 const BUDGET_ESTIMATED_VALUE: Record<string, number> = {
-  UNDER_25K: 15_000 * 100,
+  UNDER_10K: 5_000 * 100,
+  "10K_25K": 17_500 * 100,
   "25K_50K": 37_500 * 100,
   "50K_1L": 75_000 * 100,
   "1L_PLUS": 150_000 * 100,

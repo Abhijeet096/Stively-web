@@ -74,7 +74,7 @@ export default async function StartProjectPage() {
     <>
       <Section
         background="inverted"
-        className="texture-noise relative overflow-hidden py-20 md:py-28"
+        className="texture-noise relative overflow-hidden pt-10 pb-16 md:pt-14 md:pb-20 lg:pt-16 lg:pb-24"
       >
         <div
           aria-hidden="true"

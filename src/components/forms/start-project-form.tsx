@@ -67,7 +67,11 @@ function PillGroup<T extends string>({
  */
 function StartProjectForm() {
   const router = useRouter();
-  const [service, setService] = React.useState<(typeof START_PROJECT_SERVICES)[number] | "">("");
+  // Defaults to Website - the first Google Ads campaign targets web
+  // development search terms specifically, so most visitors landing here
+  // already want this; pre-selecting it removes a click for them while
+  // still letting anyone pick a different service.
+  const [service, setService] = React.useState<(typeof START_PROJECT_SERVICES)[number] | "">("WEBSITE");
   const [budget, setBudget] = React.useState<(typeof START_PROJECT_BUDGETS)[number] | "">("");
   const [state, formAction, isPending] = useActionState<StartProjectFormState, FormData>(
     submitStartProjectLead,
@@ -119,8 +123,8 @@ function StartProjectForm() {
         <FormField id="whatsappNumber" label="WhatsApp Number" optional>
           <Input name="whatsappNumber" type="tel" />
         </FormField>
-        <FormField id="businessType" label="Business Type" optional>
-          <Input name="businessType" placeholder="e.g. Retail, Clinic, SaaS" />
+        <FormField id="businessType" label="Business Type">
+          <Input name="businessType" required placeholder="e.g. Retail, Clinic, SaaS" />
         </FormField>
       </div>
 

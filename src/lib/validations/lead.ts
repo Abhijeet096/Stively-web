@@ -102,10 +102,11 @@ export const START_PROJECT_SERVICE_LABEL: Record<(typeof START_PROJECT_SERVICES)
   SEO: "SEO",
 };
 
-export const START_PROJECT_BUDGETS = ["UNDER_25K", "25K_50K", "50K_1L", "1L_PLUS"] as const;
+export const START_PROJECT_BUDGETS = ["UNDER_10K", "10K_25K", "25K_50K", "50K_1L", "1L_PLUS"] as const;
 
 export const START_PROJECT_BUDGET_LABEL: Record<(typeof START_PROJECT_BUDGETS)[number], string> = {
-  UNDER_25K: "Under ₹25k",
+  UNDER_10K: "Under ₹10k",
+  "10K_25K": "₹10k–₹25k",
   "25K_50K": "₹25k–₹50k",
   "50K_1L": "₹50k–₹1L",
   "1L_PLUS": "₹1L+",
@@ -126,7 +127,7 @@ export const startProjectLeadSchema = z.object({
   email: z.string().trim().email("Enter a valid email address"),
   phone: z.string().trim().min(7, "Enter a valid phone number so we can reach you"),
   whatsappNumber: z.string().trim().optional(),
-  businessType: z.string().trim().optional(),
+  businessType: z.string().trim().min(1, "Tell us your business type"),
   service: z.enum(START_PROJECT_SERVICES).optional(),
   budget: z.enum(START_PROJECT_BUDGETS).optional(),
   description: z.string().trim().optional(),
