@@ -15,6 +15,7 @@ import {
   Mic,
   Briefcase,
   Radar,
+  GalleryHorizontalEnd,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -29,6 +30,7 @@ const NAV_ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/admin/interviews", label: "Interviews", icon: Mic },
   { href: "/admin/learning", label: "Learning", icon: BookOpen },
   { href: "/admin/mentors", label: "Mentors", icon: UserRound },
+  { href: "/admin/portfolio", label: "Portfolio", icon: GalleryHorizontalEnd },
   { href: "/admin/students", label: "Students", icon: GraduationCap },
   { href: "/admin/businesses", label: "Businesses", icon: Building2 },
   { href: "/admin/reports", label: "Reports", icon: BarChart3 },

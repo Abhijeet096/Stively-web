@@ -9,6 +9,7 @@ import {
   CalendarClock,
   FolderKanban,
   Receipt,
+  GalleryHorizontalEnd,
 } from "lucide-react";
 
 import { requireRole } from "@/lib/session";
@@ -153,7 +154,7 @@ export default async function ClientDashboardPage() {
 
         <section className="flex flex-col gap-4">
           <SectionHeader title="Get started" />
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <QuickActionCard
               label="Request Proposal"
               description="Browse offerings and get a scoped estimate"
@@ -165,6 +166,12 @@ export default async function ClientDashboardPage() {
               description="Talk through your project with our team"
               icon={CalendarClock}
               href="/client/consultation"
+            />
+            <QuickActionCard
+              label="See Our Work"
+              description="Browse real projects we've delivered for clients"
+              icon={GalleryHorizontalEnd}
+              href="/work"
             />
           </div>
         </section>

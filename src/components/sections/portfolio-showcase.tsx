@@ -79,9 +79,10 @@ function PortfolioShowcase({ items }: PortfolioShowcaseProps) {
  */
 function PortfolioCard({ item }: { item: PortfolioItem }) {
   const isConcept = !item.clientName;
+  const detailHref = item.slug ? `/work/${item.slug}` : null;
 
-  return (
-    <Card variant="interactive" className="group h-full gap-0 overflow-hidden py-0">
+  const cardBody = (
+    <>
       <div className="bg-muted relative aspect-video w-full overflow-hidden">
         <Image
           src={item.imageUrl}
@@ -90,7 +91,7 @@ function PortfolioCard({ item }: { item: PortfolioItem }) {
           sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
           className="object-cover object-top transition-transform duration-500 ease-out group-hover:scale-[1.04]"
         />
-        {item.liveUrl && (
+        {detailHref && (
           <div
             aria-hidden="true"
             className="absolute inset-0 flex items-end justify-end bg-linear-to-t from-black/50 via-transparent to-transparent p-4 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
@@ -102,7 +103,7 @@ function PortfolioCard({ item }: { item: PortfolioItem }) {
         )}
       </div>
 
-      <div className="flex flex-1 flex-col gap-3 p-6">
+      <div className="flex flex-1 flex-col gap-3 p-6 pb-3">
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge variant={isConcept ? "default" : "secondary"} className="w-fit">
             {isConcept ? "Portfolio Concept" : "Client Project"}
@@ -132,16 +133,30 @@ function PortfolioCard({ item }: { item: PortfolioItem }) {
             ))}
           </div>
         )}
+      </div>
+    </>
+  );
 
-        {item.liveUrl && (
-          <Button variant="outline" size="sm" asChild className="mt-auto w-fit">
+  return (
+    <Card variant="interactive" className="group h-full gap-0 overflow-hidden py-0">
+      {detailHref ? (
+        <Link href={detailHref} className="contents">
+          {cardBody}
+        </Link>
+      ) : (
+        cardBody
+      )}
+
+      {item.liveUrl && (
+        <div className="px-6 pb-6">
+          <Button variant="outline" size="sm" asChild className="w-fit">
             <a href={item.liveUrl} target="_blank" rel="noopener noreferrer">
               Live Preview
               <ArrowUpRight className="size-3.5" aria-hidden="true" />
             </a>
           </Button>
-        )}
-      </div>
+        </div>
+      )}
     </Card>
   );
 }

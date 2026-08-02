@@ -627,17 +627,25 @@ enum PortfolioCategory {
   OTHER
 }
 
-/// A real, shipped demo/client site shown on the public "Our Work" page and
-/// as a homepage teaser - the concrete proof the homepage's ServicesGrid
-/// comment says doesn't exist yet ("no fabricated case studies... none
-/// exist yet to show honestly"). Seed/DB-managed only, same as Testimonial
-/// above - no admin CRUD UI this round, since that's this schema's own
-/// established precedent for public marketing content and nothing here
-/// asked for a content-management screen.
+/// A real, shipped demo/client site shown on the public "Our Work" page, a
+/// homepage teaser, and (as of the case-study expansion) a full detail page
+/// at /work/[slug] - the concrete proof the homepage's ServicesGrid comment
+/// says doesn't exist yet ("no fabricated case studies... none exist yet to
+/// show honestly"). Admin-managed via /admin/portfolio (PF1-PF9) - the 3
+/// original rows predate that UI and were inserted by hand, which is why
+/// `slug` is nullable at the DB layer (backfilled once) despite being
+/// required at the Zod/admin-form layer for every new item.
 model PortfolioItem {
   id String @id @default(cuid())
 
+  /// Nullable only for the pre-admin-UI legacy rows (backfilled once) - the
+  /// admin form always requires one for new items. Powers /work/[slug].
+  slug String? @unique
+
   title      String
+  /// Short hero subheading, distinct from `summary` (which becomes the
+  /// detail page's longer "Overview" section body).
+  tagline    String?
   /// Null for a self-initiated "Portfolio Concept" piece (no real client) -
   /// that null-ness IS the Portfolio-Concept-vs-Client-Project distinction,
   /// not a separate field. Set to a real name for actual client work.
@@ -649,9 +657,27 @@ model PortfolioItem {
   category   PortfolioCategory @default(WEBSITE)
   summary    String            @db.Text
 
-  imageUrl String
-  liveUrl  String?
-  tags     String[]
+  /// Case-study narrative sections - all optional, all rendered on
+  /// /work/[slug] only when present. Never fabricated/placeholder content
+  /// for items that don't have real case-study material yet (matches this
+  /// model's own established no-fabrication precedent above).
+  challenge String? @db.Text
+  solution  String? @db.Text
+  /// Array<{ title: string; description: string }>
+  features  Json?
+  techStack String[] @default([])
+  /// Array<{ label: string; value: string }> - real metrics only, never
+  /// invented to fill the section.
+  outcomes Json?
+
+  imageUrl      String
+  /// Device-mockup screenshots (already framed to look like a viewport) -
+  /// shown wrapped in a lightweight CSS device frame on the detail page.
+  mockupImages  String[] @default([])
+  /// Additional real screenshots shown in a plain gallery grid.
+  galleryImages String[] @default([])
+  liveUrl       String?
+  tags          String[]
 
   /// Pins an item to the front of both the homepage teaser and the full
   /// grid, ahead of sortOrder - lets whoever manages content promote a

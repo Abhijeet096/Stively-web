@@ -33,3 +33,47 @@ export async function getAllPublishedPortfolioItems(): Promise<PortfolioItem[]> 
     return [];
   }
 }
+
+/** The /work/[slug] case-study detail page's data source - published only (an unpublished item 404s for a public visitor, same as any other draft content). */
+export async function getPortfolioItemBySlug(slug: string): Promise<PortfolioItem | null> {
+  try {
+    return await prisma.portfolioItem.findFirst({ where: { slug, published: true } });
+  } catch (error) {
+    console.error("getPortfolioItemBySlug failed:", error);
+    return null;
+  }
+}
+
+/** generateStaticParams' data source for /work/[slug] - published slugs only. */
+export async function getAllPublishedPortfolioSlugs(): Promise<string[]> {
+  try {
+    const items = await prisma.portfolioItem.findMany({
+      where: { published: true, slug: { not: null } },
+      select: { slug: true },
+    });
+    return items.map((item) => item.slug).filter((slug): slug is string => !!slug);
+  } catch (error) {
+    console.error("getAllPublishedPortfolioSlugs failed:", error);
+    return [];
+  }
+}
+
+/** /admin/portfolio's list source - published and unpublished, sortOrder-ordered (no featured-first bump, since this is a management view, not a teaser). */
+export async function getAllPortfolioItemsForAdmin(): Promise<PortfolioItem[]> {
+  try {
+    return await prisma.portfolioItem.findMany({ orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }] });
+  } catch (error) {
+    console.error("getAllPortfolioItemsForAdmin failed:", error);
+    return [];
+  }
+}
+
+/** /admin/portfolio/[id]'s edit-form data source - includes unpublished items (an admin editing a draft must see it), unlike getPortfolioItemBySlug above. */
+export async function getPortfolioItemById(id: string): Promise<PortfolioItem | null> {
+  try {
+    return await prisma.portfolioItem.findUnique({ where: { id } });
+  } catch (error) {
+    console.error("getPortfolioItemById failed:", error);
+    return null;
+  }
+}
