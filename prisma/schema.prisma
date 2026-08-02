@@ -2238,6 +2238,13 @@ enum NotificationType {
   /// ADMIN/SUPER_ADMIN for oversight - see notifyLeadClaimed()
   /// (src/features/leads/server/notify.ts).
   LEAD_CLAIMED
+
+  // --- AI Interview Platform ---
+  /// An Interview auto-terminates after repeated integrity violations
+  /// (tab-switch/fullscreen-exit) - fired to the recruiter who created the
+  /// InterviewLink - see logIntegrityViolation()
+  /// (src/features/interviews/actions/integrity-actions.ts).
+  INTERVIEW_TERMINATED
 }
 
 model Notification {
@@ -2440,6 +2447,19 @@ model Interview {
   /// and appended to on every turn so "never the same sequence twice"
   /// survives a page refresh mid-interview.
   categoriesCovered InterviewCategory[]
+
+  /// Cloudinary secure_url for the candidate's webcam recording, set once
+  /// upload finishes (normal completion or termination). Null if recording
+  /// was never available - see the "RECORDING_UNAVAILABLE" activity log.
+  recordingUrl String?
+  /// Authoritative, server-incremented count of integrity violations
+  /// (tab-switch / fullscreen-exit) - see logIntegrityViolation(). Never
+  /// trust a client-reported count for this.
+  violationCount Int @default(0)
+  /// Set only when `status` flips to ABANDONED because of an integrity
+  /// violation (e.g. "INTEGRITY_VIOLATION"), disambiguating an enforced
+  /// termination from any other reason an interview ends up ABANDONED.
+  terminatedReason String?
 
   responses    Response[]
   score        Score?

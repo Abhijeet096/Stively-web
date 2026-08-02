@@ -1,17 +1,26 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Mic, Volume2, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Loader2, Mic, Volume2, AlertTriangle, CheckCircle2, ShieldAlert } from "lucide-react";
 
 import { Logo } from "@/components/shared/logo";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { VoiceErrorCode } from "../../types/voice";
 import { useVoiceProvider } from "../../lib/voice/use-voice-provider";
+import { useIntegrityGuard, type IntegrityViolationOutcome } from "../../lib/use-integrity-guard";
 import { submitInterviewTurn, getSessionInterview } from "../../actions/session-actions";
+import { uploadInterviewRecording, logRecordingUnavailable } from "../../actions/integrity-actions";
 import { OPENING_SCRIPT, CLOSING_SCRIPT } from "../../lib/scripts";
+import { IntegrityWarningModal } from "./integrity-warning-modal";
 
-type Phase = "loading" | "speaking" | "listening" | "thinking" | "done" | "error" | "unsupported";
+type Phase = "loading" | "speaking" | "listening" | "thinking" | "done" | "error" | "unsupported" | "terminated";
+
+const RECORDING_MIME_TYPE_CANDIDATES = ["video/webm;codecs=vp8", "video/webm"];
+// Safety cap: stops recording early rather than let an unusually long
+// custom-duration interview silently exceed the server action body-size
+// limit configured in next.config.ts.
+const MAX_RECORDING_MS = 35 * 60 * 1000;
 
 export interface InterviewSessionProps {
   interviewId: string;
@@ -55,6 +64,110 @@ function InterviewSession({ interviewId }: InterviewSessionProps) {
   const [pendingQuestion, setPendingQuestion] = React.useState<string | null>(null);
   const [showRecovery, setShowRecovery] = React.useState(false);
   const listenForAnswerRef = React.useRef<(question: string) => void>(() => {});
+  const [violationWarning, setViolationWarning] = React.useState<{ count: number } | null>(null);
+
+  const mediaStreamRef = React.useRef<MediaStream | null>(null);
+  const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
+  const recordingChunksRef = React.useRef<Blob[]>([]);
+  const recordingFinalizedRef = React.useRef(false);
+  const recordingStopTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Recording keeps rolling through a warning - only stops on actual
+  // termination or normal completion, since a candidate scrambling to
+  // switch back mid-warning is exactly what should stay on tape.
+  const finalizeRecording = React.useCallback(async () => {
+    if (recordingFinalizedRef.current) return;
+    recordingFinalizedRef.current = true;
+
+    if (recordingStopTimerRef.current) clearTimeout(recordingStopTimerRef.current);
+
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state === "inactive") {
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      return;
+    }
+
+    await new Promise<void>((resolve) => {
+      recorder.addEventListener("stop", () => resolve(), { once: true });
+      recorder.stop();
+    });
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+
+    const blob = new Blob(recordingChunksRef.current, { type: "video/webm" });
+    if (blob.size === 0) return;
+
+    try {
+      const formData = new FormData();
+      formData.set("file", blob, `interview-${interviewId}.webm`);
+      await uploadInterviewRecording(interviewId, formData);
+    } catch (error) {
+      console.error("Recording upload failed:", error);
+    }
+  }, [interviewId]);
+
+  const startRecording = React.useCallback(async () => {
+    try {
+      // Video only, deliberately no audio track. SpeechRecognition needs
+      // exclusive-ish access to the mic for the entire interview - the
+      // landing page's own permission check grabs and immediately releases
+      // audio+video (see interview-landing.tsx), which never conflicts,
+      // but keeping an audio track open here via MediaRecorder for the
+      // whole session competed with SpeechRecognition for the mic and
+      // caused it to fail with an "aborted" error on every listen attempt.
+      // The transcript already has everything said in text; video-only
+      // keeps the recording's core purpose (visual proof someone real is
+      // present and attentive) without that conflict.
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480 },
+      });
+      mediaStreamRef.current = stream;
+
+      const mimeType = RECORDING_MIME_TYPE_CANDIDATES.find((t) => MediaRecorder.isTypeSupported(t));
+      const recorder = new MediaRecorder(stream, {
+        ...(mimeType ? { mimeType } : {}),
+        videoBitsPerSecond: 200_000,
+      });
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) recordingChunksRef.current.push(event.data);
+      };
+      recorder.start(5000);
+      mediaRecorderRef.current = recorder;
+
+      recordingStopTimerRef.current = setTimeout(() => {
+        finalizeRecording();
+      }, MAX_RECORDING_MS);
+    } catch (error) {
+      // Non-blocking - the interview proceeds unrecorded. Logged so the
+      // recruiter report can show why no recording exists for this candidate.
+      logRecordingUnavailable(interviewId, error instanceof Error ? error.message : "unknown").catch(() => {});
+    }
+  }, [interviewId, finalizeRecording]);
+
+  const integrityEnabled =
+    phase !== "loading" && phase !== "unsupported" && phase !== "error" && phase !== "done" && phase !== "terminated";
+
+  const handleViolation = React.useCallback(
+    (outcome: IntegrityViolationOutcome) => {
+      voice.stopSpeaking();
+      voice.stopListening();
+
+      if (outcome.terminated) {
+        finalizeRecording();
+        setViolationWarning(null);
+        setPhase("terminated");
+        return;
+      }
+
+      setViolationWarning({ count: outcome.violationCount });
+    },
+    [voice, finalizeRecording]
+  );
+
+  const integrityGuard = useIntegrityGuard({
+    interviewId,
+    enabled: integrityEnabled,
+    onViolation: handleViolation,
+  });
 
   // Browser speech APIs occasionally get stuck silently (a known Chrome
   // speechSynthesis quirk, or a mic that never restarts) with no error
@@ -98,6 +211,7 @@ function InterviewSession({ interviewId }: InterviewSessionProps) {
           setDisplayMessage(CLOSING_SCRIPT);
           await voice.speak(CLOSING_SCRIPT);
           setPhase("done");
+          finalizeRecording();
           return;
         }
         const message = result.message ?? "";
@@ -107,12 +221,19 @@ function InterviewSession({ interviewId }: InterviewSessionProps) {
         listenForAnswerRef.current(message);
       });
     },
-    [interviewId, voice]
+    [interviewId, voice, finalizeRecording]
   );
 
   React.useEffect(() => {
     listenForAnswerRef.current = listenForAnswer;
   }, [listenForAnswer]);
+
+  function handleResumeFromWarning() {
+    setViolationWarning(null);
+    integrityGuard.requestFullscreen();
+    const question = pendingQuestion ?? displayMessage;
+    if (question) listenForAnswer(question);
+  }
 
   React.useEffect(() => {
     if (voice.status === "error" && voice.error) {
@@ -145,6 +266,12 @@ function InterviewSession({ interviewId }: InterviewSessionProps) {
         setPhase("done");
         return;
       }
+
+      // A genuinely active session - arm fullscreen (fallback in case the
+      // landing page's own request didn't stick) and start the webcam
+      // recording before anything else happens.
+      integrityGuard.requestFullscreen();
+      startRecording();
 
       const last = session.responses[session.responses.length - 1];
 
@@ -190,6 +317,7 @@ function InterviewSession({ interviewId }: InterviewSessionProps) {
         setDisplayMessage(CLOSING_SCRIPT);
         await voice.speak(CLOSING_SCRIPT);
         setPhase("done");
+        finalizeRecording();
         return;
       }
       const message = result.message ?? "";
@@ -198,11 +326,28 @@ function InterviewSession({ interviewId }: InterviewSessionProps) {
       await voice.speak(message);
       listenForAnswer(message);
     })();
-  }, [interviewId, listenForAnswer, voice]);
+  }, [interviewId, listenForAnswer, voice, integrityGuard, startRecording, finalizeRecording]);
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-8 px-4 py-12">
       <Logo />
+
+      {violationWarning && (
+        <IntegrityWarningModal violationCount={violationWarning.count} onResume={handleResumeFromWarning} />
+      )}
+
+      {phase === "terminated" && (
+        <Card className="w-full max-w-md">
+          <CardContent className="flex flex-col items-center gap-3 text-center">
+            <ShieldAlert className="text-destructive size-8" aria-hidden="true" />
+            <h1 className="font-display text-lg font-semibold">This interview has ended</h1>
+            <p className="text-muted-foreground text-sm text-pretty">
+              This interview was ended due to repeated integrity violations. Our recruitment team will review the
+              recording.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {phase === "unsupported" && (
         <Card className="w-full max-w-md">

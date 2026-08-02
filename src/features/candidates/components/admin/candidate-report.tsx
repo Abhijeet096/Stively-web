@@ -1,4 +1,4 @@
-import { Clock, Mail, Phone, MessageSquare } from "lucide-react";
+import { Clock, Mail, Phone, MessageSquare, ShieldAlert, Video } from "lucide-react";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -199,6 +199,44 @@ function CandidateReport({ candidate, alreadyHired }: { candidate: CandidateRepo
                 </div>
               </CardContent>
             </Card>
+
+            {(interview.violationCount > 0 || interview.recordingUrl) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ShieldAlert className="text-muted-foreground size-4" aria-hidden="true" />
+                    Interview Integrity
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Violations</span>
+                    <span className="text-foreground">{interview.violationCount}</span>
+                  </div>
+                  {interview.terminatedReason && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Outcome</span>
+                      <Badge variant={INTERVIEW_STATUS_VARIANT.ABANDONED}>{INTERVIEW_STATUS_LABEL.ABANDONED}</Badge>
+                    </div>
+                  )}
+                  {interview.recordingUrl && (
+                    <a
+                      href={interview.recordingUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary inline-flex items-center gap-1.5 text-sm underline"
+                    >
+                      <Video className="size-3.5" aria-hidden="true" />
+                      View recording
+                    </a>
+                  )}
+                  <p className="text-muted-foreground text-xs">
+                    Not factored into the AI score - a violation isn&apos;t evidence of what the candidate said, it&apos;s
+                    a separate signal for you to weigh.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
 
             {score ? (
               <Card>

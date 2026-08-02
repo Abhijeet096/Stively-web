@@ -53,6 +53,10 @@ const CATEGORY_PROMPT: Record<InterviewCategory, string> = {
 export interface TranscriptTurn {
   question: string;
   answer: string | null;
+  /// ms between the question being asked and answered - only ever read by
+  /// buildEvaluationMessages below, as supplementary pacing context.
+  /// buildInterviewMessages' live per-turn prompt never reads this field.
+  responseTimeMs?: number | null;
 }
 
 /**
@@ -105,7 +109,7 @@ export function buildInterviewMessages(
 export function responsesToTranscript(responses: ResponseRow[]): TranscriptTurn[] {
   return responses
     .sort((a, b) => a.sequence - b.sequence)
-    .map((r) => ({ question: r.question, answer: r.answer }));
+    .map((r) => ({ question: r.question, answer: r.answer, responseTimeMs: r.responseTimeMs }));
 }
 
 /**
@@ -138,6 +142,7 @@ const EVALUATION_RESPONSE_RULES = `Respond with ONLY a JSON object, no other tex
 Scoring rules:
 - communication should weigh clarity, grammar, and vocabulary together - how well they actually express themselves, not just what they said.
 - Every score reflects only what's actually in the transcript below - never invent evidence that wasn't said. A short or generic answer should score lower, not be given the benefit of the doubt.
+- Some answers show a response time in seconds. Pacing MAY inform your read of confidence or communication (for example, a very long pause before a simple question) - but never invent an explanation for why an answer was fast or slow. Treat it as a minor supplementary signal, never primary evidence.
 - strengths, weaknesses, and suggestedTraining must each cite something specific and real from this candidate's actual answers, never generic filler. If the transcript is too short to honestly identify any (e.g. the candidate ended the interview after one or two answers), it is correct to return an empty array for that field rather than invent something.
 - The candidate never saw or will see any of this - be honest and direct, exactly like an internal recruiter's private notes.`;
 
@@ -156,7 +161,10 @@ export function buildEvaluationMessages(
   transcript: TranscriptTurn[]
 ): Groq.Chat.Completions.ChatCompletionMessageParam[] {
   const transcriptText = transcript
-    .map((turn, i) => `Q${i + 1} (${turn.question})\nA${i + 1}: ${turn.answer ?? "(no answer recorded)"}`)
+    .map((turn, i) => {
+      const timing = turn.responseTimeMs != null ? ` (responded in ${Math.round(turn.responseTimeMs / 1000)}s)` : "";
+      return `Q${i + 1} (${turn.question})\nA${i + 1}: ${turn.answer ?? "(no answer recorded)"}${timing}`;
+    })
     .join("\n\n");
 
   const salesInstruction = isSalesRelevantTemplate(template)

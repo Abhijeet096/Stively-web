@@ -122,6 +122,20 @@ function InterviewLanding({ token, jobTitle, department, durationMinutes, candid
   async function handleStart() {
     setIsStarting(true);
     setError(undefined);
+
+    // Requested synchronously within this click handler - the last
+    // reliable user-gesture context before navigating to the session
+    // route, since most browsers require fullscreen requests to originate
+    // from a real user activation. Best-effort: if it's rejected (some
+    // browsers, or a candidate declining a fullscreen permission prompt),
+    // the interview still proceeds - useIntegrityGuard on the session page
+    // requests it again as a fallback.
+    try {
+      await document.documentElement.requestFullscreen();
+    } catch {
+      // Non-fatal - proceed without fullscreen, the session page will retry.
+    }
+
     const result = await startInterview(token);
     if (!result.success || !result.interviewId) {
       setIsStarting(false);

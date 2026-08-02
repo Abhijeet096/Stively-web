@@ -30,6 +30,16 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Default is 1MB - the interview integrity system's webcam recording
+  // upload (src/features/interviews/actions/integrity-actions.ts) needs
+  // real headroom: ~1.74MB/min at the configured MediaRecorder bitrate,
+  // so a default 20min interview is ~35MB. 60mb covers that comfortably
+  // with room for multipart overhead.
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "60mb",
+    },
+  },
   images: {
     remotePatterns: [
       {
