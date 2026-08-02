@@ -155,7 +155,7 @@ function HeroSection({
         id={id}
         ref={rootRef}
         background="inverted"
-        className="texture-noise relative overflow-hidden py-24 md:py-32"
+        className="texture-noise relative overflow-hidden pt-12 pb-24 md:pt-16 md:pb-32 lg:pt-16 lg:pb-32"
       >
         {aurora}
         <Container className="flex flex-col items-center gap-12 lg:flex-row lg:items-center lg:gap-10">
