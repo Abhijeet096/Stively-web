@@ -3,9 +3,18 @@ import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 
-/** Real intrinsic size of both public/brand/logo-*-surface.png exports - keeps next/image from guessing an aspect ratio. */
-const LOGO_WIDTH = 900;
-const LOGO_HEIGHT = 263;
+/**
+ * Deliberately NOT the source PNG's real intrinsic size (900x263) - every
+ * usage renders this at a fixed `h-6` (24px), so these are that actual
+ * render size (same 900:263 aspect ratio) instead. Per next/image's own
+ * docs: without a `sizes` prop, it generates a 1x/2x srcset sized off
+ * whatever width/height you pass, on the assumption that's the real
+ * display size - passing the full 900px source size here was making it
+ * fetch ~1080px/1920px variants for an 82px-wide image on every single
+ * page (Navbar/Footer/every auth & checkout layout all render <Logo>).
+ */
+const LOGO_WIDTH = 82;
+const LOGO_HEIGHT = 24;
 
 export interface LogoProps {
   className?: string;

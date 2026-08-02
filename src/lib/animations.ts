@@ -17,42 +17,29 @@ function isFinePointer(): boolean {
 }
 
 /**
- * Orchestrated hero load sequence (eyebrow -> heading -> signal path draw ->
- * subheading -> ctas), the one deliberate page-load animation on the site.
- * Reduced-motion: every target snaps straight to its final visible state,
- * the path renders fully drawn - never left mid-animation or invisible.
+ * Draws the hero's decorative signal-path SVG once on load. The eyebrow/
+ * heading/subheading/CTAs used to fade in via this same timeline (JS
+ * setting opacity:0 on mount, then animejs tweening back to 1) - moved to a
+ * pure CSS @keyframes animation (`hero-reveal` in globals.css, applied via
+ * inline style directly in the SSR'd HTML) because hiding the hero heading
+ * - almost always the page's LCP element - until this library hydrates and
+ * runs measurably tanked Largest Contentful Paint on slower connections.
+ * Only the signal path (decorative, aria-hidden, never an LCP candidate)
+ * still needs real JS since its "drawn" progress isn't expressible as a
+ * plain CSS keyframe. Reduced-motion: renders fully drawn immediately.
  */
 export function playHeroLoadTimeline(root: HTMLElement): Timeline | null {
-  const eyebrow = root.querySelector<HTMLElement>("[data-hero-eyebrow]");
-  const heading = root.querySelector<HTMLElement>("[data-hero-heading]");
-  const subheading = root.querySelector<HTMLElement>("[data-hero-subheading]");
-  const ctas = root.querySelector<HTMLElement>("[data-hero-ctas]");
   const path = root.querySelector<SVGPathElement>("[data-signal-path]");
-  const fadeTargets = [eyebrow, heading, subheading, ctas].filter((el): el is HTMLElement => el != null);
+  if (!path) return null;
 
   if (prefersReducedMotion()) {
-    fadeTargets.forEach((el) => {
-      el.style.opacity = "1";
-      el.style.transform = "none";
-    });
-    if (path) createDrawable(path)[0]?.setAttribute("draw", "0 1");
+    createDrawable(path)[0]?.setAttribute("draw", "0 1");
     return null;
   }
 
-  fadeTargets.forEach((el) => {
-    el.style.opacity = "0";
-  });
-
   const timeline = createTimeline({ defaults: { ease: "outQuart" } });
-  if (eyebrow) timeline.add(eyebrow, { opacity: [0, 1], translateY: [8, 0], duration: 450 }, 0);
-  if (heading) timeline.add(heading, { opacity: [0, 1], translateY: [18, 0], duration: 650 }, 80);
-  if (path) {
-    const [drawable] = createDrawable(path, 0, 0);
-    timeline.add(drawable, { draw: ["0 0", "0 1"], duration: 700, ease: "inOutSine" }, 150);
-  }
-  if (subheading) timeline.add(subheading, { opacity: [0, 1], translateY: [12, 0], duration: 500 }, 300);
-  if (ctas) timeline.add(ctas, { opacity: [0, 1], translateY: [10, 0], duration: 450 }, 420);
-
+  const [drawable] = createDrawable(path, 0, 0);
+  timeline.add(drawable, { draw: ["0 0", "0 1"], duration: 700, ease: "inOutSine" }, 150);
   return timeline;
 }
 

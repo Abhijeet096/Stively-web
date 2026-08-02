@@ -16,6 +16,19 @@ export interface HeroCta {
   href: string;
 }
 
+/**
+ * Inline style for the CSS-only `hero-reveal` keyframe (see globals.css) -
+ * rendered directly into the SSR'd HTML so the browser can animate it in
+ * from first paint without waiting on hydration. Timing/distance values
+ * match the original animejs timeline's per-element offsets.
+ */
+function heroRevealStyle(delayMs: number, durationMs: number, distancePx: number): React.CSSProperties {
+  return {
+    animation: `hero-reveal ${durationMs}ms cubic-bezier(0.22,1,0.36,1) ${delayMs}ms both`,
+    "--hero-reveal-y": `${distancePx}px`,
+  } as React.CSSProperties;
+}
+
 export interface HeroSectionProps {
   /** For a page's sticky CTA bar (see service-sticky-cta.tsx) to watch via IntersectionObserver. */
   id?: string;
@@ -40,12 +53,14 @@ export interface HeroSectionProps {
 /**
  * Reusable across marketing pages (Home now, About/Services/Training/
  * Pricing) - not Home-specific content baked in. Runs one orchestrated
- * animejs load sequence (eyebrow -> heading -> signal-path draw ->
- * subheading -> ctas, ~600-800ms total, see src/lib/animations.ts) - the
- * one deliberate page-load animation on the site, justified by the
- * "signal path" motif this hero introduces (see docs/design-system.md's
- * typography/motion addendum). Every other section keeps the plain
- * scroll-triggered Reveal pattern.
+ * page-load reveal (eyebrow -> heading -> signal-path draw -> subheading ->
+ * ctas, ~600-800ms total) - the one deliberate page-load animation on the
+ * site, justified by the "signal path" motif this hero introduces (see
+ * docs/design-system.md's typography/motion addendum). The text/CTA fade-up
+ * is pure CSS (`hero-reveal` in globals.css, see heroRevealStyle below) so
+ * it runs from first paint instead of waiting on JS hydration - only the
+ * signal-path's "drawn" progress still needs animejs (src/lib/animations.ts).
+ * Every other section keeps the plain scroll-triggered Reveal pattern.
  */
 function HeroSection({
   id,
@@ -74,6 +89,7 @@ function HeroSection({
   const ctas = (
     <div
       data-hero-ctas
+      style={heroRevealStyle(420, 450, 10)}
       className={cn(
         "flex w-full flex-col gap-3 sm:w-auto sm:flex-row",
         visual && "sm:justify-start"
@@ -95,6 +111,7 @@ function HeroSection({
   const eyebrowEl = eyebrow && (
     <span
       data-hero-eyebrow
+      style={heroRevealStyle(0, 450, 8)}
       className={cn(
         "border-ink-border-strong text-ink-muted-foreground inline-flex items-center gap-2 rounded-full border bg-white/[0.04] px-3.5 py-1.5 text-xs font-medium tracking-wide uppercase",
         eyebrowMono && "text-primary-foreground font-mono tracking-widest"
@@ -165,12 +182,17 @@ function HeroSection({
             <h1
               data-hero-heading
               className="font-display text-balance font-semibold tracking-[-0.03em]"
-              style={{ fontSize: "clamp(2.75rem, 6vw, 5.5rem)", lineHeight: 1.03 }}
+              style={{
+                fontSize: "clamp(2.75rem, 6vw, 5.5rem)",
+                lineHeight: 1.03,
+                ...heroRevealStyle(80, 650, 18),
+              }}
             >
               {heading}
             </h1>
             <p
               data-hero-subheading
+              style={heroRevealStyle(300, 500, 12)}
               className="text-ink-muted-foreground max-w-xl text-lg text-pretty"
             >
               {subheading}
@@ -196,11 +218,16 @@ function HeroSection({
         {eyebrowEl}
         <h1
           data-hero-heading
+          style={heroRevealStyle(80, 650, 18)}
           className="font-display text-4xl font-semibold tracking-[-0.03em] text-balance sm:text-5xl md:text-6xl"
         >
           {heading}
         </h1>
-        <p data-hero-subheading className="text-ink-muted-foreground max-w-2xl text-lg text-pretty">
+        <p
+          data-hero-subheading
+          style={heroRevealStyle(300, 500, 12)}
+          className="text-ink-muted-foreground max-w-2xl text-lg text-pretty"
+        >
           {subheading}
         </p>
         {ctas}

@@ -76,9 +76,15 @@ function Footer() {
                 placeholder="you@email.com"
                 aria-label="Email address"
                 autoComplete="email"
+                // Password-manager/form-fill browser extensions (LastPass,
+                // Dashlane, etc.) inject a fdprocessedid attribute onto
+                // form fields before React hydrates - a real mismatch, but
+                // one the extension caused client-side, not our SSR output.
+                // See https://react.dev/link/hydration-mismatch.
+                suppressHydrationWarning
                 className="border-ink-border-strong bg-white/[0.04] text-ink-foreground placeholder:text-ink-muted-foreground/60 focus-visible:border-ink-foreground/40 rounded-full px-4"
               />
-              <Button type="submit" variant="inverse">
+              <Button type="submit" variant="inverse" suppressHydrationWarning>
                 Subscribe
               </Button>
             </form>

@@ -321,6 +321,29 @@
   }
 }
 
+/* Hero's page-load reveal (see hero-section.tsx) - a pure CSS @keyframes
+   animation applied via an inline style already present in the server-
+   rendered HTML, not a JS/useEffect opacity toggle. That distinction
+   matters for LCP: the hero heading is almost always the page's Largest
+   Contentful Paint candidate, and a JS-driven "hide on mount, reveal once
+   animejs runs" approach forces the browser to wait for hydration (React +
+   the animation library downloading, parsing, and executing) before that
+   text becomes visible - measured as several extra seconds of LCP on a
+   throttled connection even though the text was already painted once by
+   SSR. A CSS animation instead runs on the compositor from first paint,
+   independent of hydration timing, and the prefers-reduced-motion rule
+   below already collapses its duration to near-zero automatically. */
+@keyframes hero-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(var(--hero-reveal-y, 12px));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
