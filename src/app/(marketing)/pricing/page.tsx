@@ -70,7 +70,7 @@ export default function PricingPage() {
         eyebrow="Pricing"
         heading="Three starting points, no pricing surprises"
         subheading="Every project is scoped individually once we understand what you need - these are the fixed points most engagements start from."
-        primaryCta={{ label: "Start a project", href: "/contact?type=business" }}
+        primaryCta={{ label: "Start a project", href: "/start-project" }}
         secondaryCta={{ label: "See how we work", href: "/#how-we-work" }}
       />
 
@@ -93,7 +93,7 @@ export default function PricingPage() {
         heading="Not sure which tier fits?"
         description="A short call to talk through scope and get a straight answer - no obligation."
         actionLabel="Start a project"
-        actionHref="/contact?type=business"
+        actionHref="/start-project"
         inverted
         glow
       />

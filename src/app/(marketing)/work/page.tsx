@@ -67,7 +67,7 @@ export default async function WorkPage() {
         eyebrow="Our Work"
         heading="Real products, not mockups"
         subheading="A look at websites and web apps we've designed and built - every project here is live, and you're welcome to click through."
-        primaryCta={{ label: "Start a project", href: "/contact?type=business" }}
+        primaryCta={{ label: "Start a project", href: "/start-project" }}
       />
 
       <Section background="default">
@@ -90,7 +90,7 @@ export default async function WorkPage() {
         heading="Like what you see?"
         description="Tell us about your project - we'll give you a straight answer on scope, timeline, and fit."
         actionLabel="Start a project"
-        actionHref="/contact?type=business"
+        actionHref="/start-project"
         inverted
       />
     </>

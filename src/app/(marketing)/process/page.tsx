@@ -122,7 +122,7 @@ export default function ProcessPage() {
         eyebrow="Our process"
         heading="What happens after you contact us"
         subheading="Nine defined stages, the same way for every project - so you always know what's happening and what comes next."
-        primaryCta={{ label: "Start a project", href: "/contact?type=business" }}
+        primaryCta={{ label: "Start a project", href: "/start-project" }}
         secondaryCta={{ label: "See our pricing", href: "/pricing" }}
       />
 
@@ -139,7 +139,7 @@ export default function ProcessPage() {
         heading="Ready to start with a discovery call?"
         description="No obligation - just a conversation about what you're trying to build."
         actionLabel="Start a project"
-        actionHref="/contact?type=business"
+        actionHref="/start-project"
         inverted
         glow
       />

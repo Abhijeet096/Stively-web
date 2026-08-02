@@ -80,7 +80,7 @@ export default async function HomePage() {
           </>
         }
         subheading="Stively pairs your project with developers trained and evaluated inside our own programs first - not a freelancer roster, a talent pipeline with a real process behind it."
-        primaryCta={{ label: "Start a project", href: "/contact?type=business" }}
+        primaryCta={{ label: "Start a project", href: "/start-project" }}
         secondaryCta={{ label: "See how we work", href: "#how-we-work" }}
         visual={<HeroVisual />}
       />
@@ -102,7 +102,7 @@ export default async function HomePage() {
         heading="Ready to talk about your project?"
         description="No sales pitch, no pressure - just a straight answer about whether we're the right fit."
         actionLabel="Start a project"
-        actionHref="/contact?type=business"
+        actionHref="/start-project"
         inverted
         glow
       />
