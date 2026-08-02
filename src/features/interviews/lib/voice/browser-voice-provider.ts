@@ -62,8 +62,18 @@ const INITIAL_SILENCE_TIMEOUT_MS = 15000;
 const SYNTHESIS_RESUME_INTERVAL_MS = 8000;
 
 /** MVP voice implementation - browser SpeechRecognition (STT) + speechSynthesis (TTS). Client-only; never imported from a Server Component. */
+// .abort()/.stop() tear down the browser's internal speech-recognition
+// session asynchronously - starting a new instance immediately after,
+// before that teardown actually finishes, can throw synchronously or fail
+// silently with an "aborted"/"unknown" error, especially when retrying
+// right after a stalled prior instance that never cleanly reached onend
+// (exactly the "Still there? Tap to continue" recovery path). This delay
+// gives the browser time to actually release the previous session first.
+const RESTART_DELAY_MS = 150;
+
 export class BrowserVoiceProvider implements VoiceProvider {
   private recognition: SpeechRecognitionLike | null = null;
+  private startGeneration = 0;
 
   isSupported(): boolean {
     return getSpeechRecognitionCtor() !== null && typeof window !== "undefined" && "speechSynthesis" in window;
@@ -119,81 +129,94 @@ export class BrowserVoiceProvider implements VoiceProvider {
       return;
     }
 
-    this.stopListening();
-    const recognition = new Ctor();
-    // Continuous + interim results, with our own silence timer below,
-    // instead of letting the browser's own (much shorter) endpointing
-    // decide when the candidate is "done" - see SILENCE_TIMEOUT_MS.
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = "en-US";
+    this.stopListening(); // bumps startGeneration, invalidating any pending delayed start below
+    const generation = this.startGeneration;
 
-    let finalTranscript = "";
-    let silenceTimer: ReturnType<typeof setTimeout> | null = null;
-    let settled = false;
+    setTimeout(() => {
+      // Superseded by a newer startListening()/stopListening() call while
+      // this one was waiting out RESTART_DELAY_MS - don't start a
+      // recognition instance nobody wants anymore.
+      if (generation !== this.startGeneration) return;
 
-    const clearSilenceTimer = () => {
-      if (silenceTimer) clearTimeout(silenceTimer);
-      silenceTimer = null;
-    };
+      const recognition = new Ctor();
+      // Continuous + interim results, with our own silence timer below,
+      // instead of letting the browser's own (much shorter) endpointing
+      // decide when the candidate is "done" - see SILENCE_TIMEOUT_MS.
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = "en-US";
 
-    const resetSilenceTimer = () => {
-      clearSilenceTimer();
+      let finalTranscript = "";
+      let silenceTimer: ReturnType<typeof setTimeout> | null = null;
+      let settled = false;
+
+      const clearSilenceTimer = () => {
+        if (silenceTimer) clearTimeout(silenceTimer);
+        silenceTimer = null;
+      };
+
+      const resetSilenceTimer = () => {
+        clearSilenceTimer();
+        silenceTimer = setTimeout(() => {
+          try {
+            recognition.stop();
+          } catch {
+            // already stopped - onend below still fires
+          }
+        }, SILENCE_TIMEOUT_MS);
+      };
+
+      recognition.onresult = (event) => {
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const result = event.results[i];
+          if (result.isFinal) finalTranscript += `${result[0].transcript} `;
+        }
+        resetSilenceTimer();
+      };
+
+      recognition.onerror = (event) => {
+        if (settled) return;
+        settled = true;
+        clearSilenceTimer();
+        onError(mapRecognitionError(event.error));
+      };
+
+      recognition.onend = () => {
+        clearSilenceTimer();
+        this.recognition = null;
+        if (settled) return;
+        settled = true;
+        const transcript = finalTranscript.trim();
+        if (transcript) {
+          onFinalResult(transcript);
+        } else {
+          onError("no-speech");
+        }
+      };
+
+      this.recognition = recognition;
+      try {
+        recognition.start();
+      } catch {
+        this.recognition = null;
+        onError("unknown");
+        return;
+      }
       silenceTimer = setTimeout(() => {
         try {
           recognition.stop();
         } catch {
-          // already stopped - onend below still fires
+          // already stopped
         }
-      }, SILENCE_TIMEOUT_MS);
-    };
-
-    recognition.onresult = (event) => {
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        if (result.isFinal) finalTranscript += `${result[0].transcript} `;
-      }
-      resetSilenceTimer();
-    };
-
-    recognition.onerror = (event) => {
-      if (settled) return;
-      settled = true;
-      clearSilenceTimer();
-      onError(mapRecognitionError(event.error));
-    };
-
-    recognition.onend = () => {
-      clearSilenceTimer();
-      this.recognition = null;
-      if (settled) return;
-      settled = true;
-      const transcript = finalTranscript.trim();
-      if (transcript) {
-        onFinalResult(transcript);
-      } else {
-        onError("no-speech");
-      }
-    };
-
-    this.recognition = recognition;
-    try {
-      recognition.start();
-    } catch {
-      this.recognition = null;
-      onError("unknown");
-      return;
-    }
-    silenceTimer = setTimeout(() => {
-      try {
-        recognition.stop();
-      } catch {
-        // already stopped
-      }
-    }, INITIAL_SILENCE_TIMEOUT_MS);
+      }, INITIAL_SILENCE_TIMEOUT_MS);
+    }, RESTART_DELAY_MS);
   }
 
   stopListening(): void {
+    // Invalidates any pending delayed start from startListening() too -
+    // an explicit stop should never be followed by a start nobody asked
+    // for anymore once its RESTART_DELAY_MS timer fires.
+    this.startGeneration += 1;
     this.recognition?.abort();
     this.recognition = null;
   }

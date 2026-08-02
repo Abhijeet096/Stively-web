@@ -71,6 +71,8 @@ function InterviewSession({ interviewId }: InterviewSessionProps) {
   const recordingChunksRef = React.useRef<Blob[]>([]);
   const recordingFinalizedRef = React.useRef(false);
   const recordingStopTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const selfViewRef = React.useRef<HTMLVideoElement>(null);
+  const [isRecordingActive, setIsRecordingActive] = React.useState(false);
 
   // Recording keeps rolling through a warning - only stops on actual
   // termination or normal completion, since a candidate scrambling to
@@ -84,6 +86,7 @@ function InterviewSession({ interviewId }: InterviewSessionProps) {
     const recorder = mediaRecorderRef.current;
     if (!recorder || recorder.state === "inactive") {
       mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      setIsRecordingActive(false);
       return;
     }
 
@@ -92,6 +95,7 @@ function InterviewSession({ interviewId }: InterviewSessionProps) {
       recorder.stop();
     });
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+    setIsRecordingActive(false);
 
     const blob = new Blob(recordingChunksRef.current, { type: "video/webm" });
     if (blob.size === 0) return;
@@ -121,6 +125,15 @@ function InterviewSession({ interviewId }: InterviewSessionProps) {
         video: { width: 640, height: 480 },
       });
       mediaStreamRef.current = stream;
+
+      // Self-view: the candidate sees their own feed the whole interview -
+      // "I can see myself, so I know I'm on camera" is itself part of the
+      // deterrent this feature is for, not just the recording that happens
+      // out of sight. Reuses this same stream, no second getUserMedia call.
+      if (selfViewRef.current) {
+        selfViewRef.current.srcObject = stream;
+      }
+      setIsRecordingActive(true);
 
       const mimeType = RECORDING_MIME_TYPE_CANDIDATES.find((t) => MediaRecorder.isTypeSupported(t));
       const recorder = new MediaRecorder(stream, {
@@ -331,6 +344,22 @@ function InterviewSession({ interviewId }: InterviewSessionProps) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-8 px-4 py-12">
       <Logo />
+
+      {/* Self-view, always the candidate's own camera feed while recording is
+          active - deliberately visible the whole interview (not just the
+          fact that a red dot exists) as the same "I know I'm on camera"
+          deterrent this feature is for. srcObject is set imperatively in
+          startRecording(), not via a React prop - video elements don't
+          support MediaStream as a src attribute. */}
+      {isRecordingActive && (
+        <div className="border-border bg-ink fixed right-4 bottom-4 z-40 flex flex-col overflow-hidden rounded-lg border shadow-lg">
+          <video ref={selfViewRef} autoPlay muted playsInline className="h-28 w-36 -scale-x-100 object-cover" />
+          <div className="text-ink-foreground flex items-center gap-1.5 bg-black/60 px-2 py-1 text-[10px] font-medium tracking-wide uppercase">
+            <span className="size-1.5 animate-pulse rounded-full bg-red-500" aria-hidden="true" />
+            Recording
+          </div>
+        </div>
+      )}
 
       {violationWarning && (
         <IntegrityWarningModal violationCount={violationWarning.count} onResume={handleResumeFromWarning} />
