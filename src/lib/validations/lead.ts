@@ -114,23 +114,26 @@ export const START_PROJECT_BUDGET_LABEL: Record<(typeof START_PROJECT_BUDGETS)[n
 
 /**
  * The /start-project ad-landing page's form - built for high-intent Google
- * Ads traffic, so it asks for less than the Contact page (no message
- * minimum) to keep drop-off low. Email IS required though (unlike the
- * shared leadSchema.email below) - it's the only channel the acknowledgement
- * email can reach the visitor on. `submitStartProjectLead`
+ * Ads traffic. Deliberately down to exactly the four fields the sales team
+ * actually acts on (name, phone, service, budget) - every other field this
+ * form used to ask for (company, email, WhatsApp number, business type,
+ * free-text description) was optional friction with no bearing on whether a
+ * rep can call the lead back, and cutting it is the single biggest lever on
+ * this page's fill rate. No email means no acknowledgement email for these
+ * leads (`notifyNewLeadCreated` already treats `lead.email` as optional) -
+ * an accepted tradeoff since phone/WhatsApp is the real contact channel a
+ * paid-search visitor expects a callback through anyway. `service` and
+ * `budget` are real qualifying signals the founder wants on every lead, so
+ * both are required here (unlike the base leadSchema, which has no concept
+ * of either) rather than optional. `submitStartProjectLead`
  * (src/actions/leads.ts) adapts this into `leadSchema`'s shape, folding
- * service/budget/businessType/whatsapp into Lead.metadata Json.
+ * service/budget into Lead.metadata Json (no dedicated column for either).
  */
 export const startProjectLeadSchema = z.object({
   fullName: z.string().trim().min(2, "Enter your full name"),
-  companyName: z.string().trim().optional(),
-  email: z.string().trim().email("Enter a valid email address"),
   phone: z.string().trim().min(7, "Enter a valid phone number so we can reach you"),
-  whatsappNumber: z.string().trim().optional(),
-  businessType: z.string().trim().min(1, "Tell us your business type"),
-  service: z.enum(START_PROJECT_SERVICES).optional(),
-  budget: z.enum(START_PROJECT_BUDGETS).optional(),
-  description: z.string().trim().optional(),
+  service: z.enum(START_PROJECT_SERVICES, { error: "Select a service" }),
+  budget: z.enum(START_PROJECT_BUDGETS, { error: "Select your budget" }),
 });
 
 export type StartProjectLeadInput = z.infer<typeof startProjectLeadSchema>;

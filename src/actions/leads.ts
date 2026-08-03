@@ -111,10 +111,10 @@ const BUDGET_ESTIMATED_VALUE: Record<string, number> = {
 
 /**
  * Adapter for the /start-project Google Ads landing page. Validates the
- * richer ad-landing shape (src/lib/validations/lead.ts), folds
- * service/budget/businessType/whatsapp into Lead.metadata Json (there's no
- * dedicated column for any of them - mirrors how OfferingRequest.details
- * Json already holds page-specific wizard data), and calls submitLead.
+ * trimmed ad-landing shape (src/lib/validations/lead.ts - just name, phone,
+ * service, budget), folds service/budget into Lead.metadata Json (there's no
+ * dedicated column for either - mirrors how OfferingRequest.details Json
+ * already holds page-specific wizard data), and calls submitLead.
  */
 export async function submitStartProjectLead(
   _prevState: StartProjectFormState,
@@ -122,14 +122,9 @@ export async function submitStartProjectLead(
 ): Promise<StartProjectFormState> {
   const raw = {
     fullName: formData.get("fullName"),
-    companyName: formData.get("companyName") || undefined,
-    email: formData.get("email") || undefined,
     phone: formData.get("phone"),
-    whatsappNumber: formData.get("whatsappNumber") || undefined,
-    businessType: formData.get("businessType") || undefined,
     service: formData.get("service") || undefined,
     budget: formData.get("budget") || undefined,
-    description: formData.get("description") || undefined,
   };
 
   const parsed = startProjectLeadSchema.safeParse(raw);
@@ -143,22 +138,13 @@ export async function submitStartProjectLead(
 
   const data = parsed.data;
 
-  const metadata: Record<string, unknown> = {};
-  if (data.service) metadata.service = data.service;
-  if (data.budget) metadata.budget = data.budget;
-  if (data.businessType) metadata.businessType = data.businessType;
-  if (data.whatsappNumber) metadata.whatsappNumber = data.whatsappNumber;
-
   return submitLead({
     name: data.fullName,
-    email: data.email,
     phone: data.phone,
-    message: data.description,
     source: "START_PROJECT",
     leadType: "BUSINESS",
-    companyName: data.companyName,
-    metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
-    estimatedValue: data.budget ? BUDGET_ESTIMATED_VALUE[data.budget] : undefined,
+    metadata: { service: data.service, budget: data.budget },
+    estimatedValue: BUDGET_ESTIMATED_VALUE[data.budget],
     acquisitionChannel: "GOOGLE_ADS",
   });
 }

@@ -14,7 +14,6 @@ import {
 } from "@/lib/validations/lead";
 import { getWhatsAppUrl } from "@/lib/whatsapp";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { Button } from "@/components/ui/button";
 
@@ -24,12 +23,17 @@ function PillGroup<T extends string>({
   labels,
   value,
   onChange,
+  required = false,
 }: {
   name: string;
   options: readonly T[];
   labels: Record<T, string>;
   value: T | "";
   onChange: (value: T) => void;
+  /** Renders every radio in the group `required` - the HTML radio-group
+   *  semantics mean the browser blocks submit with a native tooltip until
+   *  one is checked, no server round-trip needed to catch it. */
+  required?: boolean;
 }) {
   return (
     <div className="flex flex-wrap gap-2" role="radiogroup">
@@ -48,6 +52,7 @@ function PillGroup<T extends string>({
             value={option}
             checked={value === option}
             onChange={() => onChange(option)}
+            required={required}
             className="sr-only"
           />
           {labels[option]}
@@ -58,12 +63,17 @@ function PillGroup<T extends string>({
 }
 
 /**
- * The /start-project ad-landing page's lead form. Deliberately shorter than
- * ContactForm - only Full Name and Phone are required (matches the founder's
- * own spec), no message-length minimum, so a paid-traffic visitor can submit
- * in under a minute. Service/budget render as clickable pill groups rather
- * than a native <select> so the qualifying signal (what do they want, what
- * can they spend) is visible at a glance, not hidden behind a dropdown.
+ * The /start-project ad-landing page's lead form - trimmed to exactly the
+ * four fields the sales team acts on: Full Name, Phone, Service, Budget.
+ * Company, email, WhatsApp number, business type, and a free-text
+ * description all used to be here too; none of them changes whether a rep
+ * can call the lead back, so every one of them was pure drop-off risk for a
+ * paid-search visitor trying to submit in under a minute. Service/budget
+ * render as clickable pill groups rather than a native <select> so the
+ * qualifying signal (what do they want, what can they spend) is visible at
+ * a glance, not hidden behind a dropdown - and both are now `required`
+ * (see startProjectLeadSchema, src/lib/validations/lead.ts), not optional,
+ * since the founder wants that signal on every lead that comes through.
  */
 function StartProjectForm() {
   const router = useRouter();
@@ -105,26 +115,8 @@ function StartProjectForm() {
         <FormField id="fullName" label="Full Name">
           <Input name="fullName" required autoComplete="name" />
         </FormField>
-        <FormField id="companyName" label="Company Name" optional>
-          <Input name="companyName" autoComplete="organization" />
-        </FormField>
-      </div>
-
-      <div className="grid gap-5 sm:grid-cols-2">
-        <FormField id="email" label="Email">
-          <Input name="email" type="email" required autoComplete="email" />
-        </FormField>
         <FormField id="phone" label="Phone Number">
           <Input name="phone" type="tel" required autoComplete="tel" />
-        </FormField>
-      </div>
-
-      <div className="grid gap-5 sm:grid-cols-2">
-        <FormField id="whatsappNumber" label="WhatsApp Number" optional>
-          <Input name="whatsappNumber" type="tel" />
-        </FormField>
-        <FormField id="businessType" label="Business Type">
-          <Input name="businessType" required placeholder="e.g. Retail, Clinic, SaaS" />
         </FormField>
       </div>
 
@@ -136,6 +128,7 @@ function StartProjectForm() {
           labels={START_PROJECT_SERVICE_LABEL}
           value={service}
           onChange={setService}
+          required
         />
       </div>
 
@@ -147,12 +140,9 @@ function StartProjectForm() {
           labels={START_PROJECT_BUDGET_LABEL}
           value={budget}
           onChange={setBudget}
+          required
         />
       </div>
-
-      <FormField id="description" label="Project Description" optional>
-        <Textarea name="description" rows={3} placeholder="What are you looking to build?" />
-      </FormField>
 
       {state?.success === false && (
         <p role="alert" className="text-destructive text-sm">
@@ -161,7 +151,7 @@ function StartProjectForm() {
       )}
 
       <Button type="submit" size="lg" loading={isPending} className="w-full">
-        Submit
+        Get a callback today
       </Button>
 
       <div className="flex items-center gap-3">

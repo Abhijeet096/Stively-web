@@ -91,8 +91,12 @@ export default async function StartProjectPage() {
           className="text-ink-foreground/[0.05] bg-dot-grid pointer-events-none absolute inset-0 -z-10 [mask-image:radial-gradient(ellipse_80%_60%_at_50%_0%,black,transparent)]"
         />
 
-        <Container className="relative flex flex-col items-center gap-14 lg:flex-row lg:items-start lg:gap-10">
-          <div className="flex flex-col items-center gap-6 text-center lg:w-[48%] lg:shrink-0 lg:items-start lg:pt-6 lg:text-left">
+        <Container className="relative flex flex-col items-center gap-10 lg:flex-row lg:items-start lg:gap-10">
+          {/* order-2/order-1 below puts the form first on mobile - a paid-
+              search visitor should reach it without scrolling past the pitch
+              they already believed when they clicked the ad. lg: resets to
+              the original visual layout (copy left, form right). */}
+          <div className="order-2 flex flex-col items-center gap-6 text-center lg:order-1 lg:w-[48%] lg:shrink-0 lg:items-start lg:pt-6 lg:text-left">
             <span className="border-ink-border-strong text-ink-muted-foreground inline-flex items-center gap-2 rounded-full border bg-white/[0.04] px-3.5 py-1.5 font-mono text-xs font-medium tracking-widest uppercase">
               <span
                 aria-hidden="true"
@@ -127,18 +131,23 @@ export default async function StartProjectPage() {
             </ul>
           </div>
 
-          <div className="w-full lg:flex-1">
-            <Reveal>
-              <Card className="shadow-glow-xl mx-auto max-w-lg gap-0 p-6 md:p-8">
-                <h2 className="text-foreground mb-1 font-display text-xl font-semibold">
-                  Start your project
-                </h2>
-                <p className="text-muted-foreground mb-6 text-sm">
-                  Takes under a minute. We never share your details.
-                </p>
-                <StartProjectForm />
-              </Card>
-            </Reveal>
+          <div className="order-1 w-full lg:order-2 lg:flex-1">
+            {/* No Reveal wrapper here, deliberately - this card is the page's
+                entire point, and now it's the very first thing in the
+                mobile viewport too (see order-1 above). It's never
+                scrolled into view; it's just there on load, so a
+                scroll-triggered fade would only ever hide it behind a
+                slow-connection JS/IntersectionObserver delay instead of
+                animating anything a visitor actually sees happen. */}
+            <Card className="shadow-glow-xl mx-auto max-w-lg gap-0 p-6 md:p-8">
+              <h2 className="text-foreground mb-1 font-display text-xl font-semibold">
+                Start your project
+              </h2>
+              <p className="text-muted-foreground mb-6 text-sm">
+                Takes under a minute. We never share your details.
+              </p>
+              <StartProjectForm />
+            </Card>
           </div>
         </Container>
       </Section>
