@@ -44,7 +44,13 @@ function ServiceStickyCta({ watchId, label, ctaLabel, ctaHref }: ServiceStickyCt
         "border-border bg-background/95 fixed inset-x-0 bottom-0 z-30 border-t backdrop-blur-md",
         "md:top-18 md:bottom-auto md:border-t-0 md:border-b",
         "transition-transform duration-200 ease-out",
-        visible ? "translate-y-0" : "translate-y-full md:translate-y-[-100%]"
+        // On desktop this bar is anchored at top-18 (4.5rem, the navbar's
+        // height) - translating it up by only its own 100% height leaves it
+        // still overlapping the navbar whenever the bar itself is shorter
+        // than 4.5rem (it is: a single-line label + button). Clearing the
+        // navbar too, not just the bar's own height, is what actually
+        // pushes it fully above the viewport when hidden.
+        visible ? "translate-y-0" : "translate-y-full md:translate-y-[calc(-100%_-_4.5rem)]"
       )}
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-3 md:px-8">

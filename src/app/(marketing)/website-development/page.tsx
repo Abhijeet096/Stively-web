@@ -134,7 +134,7 @@ export default async function WebsiteDevelopmentPage() {
         subheading="Stively designs and builds custom websites on the same modern stack we use for full products - fast, SEO-ready from day one, and handed over with source code you actually own."
         primaryCta={{
           label: "Get a free consultation",
-          href: "/contact?type=business&offering=Website%20Development",
+          href: "/start-project",
         }}
         secondaryCta={{ label: "See real work", href: "/work" }}
       />
@@ -144,7 +144,7 @@ export default async function WebsiteDevelopmentPage() {
         watchId={HERO_ID}
         label="Talk to us about your website"
         ctaLabel="Get a free consultation"
-        ctaHref="/contact?type=business&offering=Website%20Development"
+        ctaHref="/start-project"
       />
 
       {offering && (
@@ -233,6 +233,15 @@ export default async function WebsiteDevelopmentPage() {
         heading="Seven stages, the same way every time"
         description="From the first conversation to a live, supported site - no step skipped, no surprise in between."
         steps={PROCESS_STEPS}
+        footer={
+          <Link
+            href="/process"
+            className="text-ink-foreground/80 hover:text-ink-foreground inline-flex items-center gap-1.5 text-sm font-medium underline decoration-white/25 underline-offset-4 transition-colors duration-150 hover:decoration-white/50"
+          >
+            See the full process - timelines and deliverables for every stage
+            <ArrowRight className="size-3.5" aria-hidden="true" />
+          </Link>
+        }
       />
 
       <Section background="default">
@@ -421,7 +430,7 @@ export default async function WebsiteDevelopmentPage() {
         heading="Ready to build a website that actually works for your business?"
         description="A short call to talk through scope, timeline, and whether this is a fit - no obligation."
         actionLabel="Get a free consultation"
-        actionHref="/contact?type=business&offering=Website%20Development"
+        actionHref="/start-project"
         inverted
         glow
       />

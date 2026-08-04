@@ -20,6 +20,8 @@ export interface ProcessTimelineProps {
   heading: string;
   description?: string;
   steps: ProcessStep[];
+  /** Optional trailing content below the step list - e.g. a link out to /process's full timeline/deliverables detail, for pages showing an abbreviated sequence. */
+  footer?: React.ReactNode;
 }
 
 /**
@@ -38,6 +40,7 @@ function ProcessTimeline({
   heading,
   description,
   steps,
+  footer,
 }: ProcessTimelineProps) {
   const auroraRef = React.useRef<HTMLDivElement>(null);
   const timelineRef = React.useRef<HTMLOListElement>(null);
@@ -107,6 +110,8 @@ function ProcessTimeline({
             </li>
           ))}
         </ol>
+
+        {footer && <div className="flex justify-center">{footer}</div>}
       </Container>
     </Section>
   );
