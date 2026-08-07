@@ -149,7 +149,8 @@ export function InvoiceTemplate({ data, documentNumber, issuedAt }: DocumentTemp
               `Bank: ${COMPANY_PAYMENT_INFO.bankName}`,
               `Account Name: ${COMPANY_PAYMENT_INFO.accountName}`,
               `Account Number: ${COMPANY_PAYMENT_INFO.accountNumber}`,
-              `UPI ID: ${COMPANY_PAYMENT_INFO.upiId}`,
+              `IFSC: ${COMPANY_PAYMENT_INFO.ifsc}`,
+              ...(COMPANY_PAYMENT_INFO.upiId ? [`UPI ID: ${COMPANY_PAYMENT_INFO.upiId}`] : []),
             ]}
           />
           <View style={{ marginTop: 12 }}>

@@ -47,16 +47,16 @@ Shipped in prior sessions, listed here for context — not re-litigated unless s
 | Client-portal nav duplication fixed - "Offerings"/"Our Services"/"Request Proposal" were three separate nav entries all pointing at the identical `/client/offerings` URL; collapsed to one | Released |
 | Full quote -> notify -> accept flow verified end-to-end with real data (admin sends quote -> client gets email + in-app notification -> client accepts in portal -> salesperson would be notified back) - confirmed already correctly built, no changes needed | Released |
 | Google Ads conversion tag installed sitewide (`AW-17718751960`) - reuses the already-loaded GA4 gtag.js rather than a second script load. CSP had to be widened (`connect-src`/`img-src`: `www.google.com`, `www.google.co.in`, `ad.doubleclick.net`) - confirmed via a real browser test that the tag "installs" and calls `gtag('config', ...)` fine without this, but every actual telemetry beacon it sends gets silently CSP-blocked, meaning conversion data would report zero despite looking installed. | Released |
+| Cloudinary "Restricted media types" setting enabled by the founder - re-verified end-to-end with a real generated invoice: download now returns 200/`application/pdf` with an exact byte match, was 401 before. | Released |
+| Real bank details wired into `company-info.ts` (SBI, account/IFSC) - founder-confirmed 2026-08-08. UPI ID still not provided; the invoice template now renders that line conditionally rather than ever showing a placeholder on a real document. | Released |
 
 ---
 
 ## ⚠️ Action needed before the above goes live for a real client
 
-**Cloudinary account setting**: generated PDFs currently 401 on their public URL (`x-cld-error: deny or ACL failure`) - confirmed via a real end-to-end test that the files themselves are valid (correct dimensions/size), this is Cloudinary's own "Restricted media types" security default blocking public PDF/ZIP delivery. Enable PDF/ZIP delivery in the Cloudinary dashboard's security settings. Not a code bug - nothing to fix here, just a setting to flip.
+**Signature image** (`src/features/documents/assets/signature-abhijit.png`): still a generated placeholder. The founder has shared the real one twice now as an inline chat image, which isn't a file I can save to disk - only files referenced via `@"path"` (the way the brand-kit PDFs were shared) become readable. Needs the real file sent that way, or its path if it's already saved somewhere.
 
-**Bank/UPI details** (`src/features/documents/lib/company-info.ts`): still placeholder values - swap in the real account/UPI details before sending a real invoice.
-
-**Signature image** (`src/features/documents/assets/signature-abhijit.png`): currently a generated placeholder, not the founder's real signature - replace the file (same filename) with the real one.
+**UPI ID** (optional): not provided - `company-info.ts`'s `upiId` field is `undefined`, and the invoice template already handles that gracefully (omits the line rather than printing a placeholder). Add it whenever convenient, not blocking.
 
 ---
 
