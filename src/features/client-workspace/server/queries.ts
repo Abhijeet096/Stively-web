@@ -52,7 +52,10 @@ export async function getClientWorkspaceById(salesLeadId: string, viewer: Client
           milestones: { orderBy: { order: "asc" } },
         },
       },
-      documents: { orderBy: { createdAt: "desc" } },
+      // Excludes ARCHIVED - a regenerated document (see ARCHITECTURE_DECISIONS.md's
+      // versioning entry) leaves its old row in place for audit history, but a
+      // client should only ever see the current version, never a superseded one.
+      documents: { where: { lifecycleStatus: { not: "ARCHIVED" } }, orderBy: { createdAt: "desc" } },
       quotes: { orderBy: { sentAt: "desc" }, include: { offering: { select: { title: true } }, createdBy: { select: { name: true } } } },
       meetings: { orderBy: { scheduledAt: "desc" } },
       messages: { orderBy: { createdAt: "asc" } },
@@ -68,7 +71,11 @@ export async function getClientPayments(viewer: ClientWorkspaceViewer) {
   return prisma.salesProjectPayment.findMany({
     where: { salesProject: { salesLeadId: { in: viewer.salesLeadIds } } },
     orderBy: { createdAt: "desc" },
-    include: { salesProject: { select: { clientName: true, salesLeadId: true } }, documents: true },
+    include: {
+      salesProject: { select: { clientName: true, salesLeadId: true } },
+      // Same ARCHIVED exclusion as getClientWorkspaceById above.
+      documents: { where: { lifecycleStatus: { not: "ARCHIVED" } } },
+    },
   });
 }
 

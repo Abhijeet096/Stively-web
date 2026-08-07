@@ -3463,11 +3463,14 @@ model SalesCommission {
 // CLIENT WORKSPACE
 // ============================================
 // Bridges the Sales CRM pipeline to an authenticated CLIENT portal account
-// (see SalesLead.clientUserId). Deliberately does NOT generate any document
-// content - every ClientDocument is a real file admin/sales uploads (Canva-
-// designed contracts/invoices/welcome packets), never AI-authored. Progress
-// (ProjectUpdate/ProjectMilestone) is likewise always admin-posted, not
-// derived from a task/Kanban subsystem that doesn't exist yet.
+// (see SalesLead.clientUserId). Originally documents-only-by-upload; as of
+// the documents engine (src/features/documents/), some ClientDocument rows
+// are instead deterministically rendered from structured data (invoices,
+// receipts, ...) - "generated" never means AI-authored, that distinction
+// still holds, it means "the engine composed a PDF from typed input" versus
+// "admin uploaded a Canva-designed file." Progress (ProjectUpdate/
+// ProjectMilestone) is likewise always admin-posted, not derived from a
+// task/Kanban subsystem that doesn't exist yet.
 
 enum ClientDocumentType {
   CONTRACT
@@ -3479,9 +3482,26 @@ enum ClientDocumentType {
   OTHER
 }
 
-/// One uploaded file delivered to a client - the whole "no more email
-/// attachments" mechanism. Always anchored to a SalesLead (not SalesProject)
-/// since documents like the contract are delivered before a project exists.
+/// Draft/Generated/Sent are meaningful mostly for documents that go through
+/// a real review step before delivery (a future NDA/Agreement "send for
+/// signature" flow); Invoice/Receipt in this pass skip straight to SENT on
+/// creation, since generation IS delivery in the current UX - the engine
+/// supports every state, individual document types just don't have to use
+/// all of them (see AD-008).
+enum DocumentLifecycleStatus {
+  DRAFT
+  GENERATED
+  SENT
+  VIEWED
+  ACCEPTED
+  REJECTED
+  ARCHIVED
+}
+
+/// One uploaded-or-generated file delivered to a client - the whole "no more
+/// email attachments" mechanism. Always anchored to a SalesLead (not
+/// SalesProject) since documents like the contract are delivered before a
+/// project exists.
 model ClientDocument {
   id       String @id @default(cuid())
   sequence Int    @unique @default(autoincrement())
@@ -3504,10 +3524,54 @@ model ClientDocument {
   uploadedById String?
   uploadedBy   TeamMember? @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
 
+  /// Documents-engine fields below - null/default for manually uploaded
+  /// files, real for anything the documents engine rendered.
+  ///
+  /// The fine-grained template-registry key (e.g. "INVOICE", "NDA") - a
+  /// plain string, not a Prisma enum, deliberately: a new document type
+  /// must be addable via the registry alone (src/features/documents/lib/
+  /// registry.ts), never a schema migration. Coarser-grained than `type`
+  /// above, which only buckets the client-facing UI list.
+  templateType String?
+
+  /// Centrally issued by the Document Number Service (never set by a
+  /// template) - see DocumentSequence below.
+  documentNumber String? @unique
+
+  lifecycleStatus DocumentLifecycleStatus @default(SENT)
+
+  /// Documents are immutable once generated - regenerating creates a new
+  /// row (version + 1, supersedesId pointing at the old row) rather than
+  /// overwriting fileUrl. The old row's lifecycleStatus flips to ARCHIVED
+  /// when it's superseded. Manually uploaded files stay at version 1 with
+  /// no chain - re-uploading a Canva file is just a new independent row.
+  version Int @default(1)
+
+  supersedesId String?         @unique
+  supersedes   ClientDocument? @relation("DocumentVersionChain", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy ClientDocument? @relation("DocumentVersionChain")
+
   createdAt DateTime @default(now())
 
   @@index([salesLeadId])
   @@index([relatedPaymentId])
+  @@index([templateType])
+}
+
+/// Centralized, race-safe document numbering - INV-2026-00001 style.
+/// Templates never generate their own number; always go through
+/// nextDocumentNumber() (src/features/documents/server/numbering.ts), an
+/// atomic increment scoped to (type, year) - the same race-safety pattern
+/// claimLead/generateCommissionForPayment already use elsewhere in this
+/// codebase. `type` matches ClientDocument.templateType.
+model DocumentSequence {
+  id   String @id @default(cuid())
+  type String
+  year Int
+
+  lastNumber Int @default(0)
+
+  @@unique([type, year])
 }
 
 /// The "Today / Tomorrow" daily-progress feed on a client's project page -

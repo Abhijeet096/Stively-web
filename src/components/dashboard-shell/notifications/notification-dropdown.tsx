@@ -13,23 +13,68 @@ import {
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/dashboard-shell/notifications/notification-bell";
 import type { Notification } from "@/components/dashboard-shell/notifications/notification-data";
-import { markNotificationRead, markAllNotificationsRead } from "@/features/notifications/actions/notification-actions";
+import {
+  markNotificationRead,
+  markAllNotificationsRead,
+  getRecentNotifications,
+} from "@/features/notifications/actions/notification-actions";
+import { playNotificationSound } from "@/lib/notification-sound";
 
 export interface NotificationDropdownProps {
   initialNotifications: Notification[];
 }
 
+// A lead filling out /start-project should be heard about quickly without
+// standing up a websocket/SSE server on Vercel's serverless functions just
+// for this - 15s polling is a deliberately simple, low-complexity choice
+// (see ARCHITECTURE_DECISIONS.md AD-009) matched to "someone should notice
+// within a few seconds," not sub-second delivery.
+const POLL_INTERVAL_MS = 15000;
+
 /**
  * Owns the notification list's read/unread state client-side, seeded from
  * a real server-fetched list (src/features/notifications/server/queries.ts,
- * read in the (portal) layout and passed down through DashboardShell/
- * Topbar). Marking read updates local state immediately (no flash of stale
- * unread state) and fires the real server action alongside it.
+ * read in the (portal)/(dashboard) layout and passed down through
+ * DashboardShell/Topbar) and kept fresh afterward by polling
+ * getRecentNotifications every POLL_INTERVAL_MS - the layout-level fetch
+ * only ever runs once per navigation, so without this, a lead arriving
+ * while someone's already sitting on the page would go unnoticed until a
+ * manual refresh. A chime (src/lib/notification-sound.ts) plays only when a
+ * poll turns up an id that wasn't in the previous poll - never on the
+ * initial mount, and never twice for the same notification. Marking read
+ * updates local state immediately (no flash of stale unread state) and
+ * fires the real server action alongside it.
  */
 function NotificationDropdown({ initialNotifications }: NotificationDropdownProps) {
   const router = useRouter();
   const [notifications, setNotifications] = React.useState(initialNotifications);
+  const knownIdsRef = React.useRef(new Set(initialNotifications.map((n) => n.id)));
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    async function poll() {
+      let fresh: Notification[];
+      try {
+        fresh = await getRecentNotifications();
+      } catch {
+        return; // transient failure - next interval tries again
+      }
+      if (cancelled) return;
+
+      const hasNewArrival = fresh.some((n) => !knownIdsRef.current.has(n.id));
+      knownIdsRef.current = new Set(fresh.map((n) => n.id));
+      setNotifications(fresh);
+      if (hasNewArrival) playNotificationSound();
+    }
+
+    const interval = setInterval(poll, POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
 
   function markAsRead(id: string) {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));

@@ -111,10 +111,11 @@ const BUDGET_ESTIMATED_VALUE: Record<string, number> = {
 
 /**
  * Adapter for the /start-project Google Ads landing page. Validates the
- * trimmed ad-landing shape (src/lib/validations/lead.ts - just name, phone,
- * service, budget), folds service/budget into Lead.metadata Json (there's no
- * dedicated column for either - mirrors how OfferingRequest.details Json
- * already holds page-specific wizard data), and calls submitLead.
+ * trimmed ad-landing shape (src/lib/validations/lead.ts - name, phone,
+ * service, budget required; email optional), folds service/budget into
+ * Lead.metadata Json (there's no dedicated column for either - mirrors how
+ * OfferingRequest.details Json already holds page-specific wizard data),
+ * and calls submitLead.
  */
 export async function submitStartProjectLead(
   _prevState: StartProjectFormState,
@@ -122,6 +123,7 @@ export async function submitStartProjectLead(
 ): Promise<StartProjectFormState> {
   const raw = {
     fullName: formData.get("fullName"),
+    email: formData.get("email") || undefined,
     phone: formData.get("phone"),
     service: formData.get("service") || undefined,
     budget: formData.get("budget") || undefined,
@@ -140,6 +142,7 @@ export async function submitStartProjectLead(
 
   return submitLead({
     name: data.fullName,
+    email: data.email,
     phone: data.phone,
     source: "START_PROJECT",
     leadType: "BUSINESS",

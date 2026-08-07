@@ -10,6 +10,7 @@ import type { ActionResult } from "@/actions/leads";
 import { generateCommissionForPayment } from "@/features/sales-crm/server/commission-engine";
 import { logSalesLeadActivity } from "@/features/sales-crm/server/creation";
 import { createNotification } from "@/features/notifications/server/creation";
+import { generateReceiptForPayment } from "@/features/documents/server/receipt-trigger";
 
 async function loadOwnedPayment(paymentId: string, clientUserId: string) {
   const payment = await prisma.salesProjectPayment.findUnique({
@@ -104,6 +105,14 @@ export async function verifyProjectPayment(
     });
 
     await generateCommissionForPayment(paymentId);
+
+    // Best-effort, never fatal - the payment is genuinely already recorded
+    // paid by this point; a PDF render hiccup must never undo that.
+    try {
+      await generateReceiptForPayment(paymentId);
+    } catch (error) {
+      console.error("verifyProjectPayment: receipt generation failed:", error);
+    }
 
     const leadId = payment.salesProject.salesLead.id;
     await logSalesLeadActivity({ salesLeadId: leadId, type: "PAYMENT_RECEIVED", description: payment.label ?? "Project payment" });

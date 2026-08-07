@@ -120,6 +120,10 @@ function StartProjectForm() {
         </FormField>
       </div>
 
+      <FormField id="email" label="Email" optional helpText="We'll send a quick confirmation here too.">
+        <Input name="email" type="email" autoComplete="email" />
+      </FormField>
+
       <div className="flex flex-col gap-2">
         <span className="text-sm font-medium">Which service do you need?</span>
         <PillGroup

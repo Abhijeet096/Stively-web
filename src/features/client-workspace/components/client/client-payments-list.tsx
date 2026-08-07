@@ -29,7 +29,11 @@ function ClientPaymentsList({ payments, userName, userEmail, nonce, showBusiness
   return (
     <ul className="flex flex-col gap-2">
       {payments.map((payment) => {
-        const invoiceDoc = payment.documents?.find((d) => d.type === "INVOICE" || d.type === "RECEIPT");
+        // The query already excludes ARCHIVED/superseded versions (see
+        // server/queries.ts) - once a Receipt exists it's the more relevant
+        // confirmation than the Invoice it settles, so prefer it.
+        const invoiceDoc =
+          payment.documents?.find((d) => d.type === "RECEIPT") ?? payment.documents?.find((d) => d.type === "INVOICE");
         return (
           <li key={payment.id} className="border-border flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4">
             <div className="flex flex-col gap-1">

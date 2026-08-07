@@ -10,6 +10,7 @@ import type { ActionResult } from "@/actions/leads";
 import { createProjectPaymentSchema, markPaymentPaidSchema } from "../validation/project-schemas";
 import { resolveSalesCrmViewer } from "../server/rbac";
 import { generateCommissionForPayment } from "../server/commission-engine";
+import { generateReceiptForPayment } from "@/features/documents/server/receipt-trigger";
 
 async function assertProjectAccess(salesProjectId: string, userId: string, role: Role) {
   const viewer = await resolveSalesCrmViewer(userId, role);
@@ -86,10 +87,20 @@ export async function markPaymentPaid(input: unknown): Promise<ActionResult> {
 
     await generateCommissionForPayment(data.paymentId);
 
+    // Best-effort, never fatal - the payment is genuinely already recorded
+    // paid by this point; a PDF render hiccup must never undo that.
+    try {
+      await generateReceiptForPayment(data.paymentId);
+    } catch (error) {
+      console.error("markPaymentPaid: receipt generation failed:", error);
+    }
+
     revalidatePath(`/admin/sales-crm/projects/${payment.salesProjectId}`);
     revalidatePath(`/sales/projects/${payment.salesProjectId}`);
     revalidatePath("/admin/sales-crm/commission");
     revalidatePath("/sales/commission");
+    revalidatePath(`/client/projects/${access.project.salesLeadId}`);
+    revalidatePath("/client/invoices");
     return { success: true };
   } catch (error) {
     console.error("markPaymentPaid failed:", error);

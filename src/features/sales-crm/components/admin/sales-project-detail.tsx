@@ -64,7 +64,7 @@ function SalesProjectDetail({ project, leadBasePath = "/admin/sales-crm/leads" }
             </CardContent>
           </Card>
 
-          <SalesProjectPaymentsPanel salesProjectId={project.id} payments={project.payments} />
+          <SalesProjectPaymentsPanel salesProjectId={project.id} clientName={project.clientName} payments={project.payments} />
 
           <SalesProjectUpdatesPanel salesProjectId={project.id} updates={project.updates} />
 

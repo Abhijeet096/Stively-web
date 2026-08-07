@@ -125,12 +125,23 @@ export const START_PROJECT_BUDGET_LABEL: Record<(typeof START_PROJECT_BUDGETS)[n
  * paid-search visitor expects a callback through anyway. `service` and
  * `budget` are real qualifying signals the founder wants on every lead, so
  * both are required here (unlike the base leadSchema, which has no concept
- * of either) rather than optional. `submitStartProjectLead`
+ * of either) rather than optional. `email` came back once Google Ads went
+ * live and the founder wanted a real acknowledgement email sent - kept
+ * optional (not required, matching the base leadSchema's own email
+ * treatment) so this doesn't undo the fill-rate work that trimmed the form
+ * down to these four required fields in the first place; leaving it blank
+ * just means no acknowledgement email fires for that lead (already-existing
+ * behavior in notifyNewLeadCreated, which already gates on `if (lead.email)`
+ * - nothing new to build there). `submitStartProjectLead`
  * (src/actions/leads.ts) adapts this into `leadSchema`'s shape, folding
  * service/budget into Lead.metadata Json (no dedicated column for either).
  */
 export const startProjectLeadSchema = z.object({
   fullName: z.string().trim().min(2, "Enter your full name"),
+  email: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().trim().email("Enter a valid email address").optional()
+  ),
   phone: z.string().trim().min(7, "Enter a valid phone number so we can reach you"),
   service: z.enum(START_PROJECT_SERVICES, { error: "Select a service" }),
   budget: z.enum(START_PROJECT_BUDGETS, { error: "Select your budget" }),

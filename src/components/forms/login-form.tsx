@@ -72,7 +72,17 @@ function LoginForm({ callbackUrl }: LoginFormProps) {
         <div className="bg-border h-px flex-1" />
       </div>
 
-      <GoogleSignInButton callbackUrl={callbackUrl} />
+      {/* No role toggle on this page (unlike /register) - so there's no
+          explicit signal to stage into the pending-role cookie. Defaulting
+          to CLIENT here (not omitting the prop, which falls through to
+          createUser's own STUDENT fallback) matches Stively's current
+          business-first positioning: a visitor clicking "Continue with
+          Google" straight from /login is far more likely a prospective
+          client than a student, and this only ever governs a *brand new*
+          account's first role - /register's explicit Student/Business
+          toggle is untouched and still creates STUDENT correctly when
+          chosen there. */}
+      <GoogleSignInButton callbackUrl={callbackUrl} role="CLIENT" />
 
       <p className="text-muted-foreground text-center text-sm">
         Don&apos;t have an account?{" "}

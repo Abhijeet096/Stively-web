@@ -6,6 +6,7 @@ import { Wallet } from "lucide-react";
 import type { SalesProjectPayment } from "@prisma/client";
 
 import { createProjectPayment, markPaymentPaid } from "../../actions/payment-actions";
+import { GenerateInvoiceDialog } from "@/features/documents/components/admin/generate-invoice-dialog";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,7 +48,15 @@ function MarkPaidButton({ paymentId }: { paymentId: string }) {
   );
 }
 
-function SalesProjectPaymentsPanel({ salesProjectId, payments }: { salesProjectId: string; payments: SalesProjectPayment[] }) {
+function SalesProjectPaymentsPanel({
+  salesProjectId,
+  clientName,
+  payments,
+}: {
+  salesProjectId: string;
+  clientName: string;
+  payments: SalesProjectPayment[];
+}) {
   const router = useRouter();
   const [amount, setAmount] = React.useState("");
   const [label, setLabel] = React.useState("");
@@ -141,6 +150,7 @@ function SalesProjectPaymentsPanel({ salesProjectId, payments }: { salesProjectI
                   <Badge variant={SALES_PROJECT_PAYMENT_STATUS_VARIANT[payment.status]}>
                     {SALES_PROJECT_PAYMENT_STATUS_LABEL[payment.status]}
                   </Badge>
+                  <GenerateInvoiceDialog salesProjectId={salesProjectId} paymentId={payment.id} clientName={clientName} />
                   {payment.status !== "PAID" && <MarkPaidButton paymentId={payment.id} />}
                 </div>
               </li>

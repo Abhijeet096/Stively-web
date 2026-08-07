@@ -16,15 +16,26 @@ import { findProtectedRoute, ROLE_HOME, GUEST_ONLY_ROUTES } from "@/config/rbac"
  * media-src stay broad (https:) because BlockEmbed/BlockVideo are a
  * deliberate "embed any third-party lesson content" escape hatch, not a
  * fixed provider allowlist.
+ *
+ * `www.google.com`/`www.google.co.in`/`ad.doubleclick.net` in img-src and
+ * connect-src are the Google Ads conversion tag's own telemetry beacons
+ * (rmkt/collect, ccm/collect, pagead/1p-user-list) - confirmed by a real
+ * browser test that gtag('config', 'AW-...') itself fires fine without
+ * them, but every actual data-collection request it sends gets silently
+ * CSP-blocked, meaning conversion tracking would report zero data despite
+ * the tag technically being "installed." Google doesn't publish one fixed
+ * hostname for this - which regional google.<tld> a given visitor's beacon
+ * lands on varies, .co.in is the one confirmed for this site's target
+ * market.
  */
 function buildCsp(nonce: string, isDev: boolean) {
   const directives = [
     `default-src 'self'`,
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
     `style-src 'self' 'unsafe-inline'`,
-    `img-src 'self' blob: data: https://res.cloudinary.com https://www.googletagmanager.com`,
+    `img-src 'self' blob: data: https://res.cloudinary.com https://www.googletagmanager.com https://www.google.com https://www.google.co.in`,
     `font-src 'self' data:`,
-    `connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://www.googletagmanager.com https://api.razorpay.com https://lumberjack.razorpay.com${isDev ? " ws://localhost:* http://localhost:*" : ""}`,
+    `connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://www.googletagmanager.com https://www.google.com https://www.google.co.in https://ad.doubleclick.net https://api.razorpay.com https://lumberjack.razorpay.com${isDev ? " ws://localhost:* http://localhost:*" : ""}`,
     `frame-src 'self' https:`,
     `media-src 'self' https:`,
     `object-src 'none'`,

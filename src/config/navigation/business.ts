@@ -1,4 +1,4 @@
-import { LayoutDashboard, LayoutGrid, Briefcase, FileText, CalendarClock, FolderKanban, ClipboardList, CreditCard, Receipt } from "lucide-react";
+import { LayoutDashboard, LayoutGrid, CalendarClock, FolderKanban, ClipboardList, CreditCard, Receipt } from "lucide-react";
 
 import type { NavigationConfig } from "./types";
 
@@ -9,8 +9,12 @@ import type { NavigationConfig } from "./types";
  * browsing offerings or reaching sales. "Book Consultation" is the only
  * item that creates a new Lead (via bookConsultation, reusing the same
  * pipeline the public Contact form writes to - one Lead table, not two);
- * "Request Proposal" browses the in-app catalog and hands off to the real
- * per-offering wizard (/request-proposal/[slug]) once the client picks one.
+ * "Offerings" browses the in-app catalog and hands off to the real
+ * per-offering wizard (/request-proposal/[slug]) once the client picks one -
+ * previously listed three times ("Offerings"/"Our Services"/"Request
+ * Proposal", all pointing at this identical href) until a pre-launch audit
+ * caught it; collapsed to one entry rather than building two more distinct
+ * pages just to justify the extra labels.
  */
 export const businessNavigation: NavigationConfig = [
   {
@@ -20,8 +24,6 @@ export const businessNavigation: NavigationConfig = [
     title: "Work with us",
     items: [
       { label: "Offerings", href: "/client/offerings", icon: LayoutGrid },
-      { label: "Our Services", href: "/client/offerings", icon: Briefcase },
-      { label: "Request Proposal", href: "/client/offerings", icon: FileText },
       { label: "Book Consultation", href: "/client/consultation", icon: CalendarClock },
     ],
   },
