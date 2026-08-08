@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 
 import { getWhatsAppUrl } from "@/lib/whatsapp";
+import { findProtectedRoute } from "@/config/rbac";
 
 /**
  * Fixed, site-wide (rendered once in the root layout) - a secondary,
@@ -11,9 +12,26 @@ import { getWhatsAppUrl } from "@/lib/whatsapp";
  * flow first). Bottom-left so it never collides with a page's sticky CTA
  * bar, which anchors bottom-right on mobile / top on desktop (see
  * sticky-enroll-bar.tsx and service-sticky-cta.tsx).
+ *
+ * Hidden inside every authenticated dashboard (findProtectedRoute matches
+ * /admin, /client, /sales, /student, etc. - the same map src/proxy.ts
+ * enforces access with). Two reasons: it's the wrong channel there (a
+ * logged-in client/staff member already has real in-app chat on their
+ * project - this bubble is a pre-sale marketing CTA), and being `position:
+ * fixed` to the viewport while DashboardShell's <main> scrolls internally
+ * (src/components/dashboard-shell/layout/dashboard-shell.tsx) meant it sat
+ * permanently over the same screen corner at every scroll position,
+ * occasionally landing right on top of real, dashboard content a user
+ * genuinely needed to tap - confirmed live on /client/dashboard, where an
+ * offering card rendered underneath it on first load, before any
+ * scrolling. Bottom padding on <main> only ever fixes the scrolled-to-the-
+ * end case, not this one - removing the conflict at its source instead of
+ * chasing every page that might reproduce it.
  */
 function WhatsAppButton() {
   const pathname = usePathname();
+  if (findProtectedRoute(pathname)) return null;
+
   const href = getWhatsAppUrl(pathname);
 
   return (
