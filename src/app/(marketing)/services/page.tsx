@@ -150,7 +150,7 @@ export default function ServicesPage() {
         eyebrow="Software Development"
         heading="Software built by developers who never stop learning"
         subheading="Stively pairs businesses with developers trained on real projects - not a freelancer marketplace, a talent pipeline with a process behind it."
-        primaryCta={{ label: "Book a consultation", href: "/contact" }}
+        primaryCta={{ label: "Book a consultation", href: "/start-project" }}
         secondaryCta={{ label: "Our process", href: "#how-it-works" }}
       />
 
@@ -165,7 +165,7 @@ export default function ServicesPage() {
         heading="Have a project in mind?"
         description="A short call to talk through scope, timeline, and whether this is a fit - no obligation."
         actionLabel="Book a consultation"
-        actionHref="/contact"
+        actionHref="/start-project"
         inverted
       />
     </>
