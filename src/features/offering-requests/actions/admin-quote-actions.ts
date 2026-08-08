@@ -45,7 +45,7 @@ export async function approveCustomQuote(input: unknown): Promise<ActionResult> 
   try {
     const current = await prisma.offeringRequest.findUnique({
       where: { id: requestId },
-      include: { user: { select: { id: true, email: true, name: true, role: true } }, offering: { select: { title: true } } },
+      include: { user: { select: { id: true, email: true, name: true, role: true } }, offering: { select: { title: true, price: true } } },
     });
     if (!current) return { success: false, error: "Request not found." };
     if (current.quoteStatus !== "PENDING") {
@@ -101,6 +101,40 @@ export async function approveCustomQuote(input: unknown): Promise<ActionResult> 
             salesProjectId: project.id,
             amount: advanceAmount,
             label: `Advance Payment (${paymentPercent}%)`,
+          },
+        });
+
+        // The client's own proposed price already went through a real
+        // negotiation (proposeCustomQuote -> this approval) - record it as
+        // a real SalesQuote too, already ACCEPTED, so it shows up in the
+        // Client Workspace's Quotes tab exactly like a cold-called lead's
+        // quote history would. Without this, the negotiated price/note is
+        // only ever visible on the OfferingRequest admin view - the
+        // client's own portal (which reads SalesQuote, not OfferingRequest)
+        // showed "No quotes yet" despite a real, approved price existing.
+        const standardAmount =
+          current.offering.price != null && current.offering.price > approvedAmount
+            ? current.offering.price
+            : null;
+        const quote = await tx.salesQuote.create({
+          data: {
+            salesLeadId: lead.id,
+            offeringId: current.offeringId,
+            title: current.offering.title,
+            standardAmount,
+            quotedAmount: approvedAmount,
+            message: current.proposedMessage,
+            status: "ACCEPTED",
+            respondedAt: new Date(),
+            createdById: actor?.id,
+          },
+        });
+        await tx.salesLeadActivity.create({
+          data: {
+            salesLeadId: lead.id,
+            type: "QUOTE_ACCEPTED",
+            performedById: actor?.id ?? null,
+            description: `${quote.title} - ${formatPrice(approvedAmount)} (negotiated via request wizard)`,
           },
         });
 
