@@ -187,6 +187,23 @@ The permanent engineering handbook for Stively. Every major architectural decisi
 
 ---
 
+## AD-011: Google Ads "Start Project Lead" conversion fires via explicit `gtag` event, not automatic form detection
+
+**Date:** 2026-08-08
+**Problem:** The "Start Project Lead" conversion action (`AW-17718751960/4kRyCOyJ3t0cENjl-oBC`) showed "Misconfigured" in Google Ads. Diagnosed live (real form submission, dataLayer inspected mid-flow): the action was configured for Google Ads' automatic "form submission" detection (Event: "Form submission: thank-you"), and the real `gtm.formSubmit` event for this form came through marked `gtm.formCanceled: true` - because `/start-project`'s form uses React's Server Action pattern (`<form action={formAction}>`), which necessarily intercepts the native submit event to route it through JS. Google's automatic detector has no way to distinguish "intercepted and handled by a framework" from "genuinely cancelled," so it never linked a real, successful submission to reaching `/thank-you`, despite the funnel completing correctly every time (confirmed: `gtm.historyChange-v2` fired correctly for the client-side `/start-project` → `/thank-you` `pushState` navigation - GA4/gtag's own SPA tracking is not the problem).
+**Options considered:**
+1. Keep automatic form-submission detection, try to make the native submit event look "uncancelled" to Google's heuristic.
+2. Fire the conversion explicitly from code (`gtag('event', 'conversion', ...)`) on `/thank-you`'s real success path.
+**Chosen solution:** Option 2.
+**Reason:** Option 1 isn't reliably achievable without abandoning the Server Action form pattern this codebase uses everywhere - not worth destabilizing a working, established form architecture to appease one third-party heuristic. Explicit event firing is deterministic, fully within our control, and is the standard, recommended approach for SPA/React conversion tracking generally (this exact `gtm.formCanceled` failure mode is a known, common friction point with Google's automatic detection on any JS-framework form, not specific to this app).
+**Trade-offs:** `/thank-you` has no server-side proof a real submission occurred (it's a plain public route, `noindex` only keeps search engines from listing it - a direct/bookmarked/crawled visit is fully reachable). Mitigated with a same-tab-only sessionStorage handoff (`src/lib/conversion-tracking.ts`) set by the form immediately before `router.push`, consumed (read once, then cleared) by the conversion-firing component - a direct visit finds nothing to consume and fires nothing. Not cryptographically unspoofable, but matches the level of rigor this class of tracking actually needs (deterring accidental/curious direct visits, not a security boundary).
+**Database impact:** None.
+**API impact:** None - purely client-side. No change to `submitStartProjectLead`, validation, or the redirect itself.
+**Future considerations:** If other conversion actions (Purchase, Sign-up) hit the same automatic-detection failure mode - likely, since they'd observe the same Server-Action-intercepted form pattern - apply this identical fix: explicit `gtag('event', 'conversion', ...)` on that flow's real success path, gated the same sessionStorage-handoff way. `conversion-tracking.ts`'s key constant is scoped to this one flow (`START_PROJECT_CONVERSION_KEY`) - a second flow needs its own key, not a shared one, so two conversions in flight in the same tab can't cross-fire each other's event.
+**Related components:** `src/lib/conversion-tracking.ts` (new), `src/components/analytics/start-project-conversion.tsx` (new), `src/components/forms/start-project-form.tsx`, `src/app/(marketing)/thank-you/page.tsx`.
+
+---
+
 *Template for new entries — copy this block:*
 
 ```markdown

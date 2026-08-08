@@ -13,6 +13,7 @@ import {
   START_PROJECT_BUDGET_LABEL,
 } from "@/lib/validations/lead";
 import { getWhatsAppUrl } from "@/lib/whatsapp";
+import { markStartProjectConversionPending } from "@/lib/conversion-tracking";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
 import { Button } from "@/components/ui/button";
@@ -81,7 +82,9 @@ function StartProjectForm() {
   // development search terms specifically, so most visitors landing here
   // already want this; pre-selecting it removes a click for them while
   // still letting anyone pick a different service.
-  const [service, setService] = React.useState<(typeof START_PROJECT_SERVICES)[number] | "">("WEBSITE");
+  const [service, setService] = React.useState<(typeof START_PROJECT_SERVICES)[number] | "">(
+    "WEBSITE"
+  );
   const [budget, setBudget] = React.useState<(typeof START_PROJECT_BUDGETS)[number] | "">("");
   const [state, formAction, isPending] = useActionState<StartProjectFormState, FormData>(
     submitStartProjectLead,
@@ -92,10 +95,15 @@ function StartProjectForm() {
   // confirmation) so Google Ads/GA4 can track "reached /thank-you" as a
   // real, reliable conversion event - the industry-standard approach for
   // lead-gen funnels. @next/third-parties' GoogleAnalytics component
-  // already fires a pageview on App Router client-side navigation, so
-  // router.push here is enough - no manual gtag call needed.
+  // already fires a pageview on App Router client-side navigation, so no
+  // manual gtag call is needed for that. The Google Ads *conversion* event
+  // itself is a separate, explicit fire on the /thank-you side (see
+  // StartProjectConversion) - markStartProjectConversionPending() here is
+  // only the handoff signal proving this navigation really followed a
+  // successful submission, not a direct visit to /thank-you.
   React.useEffect(() => {
     if (state?.success) {
+      markStartProjectConversionPending();
       router.push("/thank-you");
     }
   }, [state, router]);
@@ -120,7 +128,12 @@ function StartProjectForm() {
         </FormField>
       </div>
 
-      <FormField id="email" label="Email" optional helpText="We'll send a quick confirmation here too.">
+      <FormField
+        id="email"
+        label="Email"
+        optional
+        helpText="We'll send a quick confirmation here too."
+      >
         <Input name="email" type="email" autoComplete="email" />
       </FormField>
 
@@ -160,7 +173,7 @@ function StartProjectForm() {
 
       <div className="flex items-center gap-3">
         <div className="bg-border h-px flex-1" />
-        <span className="text-muted-foreground text-xs uppercase tracking-wide">or</span>
+        <span className="text-muted-foreground text-xs tracking-wide uppercase">or</span>
         <div className="bg-border h-px flex-1" />
       </div>
 
