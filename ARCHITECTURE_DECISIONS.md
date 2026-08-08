@@ -204,6 +204,25 @@ The permanent engineering handbook for Stively. Every major architectural decisi
 
 ---
 
+## AD-012: `LeadMeeting` as a separate model from `SalesLeadMeeting`, and reminder delivery via external cron ping
+
+**Date:** 2026-08-08
+**Problem:** The founder wanted to schedule a follow-up meeting directly from a raw `Lead`'s admin detail page (the first-touch call, before any `SalesLead`/client account exists), with a reminder notification 30 minutes before it starts. A meeting-scheduling feature already existed, but only on `SalesLead` (post-claim), and no notification anywhere in this codebase had ever fired on a delay before - every existing notification fires immediately at action time.
+**Options considered:**
+1. Make `SalesLeadMeeting.salesLeadId` nullable and add an alternate `leadId` FK, so one table serves both parent types.
+2. A new, separate `LeadMeeting` model with the same shape, scoped to `Lead` only.
+3. For the reminder: register a Vercel Cron entry in `vercel.json` running every few minutes.
+4. For the reminder: build the check as a plain authenticated API route, pinged externally on a schedule (not registered as a Vercel Cron Job at all).
+**Chosen solution:** Option 2 for the model, Option 4 for the reminder trigger.
+**Reason:** Every existing `SalesLeadMeeting` query/component assumes `salesLeadId` is always present (non-nullable); retrofitting it to serve two different parent types would touch every one of those call sites for a relationship that's conceptually different anyway (pre-conversion vs. post-claim). A second small model mirroring the same field shape (reusing the same `MeetingStatus`/`PreferredContactMethod` enums) was cheaper and safer than that migration. For the reminder trigger: Vercel's Hobby/free tier caps native Cron Jobs at once per day regardless of what's declared in `vercel.json` - not frequent enough for a 30-minutes-before reminder. A plain API route, authenticated with the same `CRON_SECRET`/`Authorization: Bearer` scheme the existing lead-intelligence crons already use, and pinged by a free external service (e.g. cron-job.org) every few minutes, achieves the same result with zero new secrets and zero hosting cost.
+**Trade-offs:** The reminder depends on an external, third-party pinging service staying configured and running - if it's ever removed/misconfigured, reminders silently stop (mitigated by the endpoint being simple and idempotent, so re-adding the ping catches back up immediately). Two near-identical meeting models now exist (`LeadMeeting`, `SalesLeadMeeting`) rather than one - accepted given the alternative's blast radius across existing SalesLead code.
+**Database impact:** New `LeadMeeting` model (`prisma/migrations/20260808085427_lead_meeting_and_reminders`). `reminderSentAt DateTime?` added to both `LeadMeeting` and `SalesLeadMeeting` as the not-reminded-twice guard. New `LeadEventType.MEETING_SCHEDULED` and `NotificationType.MEETING_REMINDER` enum values.
+**API impact:** New `scheduleLeadMeeting`/`updateLeadMeetingStatus` actions (`src/features/leads/actions/meeting-actions.ts`), new `GET /api/cron/meeting-reminders` (checks both meeting tables, not registered in `vercel.json`).
+**Future considerations:** If a paid Vercel plan is adopted later, this could move to native Vercel Cron (add a `vercel.json` entry, drop the external pinger) with no other code changes - the endpoint's own auth already matches Vercel's convention. If a third meeting-scheduling context appears, revisit whether a shared/polymorphic model is worth the migration at that point.
+**Related components:** `prisma/schema.prisma` (`LeadMeeting`, `SalesLeadMeeting.reminderSentAt`), `src/features/leads/actions/meeting-actions.ts`, `src/features/leads/validation/meeting-schemas.ts`, `src/components/dashboard/lead-meeting-panel.tsx`, `src/features/notifications/server/meeting-reminder.ts`, `src/app/api/cron/meeting-reminders/route.ts`.
+
+---
+
 *Template for new entries — copy this block:*
 
 ```markdown
