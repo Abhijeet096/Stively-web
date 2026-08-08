@@ -172,19 +172,19 @@ function HeroSection({
         id={id}
         ref={rootRef}
         background="inverted"
-        className="texture-noise relative overflow-hidden pt-12 pb-24 md:pt-16 md:pb-32 lg:pt-16 lg:pb-32"
+        className="texture-noise relative overflow-hidden pt-10 pb-16 md:pt-12 md:pb-20 lg:pt-12 lg:pb-20"
       >
         {aurora}
-        <Container className="flex flex-col items-center gap-12 lg:flex-row lg:items-center lg:gap-10">
-          <div className="relative flex flex-col items-center gap-6 text-center lg:w-[55%] lg:shrink-0 lg:items-start lg:text-left">
+        <Container className="flex flex-col items-center gap-10 lg:flex-row lg:items-center lg:gap-10">
+          <div className="relative flex flex-col items-center gap-5 text-center lg:w-[55%] lg:shrink-0 lg:items-start lg:text-left">
             {signalPath}
             {eyebrowEl}
             <h1
               data-hero-heading
               className="font-display text-balance font-semibold tracking-[-0.03em]"
               style={{
-                fontSize: "clamp(2.75rem, 6vw, 5.5rem)",
-                lineHeight: 1.03,
+                fontSize: "clamp(2.25rem, 4.2vw, 3.75rem)",
+                lineHeight: 1.05,
                 ...heroRevealStyle(80, 650, 18),
               }}
             >

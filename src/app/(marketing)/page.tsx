@@ -73,9 +73,9 @@ export default async function HomePage() {
         eyebrowMono
         heading={
           <>
-            Software built by developers who&apos;ve{" "}
+            Build custom software with developers{" "}
             <span className="from-primary to-brand-teal-text bg-linear-to-r bg-clip-text text-transparent">
-              already proven themselves
+              you can trust
             </span>
           </>
         }
