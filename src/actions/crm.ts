@@ -20,7 +20,7 @@ import type { ActionResult } from "@/actions/leads";
  * behavior when a logged-in admin hasn't been linked to a TeamMember row
  * yet, so existing CRM behavior never regresses mid-rollout.
  */
-async function resolveActorId(): Promise<string | undefined> {
+export async function resolveActorId(): Promise<string | undefined> {
   const session = await auth();
   if (session?.user?.id) {
     const linked = await prisma.teamMember.findUnique({ where: { userId: session.user.id } });

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
-import { getLeadById, getLeadTimeline, getLeadNotes } from "@/lib/queries/leads";
+import { getLeadById, getLeadTimeline, getLeadNotes, getLeadMeetings } from "@/lib/queries/leads";
 import { getAllTeamMembers } from "@/lib/queries/team-members";
 import { formatPrice } from "@/lib/utils";
 import { START_PROJECT_SERVICE_LABEL, START_PROJECT_BUDGET_LABEL } from "@/lib/validations/lead";
@@ -14,6 +14,7 @@ import { LeadTimeline } from "@/components/dashboard/lead-timeline";
 import { LeadNotes } from "@/components/dashboard/lead-notes";
 import { LeadUpdateForm } from "@/components/dashboard/lead-update-form";
 import { LeadOwnerPanel } from "@/components/dashboard/lead-owner-panel";
+import { LeadMeetingPanel } from "@/components/dashboard/lead-meeting-panel";
 
 interface LeadDetailPageProps {
   params: Promise<{ id: string }>;
@@ -36,10 +37,11 @@ export async function generateMetadata({ params }: LeadDetailPageProps): Promise
 export default async function LeadDetailPage({ params }: LeadDetailPageProps) {
   const { id } = await params;
 
-  const [lead, timeline, notes, teamMembers] = await Promise.all([
+  const [lead, timeline, notes, meetings, teamMembers] = await Promise.all([
     getLeadById(id),
     getLeadTimeline(id),
     getLeadNotes(id),
+    getLeadMeetings(id),
     getAllTeamMembers(),
   ]);
 
@@ -145,6 +147,8 @@ export default async function LeadDetailPage({ params }: LeadDetailPageProps) {
             currentOwner={lead.currentOwner}
             teamMembers={teamMembers}
           />
+
+          <LeadMeetingPanel leadId={lead.id} meetings={meetings} />
 
           <Card>
             <CardHeader>

@@ -3,6 +3,7 @@ import type {
   Lead,
   LeadHistory,
   LeadNote,
+  LeadMeeting,
   LeadType,
   LeadStatus,
   LeadPriority,
@@ -256,6 +257,16 @@ export async function getLeadNotes(leadId: string): Promise<LeadNote[]> {
   return prisma.leadNote.findMany({
     where: { leadId },
     orderBy: { createdAt: "desc" },
+  });
+}
+
+export async function getLeadMeetings(
+  leadId: string
+): Promise<(LeadMeeting & { scheduledBy: Pick<TeamMember, "name"> | null })[]> {
+  return prisma.leadMeeting.findMany({
+    where: { leadId },
+    include: { scheduledBy: { select: { name: true } } },
+    orderBy: { scheduledAt: "desc" },
   });
 }
 

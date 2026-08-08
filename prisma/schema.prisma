@@ -296,6 +296,7 @@ model Lead {
   history     LeadHistory[]
   notes       LeadNote[]
   assignments LeadAssignment[]
+  meetings    LeadMeeting[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -461,6 +462,7 @@ model TeamMember {
   salesLeadAttachments        SalesLeadAttachment[]
   salesQuotesCreated          SalesQuote[]
   scheduledSalesLeadMeetings  SalesLeadMeeting[]
+  scheduledLeadMeetings       LeadMeeting[]
   assignedFollowUps           SalesFollowUp[]          @relation("FollowUpAssignee")
   createdFollowUps            SalesFollowUp[]          @relation("FollowUpCreatedBy")
   assignedTasks               SalesTask[]              @relation("TaskAssignee")
@@ -541,6 +543,7 @@ enum LeadEventType {
   STATUS_CHANGED
   NOTE_ADDED
   CONVERTED
+  MEETING_SCHEDULED
 }
 
 /// Manual, human notes - kept structurally separate from LeadHistory
@@ -2223,6 +2226,12 @@ enum NotificationType {
   /// deliberately distinct from MEETING_SCHEDULED (Operations/OperationItem
   /// only) - see notifySalesMeetingScheduled().
   SALES_MEETING_SCHEDULED
+  /// Fired by the /api/cron/meeting-reminders endpoint ~30 minutes before a
+  /// LeadMeeting or SalesLeadMeeting's scheduledAt - goes to the TeamMember
+  /// who scheduled it (internal, staff-facing), not the client - the
+  /// client-facing "it's scheduled" notice is SALES_MEETING_SCHEDULED above,
+  /// fired once at creation time; this is the separate day-of reminder.
+  MEETING_REMINDER
   /// A SalesQuote is sent to a SalesLead's linked client account - see
   /// createAndSendQuote() (src/features/sales-crm/actions/quote-actions.ts).
   SALES_QUOTE_SENT
@@ -3147,9 +3156,46 @@ model SalesLeadMeeting {
   scheduledById String?
   scheduledBy   TeamMember? @relation(fields: [scheduledById], references: [id], onDelete: SetNull)
 
+  /// Set by the meeting-reminder cron once it's fired the 30-minutes-before
+  /// notification for this meeting - the guard against reminding the same
+  /// meeting twice across repeated cron runs. Null until then.
+  reminderSentAt DateTime?
+
   createdAt DateTime @default(now())
 
   @@index([salesLeadId])
+  @@index([scheduledAt])
+}
+
+/// Pre-conversion meeting scheduling, on a raw Lead rather than a SalesLead -
+/// deliberately a separate model rather than making SalesLeadMeeting's FK
+/// nullable/polymorphic, since every existing SalesLeadMeeting query/UI
+/// assumes salesLeadId is always present. Same shape as SalesLeadMeeting on
+/// purpose (mirrors its fields exactly) so the reminder cron can treat both
+/// tables near-identically. Used for the first-touch call before any
+/// SalesLead/client account exists - the admin schedules it directly against
+/// the Lead and shares the link over WhatsApp/phone, no client login needed.
+model LeadMeeting {
+  id String @id @default(cuid())
+
+  leadId String
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  scheduledAt DateTime
+  method      PreferredContactMethod?
+  meetingLink String?
+  notes       String?                 @db.Text
+  status      MeetingStatus           @default(SCHEDULED)
+
+  scheduledById String?
+  scheduledBy   TeamMember? @relation(fields: [scheduledById], references: [id], onDelete: SetNull)
+
+  /// Same reminder-sent guard as SalesLeadMeeting.reminderSentAt above.
+  reminderSentAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([leadId])
   @@index([scheduledAt])
 }
 
