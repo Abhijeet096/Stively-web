@@ -12,6 +12,10 @@ import { START_PROJECT_CONVERSION_KEY } from "@/lib/conversion-tracking";
  */
 const CONVERSION_LABEL = "AW-17718751960/4kRyCOyJ3t0cENjl-oBC";
 
+/** How long to keep polling for `window.gtag` to exist before giving up and falling back to a raw dataLayer push. */
+const GTAG_WAIT_TIMEOUT_MS = 5000;
+const GTAG_POLL_INTERVAL_MS = 100;
+
 /**
  * Mounted on /thank-you only (see that page). Fires the Google Ads
  * conversion event exactly once, and only when this exact tab's most
@@ -28,6 +32,19 @@ const CONVERSION_LABEL = "AW-17718751960/4kRyCOyJ3t0cENjl-oBC";
  * `gtm.formCanceled`, so it never linked a submission to reaching
  * /thank-you even though the funnel completed correctly every time. Firing
  * the event explicitly, from code, sidesteps that entirely.
+ *
+ * Calls the real `window.gtag(...)` function rather than pushing straight
+ * to `dataLayer` - functionally the same once gtag.js has attached its own
+ * `push` override to that array, but calling the actual function removes
+ * any doubt about whether that's true yet, and matches Google's own
+ * documented API surface exactly. Because GoogleAnalytics/the Ads config
+ * script both load via next/script's `afterInteractive` strategy (async,
+ * no ordering guarantee relative to this component's own mount), `window.
+ * gtag` is not guaranteed to exist the instant this effect runs - fireWhenReady
+ * polls for it (up to 5s) instead of assuming it's already there. Logs to
+ * the console either way so this is provable from real devtools, not just
+ * inferred - safe to leave in permanently, these are a handful of one-line
+ * info/warn calls, not verbose debug spam.
  *
  * `firedRef` (not just "read-then-clear the sessionStorage key") is the
  * actual double-fire guard - React 19 Strict Mode intentionally
@@ -54,11 +71,42 @@ export function StartProjectConversion() {
 
     firedRef.current = true;
 
-    // window.dataLayer's type (Object[] | undefined) is already declared
-    // globally by @next/third-parties (used by GoogleAnalytics in
-    // analytics.tsx) - no need to redeclare it here.
-    window.dataLayer = window.dataLayer || [];
-    window.dataLayer.push(["event", "conversion", { send_to: CONVERSION_LABEL }]);
+    let cancelled = false;
+    const startedAt = Date.now();
+
+    function fireWhenReady() {
+      if (cancelled) return;
+
+      if (typeof window.gtag === "function") {
+        window.gtag("event", "conversion", { send_to: CONVERSION_LABEL });
+        console.info(
+          `[stively-conversion] fired via window.gtag after ${Date.now() - startedAt}ms: ${CONVERSION_LABEL}`
+        );
+        return;
+      }
+
+      if (Date.now() - startedAt >= GTAG_WAIT_TIMEOUT_MS) {
+        // window.gtag never became callable - queue the event directly on
+        // dataLayer as a last resort (still correct if gtag.js loads later
+        // and reads the array's backlog), and say so loudly, since this
+        // path means something upstream (the base tag scripts) isn't
+        // loading the way it's supposed to.
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push(["event", "conversion", { send_to: CONVERSION_LABEL }]);
+        console.warn(
+          `[stively-conversion] window.gtag never became available within ${GTAG_WAIT_TIMEOUT_MS}ms - used a raw dataLayer.push fallback for ${CONVERSION_LABEL}`
+        );
+        return;
+      }
+
+      setTimeout(fireWhenReady, GTAG_POLL_INTERVAL_MS);
+    }
+
+    fireWhenReady();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return null;
