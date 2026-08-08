@@ -26,16 +26,22 @@ import { findProtectedRoute, ROLE_HOME, GUEST_ONLY_ROUTES } from "@/config/rbac"
  * the tag technically being "installed." Google doesn't publish one fixed
  * hostname for this - which regional google.<tld> a given visitor's beacon
  * lands on varies, .co.in is the one confirmed for this site's target
- * market.
+ * market. `www.googleadservices.com`/`googleads.g.doubleclick.net` are a
+ * separate pair, specific to explicit `gtag('event', 'conversion', ...)`
+ * calls (as opposed to the config/remarketing pings above) - confirmed by a
+ * real live production submission whose devtools console showed the exact
+ * blocked-by-CSP fetch/image requests to both, with the correct conversion
+ * label already attached, proving the JS call itself was firing correctly
+ * the whole time and this was the only remaining gap.
  */
 function buildCsp(nonce: string, isDev: boolean) {
   const directives = [
     `default-src 'self'`,
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
     `style-src 'self' 'unsafe-inline'`,
-    `img-src 'self' blob: data: https://res.cloudinary.com https://www.googletagmanager.com https://www.google.com https://www.google.co.in`,
+    `img-src 'self' blob: data: https://res.cloudinary.com https://www.googletagmanager.com https://www.google.com https://www.google.co.in https://www.googleadservices.com https://googleads.g.doubleclick.net`,
     `font-src 'self' data:`,
-    `connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://www.googletagmanager.com https://www.google.com https://www.google.co.in https://ad.doubleclick.net https://api.razorpay.com https://lumberjack.razorpay.com${isDev ? " ws://localhost:* http://localhost:*" : ""}`,
+    `connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://www.googletagmanager.com https://www.google.com https://www.google.co.in https://ad.doubleclick.net https://www.googleadservices.com https://googleads.g.doubleclick.net https://api.razorpay.com https://lumberjack.razorpay.com${isDev ? " ws://localhost:* http://localhost:*" : ""}`,
     `frame-src 'self' https:`,
     `media-src 'self' https:`,
     `object-src 'none'`,
