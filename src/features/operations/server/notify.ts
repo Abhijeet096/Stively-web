@@ -17,7 +17,12 @@ import { createNotification } from "@/features/notifications/server/creation";
  * non-fatally from scheduleMeeting (operation-actions.ts) - a failed
  * notification should never undo an already-created Meeting.
  */
-export async function notifyMeetingScheduled(operationItemId: string, meeting: Meeting): Promise<void> {
+export async function notifyMeetingScheduled(
+  operationItemId: string,
+  meeting: Meeting,
+  /** Set when the underlying request has already been promoted into the Sales CRM (see scheduleMeeting) - the client's real project workspace, not the now-stale request page, is what should get linked. */
+  promotedSalesLeadId?: string
+): Promise<void> {
   const item = await prisma.operationItem.findUnique({
     where: { id: operationItemId },
     include: {
@@ -32,8 +37,9 @@ export async function notifyMeetingScheduled(operationItemId: string, meeting: M
 
   const { user, offering } = source;
   const isOrder = item.type === "ORDER";
-  const basePath = user.role === "CLIENT" ? "/client" : "/student";
-  const link = `${basePath}/${isOrder ? "orders" : "requests"}/${source.id}`;
+  const link = promotedSalesLeadId
+    ? `/client/projects/${promotedSalesLeadId}`
+    : `${user.role === "CLIENT" ? "/client" : "/student"}/${isOrder ? "orders" : "requests"}/${source.id}`;
 
   const when = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(
     meeting.scheduledAt

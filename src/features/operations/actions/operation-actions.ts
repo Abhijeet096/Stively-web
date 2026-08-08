@@ -282,8 +282,45 @@ export async function scheduleMeeting(operationItemId: string, input: unknown): 
       }),
     ]);
 
+    // If this OperationItem's request has already been promoted into the
+    // Sales CRM (approveCustomQuote sets promotedSalesLeadId), a meeting
+    // scheduled here needs to ALSO exist as a SalesLeadMeeting - that's the
+    // only meeting record the Client Workspace's Meeting tab ever reads.
+    // Without this, an admin working from the Operations queue (a
+    // perfectly reasonable place to check on any request, promoted or not)
+    // schedules something the client can never see. Mirrored, not moved:
+    // this Meeting/OperationItem row still exists for the Operations
+    // queue's own tracking.
+    const item = await prisma.operationItem.findUnique({
+      where: { id: operationItemId },
+      select: { request: { select: { promotedSalesLeadId: true } } },
+    });
+    const salesLeadId = item?.request?.promotedSalesLeadId;
+    if (salesLeadId) {
+      await prisma.salesLeadMeeting.create({
+        data: {
+          salesLeadId,
+          scheduledAt,
+          method: parsed.data.method,
+          notes: parsed.data.notes,
+          scheduledById,
+        },
+      });
+      await prisma.salesLeadActivity.create({
+        data: {
+          salesLeadId,
+          type: "MEETING_SCHEDULED",
+          description: scheduledAt.toLocaleString("en-IN"),
+          performedById: scheduledById ?? null,
+        },
+      });
+      revalidatePath(`/client/projects/${salesLeadId}`);
+      revalidatePath(`/admin/sales-crm/leads/${salesLeadId}`);
+      revalidatePath(`/sales/leads/${salesLeadId}`);
+    }
+
     try {
-      await notifyMeetingScheduled(operationItemId, meeting);
+      await notifyMeetingScheduled(operationItemId, meeting, salesLeadId ?? undefined);
     } catch (error) {
       console.error("notifyMeetingScheduled failed:", error);
     }
