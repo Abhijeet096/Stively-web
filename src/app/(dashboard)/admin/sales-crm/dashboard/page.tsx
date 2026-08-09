@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatPrice } from "@/lib/utils";
 import { resolveSalesCrmViewer } from "@/features/sales-crm/server/rbac";
-import { getSalesDashboardStats, getSalesLeads } from "@/features/sales-crm/server/queries";
+import { getSalesDashboardStats, getSalesLeads, getUnreadMessageThreads } from "@/features/sales-crm/server/queries";
 import {
   getMonthlyLeadsChart,
   getLeadConversionChart,
@@ -17,6 +17,7 @@ import {
   getLeadSourcesChart,
 } from "@/features/sales-crm/server/dashboard-charts";
 import { SalesLeadList } from "@/features/sales-crm/components/admin/sales-lead-list";
+import { UnreadMessagesWidget } from "@/features/sales-crm/components/admin/unread-messages-widget";
 import { SalesBarChart } from "@/features/sales-crm/components/shared/sales-bar-chart";
 import { SalesCrmSubnav } from "@/features/sales-crm/components/admin/sales-crm-subnav";
 
@@ -43,16 +44,18 @@ export default async function SalesCrmOverviewPage() {
   const user = await requireRole("ADMIN", "SUPER_ADMIN");
   const viewer = await resolveSalesCrmViewer(user.id, user.role);
 
-  const [stats, { leads }, monthlyLeads, conversion, revenue, commission, followUpPerformance, leadSources] = await Promise.all([
-    getSalesDashboardStats(viewer),
-    getSalesLeads({ page: 1 }, viewer),
-    getMonthlyLeadsChart(viewer),
-    getLeadConversionChart(viewer),
-    getRevenueChart(viewer),
-    getCommissionChart(viewer),
-    getFollowUpPerformanceChart(viewer),
-    getLeadSourcesChart(viewer),
-  ]);
+  const [stats, { leads }, monthlyLeads, conversion, revenue, commission, followUpPerformance, leadSources, unreadThreads] =
+    await Promise.all([
+      getSalesDashboardStats(viewer),
+      getSalesLeads({ page: 1 }, viewer),
+      getMonthlyLeadsChart(viewer),
+      getLeadConversionChart(viewer),
+      getRevenueChart(viewer),
+      getCommissionChart(viewer),
+      getFollowUpPerformanceChart(viewer),
+      getLeadSourcesChart(viewer),
+      getUnreadMessageThreads(viewer),
+    ]);
 
   return (
     <div className="flex flex-col gap-8 p-6">
@@ -70,6 +73,8 @@ export default async function SalesCrmOverviewPage() {
           </Link>
         </Button>
       </div>
+
+      <UnreadMessagesWidget threads={unreadThreads} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile label="Assigned Leads" value={stats.assignedLeads} icon={Building2} />

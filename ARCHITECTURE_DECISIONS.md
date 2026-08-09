@@ -240,6 +240,23 @@ The permanent engineering handbook for Stively. Every major architectural decisi
 
 ---
 
+## AD-014: Client message notifications must always reach an admin, not just an assigned rep
+
+**Date:** 2026-08-09
+**Problem:** `sendMessageToStaff` only notified `lead.assignedTo?.userId` - real production data showed every current `SalesLead` sits unassigned, so client messages were notifying nobody at all. The founder reported "I am not able to receive chat of a particular customer" - a real, currently-happening data loss, not a hypothetical. Investigation also found a genuine, already-sitting unread message from a real client that had never surfaced anywhere.
+**Options considered:**
+1. Keep notifying only the assigned rep; fix by requiring assignment before a lead can receive messages.
+2. Always notify every `ADMIN`/`SUPER_ADMIN` (plus the assigned rep if one exists), and add a real "unread" concept with an admin-facing inbox as a backstop for missed/dismissed notifications.
+**Chosen solution:** Option 2.
+**Reason:** Requiring assignment first would block a client's message from ever reaching anyone until a human remembers to assign the lead - worse, not better. This is effectively a solo-founder operation right now; the founder should see every client message regardless of who (if anyone) is assigned, same as `notifyLeadClaimed` already notifies all admins for lead-claim events. A single notification is also inherently missable (dismissed, phone off, etc.) - a persistent, always-current "Messages" widget on the dashboard is the real fix for "receive chat," not just a better-targeted push.
+**Trade-offs:** Every admin now gets notified on every client message across every lead, not just their own - acceptable at current team size; if the team grows meaningfully, this may need scoping back down (e.g., only admins + assigned rep, once assignment is actually being used consistently).
+**Database impact:** `SalesLeadMessage.readAt DateTime?` added (`prisma/migrations/20260809184711_sales_lead_message_read_at`). Null until a staff member views the thread; a message never counts as unread to its own sender.
+**API impact:** `getMessagesForLead` now marks a lead's client-sent messages read as a side effect of staff fetching the thread (viewing = read, no separate click). New `getUnreadMessageThreads(viewer)` query, RBAC-scoped the same way as every other sales-crm query.
+**Future considerations:** If a team grows past the founder, revisit whether all-admins-always-notified is still right, or whether it should narrow to assigned-rep-plus-admin-fallback-only-if-unassigned.
+**Related components:** `prisma/schema.prisma` (`SalesLeadMessage.readAt`), `src/features/client-workspace/actions/message-actions.ts` (`sendMessageToStaff`), `src/features/sales-crm/server/queries.ts` (`getMessagesForLead`, `getUnreadMessageThreads`), `src/features/sales-crm/components/admin/unread-messages-widget.tsx` (new), `src/app/(dashboard)/admin/sales-crm/dashboard/page.tsx`.
+
+---
+
 *Template for new entries — copy this block:*
 
 ```markdown

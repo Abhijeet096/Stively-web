@@ -3217,6 +3217,12 @@ model SalesLeadMessage {
 
   content String @db.Text
 
+  /// Null until the OTHER side views the thread - a message the sender
+  /// wrote never counts as unread to themselves. Powers the admin "unread
+  /// messages" inbox (see AD entry) - set via a plain updateMany when the
+  /// admin/staff message panel renders, not a per-message click.
+  readAt DateTime?
+
   createdAt DateTime @default(now())
 
   @@index([salesLeadId])

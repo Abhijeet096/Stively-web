@@ -389,10 +389,70 @@ export async function getMeetingsForLead(salesLeadId: string) {
   });
 }
 
-/** The full client<->staff message thread for one lead, oldest first (chat reads chronologically, unlike every other newest-first feed in this feature). */
+/**
+ * The full client<->staff message thread for one lead, oldest first (chat
+ * reads chronologically, unlike every other newest-first feed in this
+ * feature). Staff-only (called from the admin and sales lead-detail pages, never the
+ * client-portal side) - so viewing this thread is exactly the "I've seen
+ * it" signal for the client's messages. Marks them read as a side effect of
+ * the fetch, not a separate click - same pattern any real chat app uses
+ * (opening the thread is what clears the unread state).
+ */
 export async function getMessagesForLead(salesLeadId: string) {
-  return prisma.salesLeadMessage.findMany({
-    where: { salesLeadId },
-    orderBy: { createdAt: "asc" },
+  const [messages] = await Promise.all([
+    prisma.salesLeadMessage.findMany({
+      where: { salesLeadId },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.salesLeadMessage.updateMany({
+      where: { salesLeadId, readAt: null, sender: { role: "CLIENT" } },
+      data: { readAt: new Date() },
+    }),
+  ]);
+  return messages;
+}
+
+export interface UnreadMessageThread {
+  salesLeadId: string;
+  businessName: string;
+  preview: string;
+  createdAt: Date;
+  unreadCount: number;
+}
+
+/**
+ * One row per lead with at least one unread client message, newest first -
+ * the "unread inbox" the Sales CRM dashboard's Messages widget renders.
+ * Fetches every unread message (scoped to what this viewer can see, same
+ * assignedToId rule as every other sales-crm query) rather than a groupBy,
+ * since the realistic volume here is small - unread messages, not the full
+ * history - and this keeps the "latest per lead" reduction simple and
+ * correct without a raw query.
+ */
+export async function getUnreadMessageThreads(viewer: SalesCrmViewer): Promise<UnreadMessageThread[]> {
+  const salesLeadWhere = buildSalesLeadWhere({}, viewer);
+
+  const unread = await prisma.salesLeadMessage.findMany({
+    where: { readAt: null, sender: { role: "CLIENT" }, salesLead: salesLeadWhere },
+    orderBy: { createdAt: "desc" },
+    include: { salesLead: { select: { businessName: true } } },
   });
+
+  const byLead = new Map<string, UnreadMessageThread>();
+  for (const message of unread) {
+    const existing = byLead.get(message.salesLeadId);
+    if (existing) {
+      existing.unreadCount += 1;
+      continue;
+    }
+    byLead.set(message.salesLeadId, {
+      salesLeadId: message.salesLeadId,
+      businessName: message.salesLead.businessName,
+      preview: message.content.length > 100 ? `${message.content.slice(0, 97)}...` : message.content,
+      createdAt: message.createdAt,
+      unreadCount: 1,
+    });
+  }
+
+  return Array.from(byLead.values());
 }
