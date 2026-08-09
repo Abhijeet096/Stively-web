@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { SearchX } from "lucide-react";
 
+import { B2B_ONLY_MODE } from "@/config/site";
 import {
   getPaginatedPrograms,
   isValidProgramLevel,
@@ -35,6 +36,12 @@ export async function generateMetadata(): Promise<Metadata> {
     // URL, per Phase D §9's explicit rule against indexing thin,
     // near-duplicate filtered pages.
     alternates: { canonical: "/training" },
+    // B2B_ONLY_MODE (see site.ts): not actively running programs right now
+    // - the page stays reachable (a direct/bookmarked visitor sees real,
+    // accurate content, not a 404), just excluded from search results for
+    // as long as that's true, same "noindex" discipline this codebase
+    // already applies to unfinished/step-in-a-flow pages.
+    ...(B2B_ONLY_MODE && { robots: { index: false, follow: true } }),
   };
 }
 

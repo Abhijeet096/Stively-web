@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { B2B_ONLY_MODE } from "@/config/site";
 import { RegisterForm } from "@/components/forms/register-form";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 
@@ -26,7 +27,9 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
     <Card className="w-full">
       <CardHeader>
         <CardTitle className="font-display text-2xl">Create your account</CardTitle>
-        <CardDescription>Get started as a student or a business.</CardDescription>
+        <CardDescription>
+          {B2B_ONLY_MODE ? "Get started with your business." : "Get started as a student or a business."}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <RegisterForm defaultRole={defaultRole} callbackUrl={callbackUrl} />

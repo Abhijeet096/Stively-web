@@ -14,6 +14,7 @@ import { BusinessProcess } from "@/components/sections/business-process";
 import { Testimonials } from "@/components/sections/testimonials";
 import { EcosystemNote } from "@/components/sections/ecosystem-note";
 import { CTASection } from "@/components/sections/cta-section";
+import { B2B_ONLY_MODE } from "@/config/site";
 
 const TITLE = "Stively - Software Development for Businesses";
 // Kept under ~160 characters so Google and social previews don't truncate
@@ -96,7 +97,11 @@ export default async function HomePage() {
 
       {testimonials.length > 0 && <Testimonials testimonials={testimonials} />}
 
-      <EcosystemNote />
+      {/* B2B_ONLY_MODE (see site.ts): the training pipeline is real and
+          this section is honest either way, but it exists to mention
+          training at all - skip it while that's paused, for a fully
+          consistent B2B page. */}
+      {!B2B_ONLY_MODE && <EcosystemNote />}
 
       <CTASection
         heading="Ready to talk about your project?"

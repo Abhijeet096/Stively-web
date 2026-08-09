@@ -223,6 +223,23 @@ The permanent engineering handbook for Stively. Every major architectural decisi
 
 ---
 
+## AD-013: `B2B_ONLY_MODE` — one flag to pause student/training promotion, not deletion
+
+**Date:** 2026-08-08
+**Problem:** The founder is pausing all training/instructor activity for 2-3 months to focus exclusively on closing B2B clients, and wants the public site to present as business-only for that period - no student sign-up path, no Training nav link, no training mention on the homepage, training programs excluded from search results.
+**Options considered:**
+1. Delete/comment out the student registration UI, nav links, and training pages outright.
+2. A single exported boolean (`B2B_ONLY_MODE` in `src/config/site.ts`) that every affected surface reads, with everything conditionally hidden rather than removed.
+**Chosen solution:** Option 2.
+**Reason:** This is an explicitly temporary, reversible business decision (2-3 months, not permanent) - commenting out or deleting real, working code for a temporary pause creates exactly the kind of bit-rot/merge-conflict risk this codebase's own conventions already avoid elsewhere. A single flag is grep-able (every touch point references the same constant), reverts in one line, and - critically - was verified safe before shipping: zero real `STUDENT`-role users and zero `OfferingEnrollment` rows exist in production today, so nothing active gets stranded either way.
+**Trade-offs:** Anyone who still finds `/training` or `/training/[slug]` via a direct link or old bookmark can still reach them (deliberately not 404'd - the content is real and accurate, just not promoted); this is intentional, not an oversight. The homepage's `EcosystemNote` section (a quiet mention of the training pipeline as a quality signal for business visitors) is also hidden while the flag is on, even though its content stays true - full B2B consistency was judged more valuable than keeping that one section during the pause.
+**Database impact:** None.
+**API impact:** None - this only gates UI rendering and page `robots` metadata, not RBAC or the register/login server actions themselves. Existing `STUDENT`-role accounts (none currently exist) would continue to log in and reach `/student/*` exactly as before if any existed.
+**Future considerations:** Flip `B2B_ONLY_MODE` to `false` in `src/config/site.ts` to fully restore student-facing promotion - every other file listed below reads that same constant, nothing else needs to change.
+**Related components:** `src/config/site.ts` (the flag + corrected sitewide title/description, which had drifted student-first even after the homepage itself was already rebuilt business-first), `src/components/shared/navbar.tsx`, `src/components/shared/footer.tsx`, `src/components/forms/register-form.tsx`, `src/app/(auth)/register/page.tsx`, `src/app/(marketing)/page.tsx`, `src/app/(marketing)/training/page.tsx`, `src/app/(marketing)/training/[slug]/page.tsx`.
+
+---
+
 *Template for new entries — copy this block:*
 
 ```markdown

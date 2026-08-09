@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 
 import { registerUser } from "@/actions/auth";
+import { B2B_ONLY_MODE } from "@/config/site";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,10 @@ export interface RegisterFormProps {
  * here) by src/lib/validations/auth.ts's registerSchema server-side.
  */
 function RegisterForm({ defaultRole = "STUDENT", callbackUrl }: RegisterFormProps) {
-  const [role, setRole] = React.useState<PublicRole>(defaultRole);
+  // B2B_ONLY_MODE (see site.ts): no new student sign-ups while the founder
+  // is pausing training/instructor activity - always Business here,
+  // regardless of what a caller passes as defaultRole.
+  const [role, setRole] = React.useState<PublicRole>(B2B_ONLY_MODE ? "CLIENT" : defaultRole);
   const [state, formAction, isPending] = useActionState(registerUser, null);
 
   if (state?.success) {
@@ -46,29 +50,31 @@ function RegisterForm({ defaultRole = "STUDENT", callbackUrl }: RegisterFormProp
 
   return (
     <div className="flex flex-col gap-6">
-      <div
-        className="border-border bg-muted flex gap-1 rounded-full border p-1"
-        role="radiogroup"
-        aria-label="I'm signing up as a"
-      >
-        {(["STUDENT", "CLIENT"] as const).map((option) => (
-          <button
-            key={option}
-            type="button"
-            role="radio"
-            aria-checked={role === option}
-            onClick={() => setRole(option)}
-            className={
-              "flex-1 rounded-full px-4 py-2 text-sm font-medium transition-colors duration-150 " +
-              (role === option
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground")
-            }
-          >
-            {option === "STUDENT" ? "Student" : "Business"}
-          </button>
-        ))}
-      </div>
+      {!B2B_ONLY_MODE && (
+        <div
+          className="border-border bg-muted flex gap-1 rounded-full border p-1"
+          role="radiogroup"
+          aria-label="I'm signing up as a"
+        >
+          {(["STUDENT", "CLIENT"] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={role === option}
+              onClick={() => setRole(option)}
+              className={
+                "flex-1 rounded-full px-4 py-2 text-sm font-medium transition-colors duration-150 " +
+                (role === option
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground")
+              }
+            >
+              {option === "STUDENT" ? "Student" : "Business"}
+            </button>
+          ))}
+        </div>
+      )}
 
       <form action={formAction} className="flex flex-col gap-5">
         <input type="hidden" name="role" value={role} />

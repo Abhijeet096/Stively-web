@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { B2B_ONLY_MODE } from "@/config/site";
 import { Container } from "@/components/shared/container";
 import { Logo } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
@@ -15,13 +16,19 @@ import { Sheet, SheetTrigger, SheetContent, SheetTitle, SheetClose } from "@/com
 // yet - a live nav item pointing at a 404 is worse than a nav item that
 // doesn't exist yet. Add back once it ships. "/pricing" shipped - see it
 // re-added below.
+// "Training" dropped while B2B_ONLY_MODE is on (see site.ts) - the route
+// itself is untouched, just not promoted in nav right now.
 const NAV_LINKS = [
   { href: "/about", label: "About" },
   { href: "/services", label: "Services" },
   { href: "/work", label: "Our Work" },
   { href: "/pricing", label: "Pricing" },
-  { href: "/training", label: "Training" },
+  ...(B2B_ONLY_MODE ? [] : [{ href: "/training", label: "Training" }]),
 ] as const;
+
+const PRIMARY_CTA = B2B_ONLY_MODE
+  ? { href: "/start-project", label: "Start a project" }
+  : { href: "/training", label: "Explore programs" };
 
 export interface NavbarProps {
   /**
@@ -94,7 +101,7 @@ function Navbar({ dashboardHref }: NavbarProps) {
                 <Link href="/login">Log in</Link>
               </Button>
               <Button variant="primary" size="default" asChild>
-                <Link href="/training">Explore programs</Link>
+                <Link href={PRIMARY_CTA.href}>{PRIMARY_CTA.label}</Link>
               </Button>
             </>
           )}
@@ -131,7 +138,7 @@ function Navbar({ dashboardHref }: NavbarProps) {
                     <Link href="/login">Log in</Link>
                   </Button>
                   <Button variant="primary" asChild>
-                    <Link href="/training">Explore programs</Link>
+                    <Link href={PRIMARY_CTA.href}>{PRIMARY_CTA.label}</Link>
                   </Button>
                 </>
               )}
