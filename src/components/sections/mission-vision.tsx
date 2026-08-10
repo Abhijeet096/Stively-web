@@ -8,11 +8,11 @@ import { Container } from "@/components/shared/container";
  * read as filler. Still two clearly distinct, identifiable blocks, not
  * merged into one paragraph.
  *
- * Mission text is sourced close to verbatim from
- * docs/core/stively-core-blueprint-v1.md §1. Vision carries that
- * document's substance (bridging education and industry) without its
- * "Talent Operating System" phrase - that document explicitly marks
- * itself a working title, not confirmed public brand language.
+ * B2B-only rewrite (2026-08-10): mission/vision no longer reference the
+ * education-to-industry bridge. Both statements are now scoped to what
+ * this page can honestly claim about client work today - a trained,
+ * evaluated team and a senior-reviewed delivery process - without
+ * inventing a formal program name that doesn't exist elsewhere on the site.
  */
 function MissionVision() {
   return (
@@ -23,8 +23,8 @@ function MissionVision() {
             Our mission
           </h2>
           <p className="font-display text-foreground text-2xl font-semibold tracking-[-0.015em] text-pretty">
-            Build a trusted ecosystem where students become industry-ready through real projects,
-            and businesses get high-quality software from talent that&apos;s already proven itself.
+            Give businesses a software partner they can actually trust - a trained, evaluated team,
+            a transparent process, and senior review on every project before it ships.
           </p>
         </div>
         <div className="flex flex-col gap-3">
@@ -32,8 +32,9 @@ function MissionVision() {
             Our vision
           </h2>
           <p className="font-display text-foreground text-2xl font-semibold tracking-[-0.015em] text-pretty">
-            A real bridge between education and industry - not a course library on one side and a
-            hiring pipeline on the other, but one connected path from learning to real work.
+            To be the software partner businesses choose over a traditional agency or a freelancer
+            gamble - because the work is reliable, the process is visible, and someone senior always
+            stands behind it.
           </p>
         </div>
       </Container>

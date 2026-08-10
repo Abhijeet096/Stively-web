@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { FolderGit2, Users, GraduationCap, Building2, ShieldCheck } from "lucide-react";
+import { FolderGit2, ShieldCheck, Building2, Clock, Users2 } from "lucide-react";
 
 import { siteConfig } from "@/config/site";
 import { JsonLd } from "@/components/shared/json-ld";
@@ -12,14 +12,12 @@ import { WhyWeExist } from "@/components/sections/why-we-exist";
 import { MissionVision } from "@/components/sections/mission-vision";
 import { HowItWorks } from "@/components/sections/how-it-works";
 import { WhyChooseStively, type Reason } from "@/components/sections/why-choose-stively";
-import { WhoWeServe } from "@/components/sections/who-we-serve";
-import { LookingAhead } from "@/components/sections/looking-ahead";
-import { ExploreMoreCta } from "@/components/sections/explore-more-cta";
+import { CTASection } from "@/components/sections/cta-section";
 
 export const metadata: Metadata = {
   title: "About",
   description:
-    "Why Stively exists, how our ecosystem connects training to real work, and why students and businesses trust us.",
+    "Stively is a B2B software and web application development company. See how we work, who's behind the code, and why businesses trust us to build.",
   alternates: { canonical: "/about" },
   // "images" explicit here - see the note in src/app/(marketing)/page.tsx's
   // metadata for why (a page-level openGraph/twitter block replaces the
@@ -27,7 +25,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "About Stively",
     description:
-      "Why Stively exists, how our ecosystem connects training to real work, and why students and businesses trust us.",
+      "Stively is a B2B software and web application development company. See how we work, who's behind the code, and why businesses trust us to build.",
     url: `${siteConfig.url}/about`,
     images: ["/opengraph-image"],
   },
@@ -35,22 +33,16 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "About Stively",
     description:
-      "Why Stively exists, how our ecosystem connects training to real work, and why students and businesses trust us.",
+      "Stively is a B2B software and web application development company. See how we work, who's behind the code, and why businesses trust us to build.",
     images: ["/opengraph-image"],
   },
 };
 
-const STUDENT_JOURNEY = [
-  { title: "Training", description: "Structured, cohort-based programs - not a video library." },
-  { title: "Evaluation", description: "Real assessment of skill, not a completion certificate." },
-  { title: "Internship", description: "Applying what was learned on an actual internal project." },
-  { title: "Real Client Projects", description: "Working on software a real business will use." },
-  {
-    title: "Career Growth",
-    description: "A portfolio and track record employers can actually verify.",
-  },
-] as const;
-
+/**
+ * B2B-only rewrite (2026-08-10): the student/training journey and its
+ * roadmap framing are gone. This is the only "how it works" timeline on
+ * the page now - the process a business actually goes through with us.
+ */
 const BUSINESS_JOURNEY = [
   {
     title: "Requirement",
@@ -58,12 +50,12 @@ const BUSINESS_JOURNEY = [
   },
   { title: "Project", description: "Scoped, planned, and estimated before development starts." },
   {
-    title: "Mentor-led Development",
-    description: "Built by trained developers, guided by experienced mentors.",
+    title: "Senior-led Development",
+    description: "Built by a trained team, with an experienced lead directing the work.",
   },
   {
     title: "Quality Delivery",
-    description: "Reviewed and tested before it reaches you, not after.",
+    description: "Reviewed and signed off before it reaches you, not after.",
   },
   {
     title: "Long-term Partnership",
@@ -73,39 +65,37 @@ const BUSINESS_JOURNEY = [
 
 const DIFFERENTIATORS: Reason[] = [
   {
-    icon: FolderGit2,
-    title: "Real projects, not exercises",
-    description: "Students and interns work on software that's actually going to be used.",
-  },
-  {
-    icon: Users,
-    title: "Mentor-guided internships",
-    description:
-      "Every internship has an experienced mentor attached - not self-directed busywork.",
-  },
-  {
-    icon: GraduationCap,
-    title: "Practical learning",
-    description: "Programs are built around outcomes, not a syllabus for its own sake.",
-  },
-  {
     icon: Building2,
-    title: "Business-first delivery",
-    description:
-      "Client work is planned and delivered the way a real engagement should be, not as an afterthought to teaching.",
+    title: "A software company, not a marketplace",
+    description: "One accountable team on your project end to end - not a rotating cast of freelancers.",
   },
   {
     icon: ShieldCheck,
-    title: "Internal quality review",
-    description: "Work is reviewed before it reaches a client, not left to chance.",
+    title: "Senior sign-off before delivery",
+    description: "Every piece of work is reviewed and approved before it reaches you, not after.",
+  },
+  {
+    icon: FolderGit2,
+    title: "A transparent process",
+    description: "You see what's being built and when, not a black box that resurfaces at the deadline.",
+  },
+  {
+    icon: Users2,
+    title: "A trained, evaluated team",
+    description: "Everyone who touches your project has already proven they can do the work.",
+  },
+  {
+    icon: Clock,
+    title: "Delivery without agency overhead",
+    description: "Serious engineering discipline, without the price tag or the layers of account managers.",
   },
 ];
 
 const CORE_VALUES = [
-  "Learning by building",
+  "Craftsmanship",
   "Transparency",
   "Quality",
-  "Continuous improvement",
+  "Accountability",
   "Long-term relationships",
 ] as const;
 
@@ -131,9 +121,9 @@ export default function AboutPage() {
 
       <HeroSection
         eyebrow="About Stively"
-        heading="Turning learning into real experience - and real experience into hiring"
-        subheading="Stively trains students on real projects, and gives businesses access to developers who've already proven themselves on real work."
-        primaryCta={{ label: "Explore training", href: "/training" }}
+        heading="A software company built to be trusted with your project"
+        subheading="Stively is a B2B web and application development company. Every project is built by a trained, evaluated team and reviewed by a senior lead before it ever reaches you."
+        primaryCta={{ label: "Start a project", href: "/start-project" }}
         secondaryCta={{ label: "Explore services", href: "/services" }}
       />
 
@@ -141,13 +131,8 @@ export default function AboutPage() {
       <MissionVision />
 
       <HowItWorks
-        id="student-journey"
-        heading="How it works - for students"
-        steps={[...STUDENT_JOURNEY]}
-      />
-      <HowItWorks
         id="business-journey"
-        heading="How it works - for businesses"
+        heading="How we work with you"
         steps={[...BUSINESS_JOURNEY]}
       />
 
@@ -171,9 +156,14 @@ export default function AboutPage() {
         </Container>
       </Section>
 
-      <WhoWeServe />
-      <LookingAhead />
-      <ExploreMoreCta />
+      <CTASection
+        heading="Have a project in mind?"
+        description="Tell us what you're building - we'll tell you exactly how we'd approach it."
+        actionLabel="Start a project"
+        actionHref="/start-project"
+        inverted
+        glow
+      />
     </>
   );
 }

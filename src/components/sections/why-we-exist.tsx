@@ -7,6 +7,12 @@ import { Container } from "@/components/shared/container";
  * were built anticipating reuse. Kept as its own component anyway for
  * consistency with how every other page in this project structures its
  * sections, not because it's expected to be reused.
+ *
+ * B2B-only rewrite (2026-08-10, see AD-013's B2B_ONLY_MODE): the previous
+ * copy led with the training-to-hiring bridge story. Every claim below is
+ * grounded in what's already established and verified true elsewhere on
+ * this site (homepage's TrustStrip/WhyStivelyComparison, the talent
+ * pipeline language used sitewide) - not new claims invented for this page.
  */
 function WhyWeExist() {
   return (
@@ -16,18 +22,19 @@ function WhyWeExist() {
           Why Stively exists
         </h2>
         <p className="text-muted-foreground text-lg text-pretty">
-          Most students finish their education without ever having built something real - the gap
-          between what&apos;s taught and what companies actually need is wide, and it&apos;s usually
-          the student who pays for it, in missed opportunities and a resume with nothing to show.
+          Businesses that need real software built usually end up choosing between two bad options:
+          a traditional agency, priced and paced for enterprise budgets, or a freelancer marketplace,
+          where quality is a gamble and there&apos;s no one to hold accountable when it goes wrong.
         </p>
         <p className="text-muted-foreground text-lg text-pretty">
-          Meanwhile, businesses that need skilled developers are often stuck choosing between hiring
-          expensive agencies or gambling on unproven freelancers - there&apos;s rarely a middle path
-          that offers real talent without agency-level overhead.
+          Neither gives you what you actually need - a team you can trust, a process you can see, and
+          software built by people who&apos;ve already proven they can do the work, not people
+          learning on your dime.
         </p>
         <p className="text-foreground text-lg text-pretty">
-          Stively exists to close both gaps at once: training students on real work, and giving
-          businesses access to developers who&apos;ve already proven themselves on it.
+          Stively exists to be that middle path: a real software company, built around a trained,
+          evaluated team and a process where every project is reviewed and signed off before it
+          reaches you - not an afterthought bolted onto something else.
         </p>
       </Container>
     </Section>
