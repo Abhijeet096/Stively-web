@@ -89,7 +89,7 @@ model User {
   /// linked to as the business's contact (see SalesLead.clientUserId).
   /// Usually one, but a repeat client's second engagement is a second,
   /// separate SalesLead - see the field comment there.
-  clientOfLeads SalesLead[] @relation("SalesLeadClient")
+  clientOfLeads     SalesLead[]        @relation("SalesLeadClient")
   /// Sales Negotiation Loop - every message this user has sent on a
   /// SalesLead thread, either side (client or staff).
   salesLeadMessages SalesLeadMessage[]
@@ -293,6 +293,17 @@ model Lead {
   programId String?
   program   Program? @relation(fields: [programId], references: [id], onDelete: SetNull)
 
+  /// Set once this Lead is qualified into the real B2B sales pipeline - same
+  /// bridge shape as Business.promotedSalesLeadId/OfferingRequest.promotedSalesLeadId
+  /// (see AD-001). Unique so the DB itself guarantees a Lead backs at most
+  /// one SalesLead. Admin triggers this by setting status to CONVERTED (the
+  /// BUSINESS-leadType UI labels this action "Qualify" - see qualifyLead).
+  promotedSalesLeadId String?     @unique
+  promotedSalesLead   SalesLead?  @relation("LeadPromotedTo", fields: [promotedSalesLeadId], references: [id], onDelete: SetNull)
+  promotedAt          DateTime?
+  promotedById        String?
+  promotedBy          TeamMember? @relation("LeadPromotedBy", fields: [promotedById], references: [id], onDelete: SetNull)
+
   history     LeadHistory[]
   notes       LeadNote[]
   assignments LeadAssignment[]
@@ -487,6 +498,13 @@ model TeamMember {
   businessActivities        BusinessActivity[]
   auditLogEntries           AuditLog[]
 
+  /// Lead -> SalesLead qualification bridge - see Lead.promotedById above.
+  leadsPromoted Lead[] @relation("LeadPromotedBy")
+
+  /// Client Discovery & Requirements Form - see DiscoveryForm below.
+  discoveryFormsSent     DiscoveryForm[] @relation("DiscoveryFormSentBy")
+  discoveryFormsReviewed DiscoveryForm[] @relation("DiscoveryFormReviewedBy")
+
   createdAt DateTime @default(now())
 }
 
@@ -664,14 +682,14 @@ model PortfolioItem {
   /// /work/[slug] only when present. Never fabricated/placeholder content
   /// for items that don't have real case-study material yet (matches this
   /// model's own established no-fabrication precedent above).
-  challenge String? @db.Text
-  solution  String? @db.Text
+  challenge String?  @db.Text
+  solution  String?  @db.Text
   /// Array<{ title: string; description: string }>
   features  Json?
   techStack String[] @default([])
   /// Array<{ label: string; value: string }> - real metrics only, never
   /// invented to fill the section.
-  outcomes Json?
+  outcomes  Json?
 
   imageUrl      String
   /// Device-mockup screenshots (already framed to look like a viewport) -
@@ -2460,11 +2478,11 @@ model Interview {
   /// Cloudinary secure_url for the candidate's webcam recording, set once
   /// upload finishes (normal completion or termination). Null if recording
   /// was never available - see the "RECORDING_UNAVAILABLE" activity log.
-  recordingUrl String?
+  recordingUrl     String?
   /// Authoritative, server-incremented count of integrity violations
   /// (tab-switch / fullscreen-exit) - see logIntegrityViolation(). Never
   /// trust a client-reported count for this.
-  violationCount Int @default(0)
+  violationCount   Int     @default(0)
   /// Set only when `status` flips to ABANDONED because of an integrity
   /// violation (e.g. "INTEGRITY_VIOLATION"), disambiguating an enforced
   /// termination from any other reason an interview ends up ABANDONED.
@@ -2679,8 +2697,12 @@ model SalesLead {
   /// exists (same tier as documents/quotes).
   meetings    SalesLeadMeeting[]
   messages    SalesLeadMessage[]
-  /// Set once this lead is WON and converted - see convertLeadToProject().
-  project     SalesProject?
+  /// A qualified client can have multiple projects over time (repeat/expanded
+  /// engagements) - see convertLeadToProject(). Deliberately 1:many, not 1:1:
+  /// earlier this was a single SalesProject per lead, but a second real
+  /// engagement with an already-won client is a new Project on the SAME
+  /// SalesLead/client relationship, not a second unrelated SalesLead.
+  projects    SalesProject[]
 
   /// AI Proposal Management - the discovery readiness checklist and any
   /// proposals generated for this lead. A lead can accumulate more than one
@@ -2701,6 +2723,17 @@ model SalesLead {
   /// back-reference shape as sourceBusiness above, FK lives on
   /// OfferingRequest.promotedSalesLeadId.
   sourceOfferingRequest OfferingRequest? @relation("OfferingRequestPromotedTo")
+
+  /// Set when this SalesLead was created by qualifying a raw inbound Lead
+  /// (contact form / /start-project) via qualifyLead() - same display-side
+  /// back-reference shape as sourceBusiness/sourceOfferingRequest above, FK
+  /// lives on Lead.promotedSalesLeadId.
+  sourceLead Lead? @relation("LeadPromotedTo")
+
+  /// Client Discovery & Requirements Form - client-fillable, token-linked,
+  /// distinct from the admin-only SalesLeadDiscovery checklist above. See
+  /// DiscoveryForm below.
+  discoveryForms DiscoveryForm[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2872,6 +2905,109 @@ model SalesLeadDiscovery {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+enum DiscoveryFormStatus {
+  DRAFT
+  SENT
+  OPENED
+  IN_PROGRESS
+  SUBMITTED
+  REVIEWED
+  /// Lazily flipped from SENT/OPENED on read once expiresAt has passed - same
+  /// "write on read, never regress a later status" pattern as Proposal's own
+  /// EXPIRED handling (resolveProposalToken). Resendable: resendDiscoveryForm
+  /// issues a fresh token + expiresAt rather than re-mailing the dead one.
+  EXPIRED
+}
+
+/// Stively's own Client Discovery & Requirements Form - CLIENT-filled, sent
+/// as a secure unique link, distinct from SalesLeadDiscovery above (which is
+/// the salesperson's own internal readiness checklist, never seen by the
+/// client). Fields mirror the real intake document's four sections
+/// verbatim, not invented. Token pattern is identical to
+/// Proposal.token/generateProposalToken - unguessable, single-lead-scoped,
+/// optionally expirable, no login required to fill (the authenticated
+/// /client/discovery route is preferred once the client has a portal
+/// account - see resolveClientProjectViewer - but the token route always
+/// works, matching the brief's "client should not need to create a separate
+/// account just to fill the form").
+model DiscoveryForm {
+  id String @id @default(cuid())
+
+  salesLeadId String
+  salesLead   SalesLead @relation(fields: [salesLeadId], references: [id], onDelete: Cascade)
+
+  /// Optional - a discovery form can be sent before any SalesProject exists
+  /// (pre-conversion, gathering requirements to help write the proposal) or
+  /// scoped to one specific project once a client has more than one.
+  salesProjectId String?
+
+  token     String    @unique
+  expiresAt DateTime?
+
+  status      DiscoveryFormStatus @default(DRAFT)
+  sentAt      DateTime?
+  openedAt    DateTime?
+  submittedAt DateTime?
+  reviewedAt  DateTime?
+
+  // --- Section 1: Client & Business Information ---
+  clientCompanyName String?
+  contactPerson     String?
+  contactEmail      String?
+  contactPhone      String?
+  businessIndustry  String?
+  currentWebsite    String?
+  businessStage     String?
+  primaryGoal       String? @db.Text
+
+  // --- Section 2: Project Requirements ---
+  projectDescription   String? @db.Text
+  problemToSolve       String? @db.Text
+  targetUsers          String? @db.Text
+  importantFeatures    String? @db.Text
+  hasExistingSystem    Boolean @default(false)
+  existingSystemIssues String? @db.Text
+  successDefinition    String? @db.Text
+
+  // --- Section 3: Functional Requirements ---
+  needsUserAccounts      Boolean @default(false)
+  needsAdminDashboard    Boolean @default(false)
+  needsPayments          Boolean @default(false)
+  needsNotifications     Boolean @default(false)
+  needsEmail             Boolean @default(false)
+  needsSearch            Boolean @default(false)
+  needsBooking           Boolean @default(false)
+  needsContentManagement Boolean @default(false)
+  needsAnalytics         Boolean @default(false)
+  needsIntegrations      Boolean @default(false)
+  needsAiFeatures        Boolean @default(false)
+  needsMobileResponsive  Boolean @default(false)
+  otherFunctionalNeeds   String? @db.Text
+  additionalNotes        String? @db.Text
+
+  // --- Section 4: Commercial & Delivery ---
+  desiredLaunchDate    DateTime?
+  priorityLevel        LeadPriority?
+  expectedBudgetRange  String?
+  hostingPreference    String?
+  maintenanceRequired  Boolean       @default(false)
+  postLaunchSupport    String?
+  importantConstraints String?       @db.Text
+  commercialNotes      String?       @db.Text
+
+  sentById String?
+  sentBy   TeamMember? @relation("DiscoveryFormSentBy", fields: [sentById], references: [id], onDelete: SetNull)
+
+  reviewedById String?
+  reviewedBy   TeamMember? @relation("DiscoveryFormReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([salesLeadId])
+  @@index([status])
 }
 
 enum ProposalStatus {
@@ -3359,12 +3495,25 @@ enum SalesProjectStatus {
 /// from OperationItem (which tracks delivery for Offering-side
 /// Orders/OfferingRequests) - see this section's header comment for why
 /// these two "post-sale work" concepts stay separate rather than merging.
+/// One SalesLead can own several SalesProjects (salesLeadId is NOT unique -
+/// a repeat/expanded engagement with an already-won client is a new Project
+/// on the same client relationship, not a second SalesLead).
 model SalesProject {
   id       String @id @default(cuid())
   sequence Int    @unique @default(autoincrement())
 
-  salesLeadId String    @unique
+  salesLeadId String
   salesLead   SalesLead @relation(fields: [salesLeadId], references: [id], onDelete: Restrict)
+
+  /// Distinguishes this project from any others on the same client, e.g.
+  /// "Restaurant Website & Ordering Platform" - required precisely because
+  /// a client can now have more than one.
+  name     String       @default("Project")
+  /// Free text, e.g. "Website", "Mobile App", "E-commerce Platform" - same
+  /// "not a rigid enum" treatment as SalesLead.industry.
+  type     String?
+  /// Reuses LeadPriority (LOW/MEDIUM/HIGH) - identical shape to Lead/SalesLead/SalesTask, no reason to fork it.
+  priority LeadPriority @default(MEDIUM)
 
   /// Snapshotted from SalesLead.businessName at conversion time, editable
   /// afterward independently of the originating lead.
@@ -3405,6 +3554,7 @@ model SalesProject {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([salesLeadId])
   @@index([salesPersonId])
   @@index([status])
 }

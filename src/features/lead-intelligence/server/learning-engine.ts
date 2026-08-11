@@ -38,8 +38,15 @@ export interface IndustryStat {
 /** One real row per industry that has at least one WON lead - deal size and sales-cycle length averaged from actual SalesProject data. */
 export async function getIndustryStats(): Promise<IndustryStat[]> {
   const wonLeadsWithProjects = await prisma.salesLead.findMany({
-    where: { status: "WON", industry: { not: null }, project: { isNot: null } },
-    select: { industry: true, createdAt: true, project: { select: { totalValue: true, createdAt: true } } },
+    where: { status: "WON", industry: { not: null }, projects: { some: {} } },
+    select: {
+      industry: true,
+      createdAt: true,
+      // Earliest project only - the original conversion deal, for an honest
+      // "how long did the first sale take" cycle-time reading even on a
+      // client who's since accumulated repeat/expanded projects.
+      projects: { select: { totalValue: true, createdAt: true }, orderBy: { createdAt: "asc" }, take: 1 },
+    },
   });
   const lostByIndustry = await prisma.salesLead.groupBy({ by: ["industry"], where: { status: "LOST", industry: { not: null } }, _count: { industry: true } });
   const lostMap = new Map(lostByIndustry.map((row) => [row.industry, row._count.industry]));
@@ -49,9 +56,10 @@ export async function getIndustryStats(): Promise<IndustryStat[]> {
     const industry = lead.industry!;
     const entry = byIndustry.get(industry) ?? { won: 0, dealSizes: [], cycleDays: [] };
     entry.won++;
-    if (lead.project) {
-      entry.dealSizes.push(lead.project.totalValue);
-      const cycleDays = (lead.project.createdAt.getTime() - lead.createdAt.getTime()) / (1000 * 60 * 60 * 24);
+    const firstProject = lead.projects[0];
+    if (firstProject) {
+      entry.dealSizes.push(firstProject.totalValue);
+      const cycleDays = (firstProject.createdAt.getTime() - lead.createdAt.getTime()) / (1000 * 60 * 60 * 24);
       if (cycleDays >= 0) entry.cycleDays.push(cycleDays);
     }
     byIndustry.set(industry, entry);

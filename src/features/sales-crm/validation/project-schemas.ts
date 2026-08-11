@@ -2,6 +2,9 @@ import { z } from "zod";
 
 export const convertLeadToProjectSchema = z.object({
   salesLeadId: z.string().min(1),
+  name: z.string().trim().min(1, "Enter a project name").max(150),
+  type: z.string().trim().max(100).optional(),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH"]).default("MEDIUM"),
   totalValue: z.coerce.number().int().min(1, "Enter the agreed project value"),
   projectManagerId: z.string().min(1).optional(),
   assignedDeveloperId: z.string().min(1).optional(),

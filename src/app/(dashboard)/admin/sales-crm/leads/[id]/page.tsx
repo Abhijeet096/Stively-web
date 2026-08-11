@@ -21,6 +21,7 @@ import { ConvertToProjectDialog } from "@/features/sales-crm/components/admin/co
 import { getSalesLeadDiscovery } from "@/features/proposals/server/discovery-queries";
 import { getAcceptedProposalPackagePrice, getActiveProposalForLead } from "@/features/proposals/server/proposal-queries";
 import { getClientDocumentsForLead } from "@/features/client-workspace/server/queries";
+import { getDiscoveryFormsForLead } from "@/features/discovery-forms/server/queries";
 
 interface SalesLeadDetailPageProps {
   params: Promise<{ id: string }>;
@@ -36,7 +37,7 @@ export default async function SalesLeadDetailPage({ params }: SalesLeadDetailPag
   const lead = await getSalesLeadById(id, viewer);
   if (!lead) notFound();
 
-  const [activities, notes, attachments, followUps, quotes, meetings, messages, offerings, discovery, teamMembers, allTeamMembers, acceptedPackagePrice, activeProposal, clientDocuments] =
+  const [activities, notes, attachments, followUps, quotes, meetings, messages, offerings, discovery, teamMembers, allTeamMembers, acceptedPackagePrice, activeProposal, clientDocuments, discoveryForms] =
     await Promise.all([
       getSalesLeadTimeline(id),
       getSalesLeadNotes(id),
@@ -52,6 +53,7 @@ export default async function SalesLeadDetailPage({ params }: SalesLeadDetailPag
       getAcceptedProposalPackagePrice(id),
       getActiveProposalForLead(id, viewer),
       getClientDocumentsForLead(id, viewer),
+      getDiscoveryFormsForLead(id, viewer),
     ]);
 
   return (
@@ -71,8 +73,14 @@ export default async function SalesLeadDetailPage({ params }: SalesLeadDetailPag
         activeProposal={activeProposal}
         teamMembers={teamMembers}
         clientDocuments={clientDocuments}
+        discoveryForms={discoveryForms}
         convertPanel={
-          <ConvertToProjectDialog salesLeadId={lead.id} suggestedValue={acceptedPackagePrice ?? lead.estimatedValue} teamMembers={allTeamMembers} />
+          <ConvertToProjectDialog
+            salesLeadId={lead.id}
+            suggestedValue={acceptedPackagePrice ?? lead.estimatedValue}
+            teamMembers={allTeamMembers}
+            hasExistingProject={lead.projects.length > 0}
+          />
         }
       />
     </div>

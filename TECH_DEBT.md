@@ -64,6 +64,24 @@ Every shortcut, gap, or deferred decision goes here the moment it's identified â
 **Priority:** P4
 **Estimated effort:** Either ~30 minutes to remove, or a real feature-sized effort to implement â€” decision deferred until the training/LMS side scales enough to need it.
 
+## `DiscoveryForm.salesProjectId` has no real Prisma relation
+
+**Reason:** Added as a plain optional string FK (not a declared `@relation` to `SalesProject`) to avoid a second migration late in the qualified-client-system build. `resendDiscoveryForm` works around it with a manual `salesProject.findUnique` lookup instead of an `include`. Every other FK in this schema has a matching relation - this is the one exception.
+**Priority:** P3
+**Estimated effort:** ~15 minutes (add `salesProject SalesProject? @relation(...)` + the opposite `SalesProject.discoveryForms DiscoveryForm[]`, one migration, simplify `resendDiscoveryForm` back to a plain `include`).
+
+## Lead qualification auto-links on email/phone match instead of asking
+
+**Reason:** The brief asked for "detect the existing client and offer to link the lead rather than creating a duplicate" - `qualifyBusinessLeadTx` simplifies "offer" to "automatically link," since building a confirmation-dialog UI for a low-volume, pre-first-client flow wasn't worth the scope right now. Safe (an exact email/phone match is unambiguous), just not literally what was asked.
+**Priority:** P2
+**Estimated effort:** ~2-3 hours (return a "possible duplicate found" result instead of linking silently, add an admin confirm-or-create-new dialog).
+
+## Public `/discovery/[token]` submission has no rate limiting
+
+**Reason:** Unlike the public `/proposal/[token]` actions (which reuse a DB-backed fixed-window limiter), the discovery-form token submission has none - a one-time form fill is a much lower abuse surface than repeated comment/accept actions, so this was judged disproportionate to build now.
+**Priority:** P3
+**Estimated effort:** ~30 minutes (add the same `rateLimitWindowStart`/`rateLimitCount` fields + reuse `checkProposalRateLimit`'s pattern) if real abuse is ever observed.
+
 ## Near-duplicate priority enums
 
 **Reason:** `RequestPriority` and `OperationPriority` are structurally identical (both LOW/MEDIUM/HIGH/URGENT) and could have been one shared enum.

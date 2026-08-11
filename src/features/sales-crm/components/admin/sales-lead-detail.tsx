@@ -25,6 +25,8 @@ import { SalesFollowUpsPanel } from "./sales-follow-ups-panel";
 import { SalesQuotesPanel } from "./sales-quotes-panel";
 import { SalesLeadMeetingPanel } from "./sales-lead-meeting-panel";
 import { SalesLeadMessagePanel } from "./sales-lead-message-panel";
+import { DiscoveryFormsPanel } from "@/features/discovery-forms/components/admin/discovery-forms-panel";
+import type { getDiscoveryFormsForLead } from "@/features/discovery-forms/server/queries";
 import type {
   getSalesLeadById,
   getSalesLeadTimeline,
@@ -55,6 +57,7 @@ export interface SalesLeadDetailProps {
   activeProposal: Proposal | null;
   teamMembers: TeamMember[];
   clientDocuments: Awaited<ReturnType<typeof getClientDocumentsForLead>>;
+  discoveryForms: Awaited<ReturnType<typeof getDiscoveryFormsForLead>>;
   /** Base path for the "View project" link - differs between the admin CMS and the /sales portal. */
   basePath?: string;
   /** Base path for the proposal workspace link (`${proposalBasePath}/leads/${id}/proposal`) - differs between the admin CMS and the /sales portal. */
@@ -90,6 +93,7 @@ function SalesLeadDetail({
   activeProposal,
   teamMembers,
   clientDocuments,
+  discoveryForms,
   basePath = "/admin/sales-crm/projects",
   proposalBasePath = "/admin/sales-crm",
   canReassign = true,
@@ -108,10 +112,14 @@ function SalesLeadDetail({
             {formatSalesLeadNumber(lead.sequence)} · {lead.ownerName} · {SALES_LEAD_SOURCE_LABEL[lead.source]}
           </p>
         </div>
-        {lead.project && (
-          <Button variant="outline" asChild>
-            <Link href={`${basePath}/${lead.project.id}`}>View project</Link>
-          </Button>
+        {lead.projects.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {lead.projects.map((project) => (
+              <Button key={project.id} variant="outline" size="sm" asChild>
+                <Link href={`${basePath}/${project.id}`}>{project.name}</Link>
+              </Button>
+            ))}
+          </div>
         )}
       </div>
 
@@ -138,6 +146,13 @@ function SalesLeadDetail({
           </Card>
 
           <DiscoveryChecklistPanel salesLeadId={lead.id} discovery={discovery} offerings={offerings as DiscoveryOfferingOption[]} />
+
+          <DiscoveryFormsPanel
+            salesLeadId={lead.id}
+            forms={discoveryForms}
+            projects={lead.projects}
+            basePath={`${proposalBasePath}/leads`}
+          />
 
           <ProposalSummaryPanel
             salesLeadId={lead.id}
@@ -176,8 +191,10 @@ function SalesLeadDetail({
             <CardContent>
               <SalesLeadStatusChanger salesLeadId={lead.id} currentStatus={lead.status} />
               {lead.status === "WON" &&
-                !lead.project &&
-                (convertPanel ?? <p className="text-success mt-3 text-xs">Ready to convert to a project.</p>)}
+                (convertPanel ??
+                  (lead.projects.length === 0 && (
+                    <p className="text-success mt-3 text-xs">Ready to convert to a project.</p>
+                  )))}
               {lead.status === "LOST" && <SalesLeadLostReason salesLeadId={lead.id} currentReason={lead.lostReason} />}
             </CardContent>
           </Card>

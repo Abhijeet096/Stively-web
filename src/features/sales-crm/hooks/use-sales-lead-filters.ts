@@ -9,13 +9,16 @@ export function useSalesLeadFilters() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const setFilter = useCallback(
-    (key: string, value: string | undefined) => {
+  /** Applies several key changes in one navigation - needed when one filter's meaning conflicts with another (e.g. picking an exact status should clear the coarser `stage` grouping) and both need to land in a single URL update, not two racing pushes. */
+  const setFilters = useCallback(
+    (patch: Record<string, string | undefined>) => {
       const params = new URLSearchParams(searchParams.toString());
-      if (value) {
-        params.set(key, value);
-      } else {
-        params.delete(key);
+      for (const [key, value] of Object.entries(patch)) {
+        if (value) {
+          params.set(key, value);
+        } else {
+          params.delete(key);
+        }
       }
       params.delete("page");
       const query = params.toString();
@@ -24,9 +27,11 @@ export function useSalesLeadFilters() {
     [router, pathname, searchParams]
   );
 
+  const setFilter = useCallback((key: string, value: string | undefined) => setFilters({ [key]: value }), [setFilters]);
+
   const clearFilters = useCallback(() => {
     router.push(pathname);
   }, [router, pathname]);
 
-  return { searchParams, setFilter, clearFilters };
+  return { searchParams, setFilter, setFilters, clearFilters };
 }

@@ -10,6 +10,8 @@ export const SALES_LEAD_PAGE_SIZE = 25;
 
 export interface SalesLeadFilters {
   status?: SalesLeadStatus;
+  /** Coarse pipeline-stage grouping (see lib/pipeline-stages.ts) - mutually exclusive with `status` at the UI layer; if both are somehow set, statusIn wins. */
+  statusIn?: SalesLeadStatus[];
   priority?: LeadPriority;
   source?: SalesLeadSource;
   assignedToId?: string;
@@ -35,7 +37,7 @@ function scopedAssignedToId(filters: SalesLeadFilters, viewer: SalesCrmViewer): 
 function buildSalesLeadWhere(filters: SalesLeadFilters, viewer: SalesCrmViewer) {
   const assignedToId = scopedAssignedToId(filters, viewer);
   return {
-    ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.statusIn ? { status: { in: filters.statusIn } } : filters.status ? { status: filters.status } : {}),
     ...(filters.priority ? { priority: filters.priority } : {}),
     ...(filters.source ? { source: filters.source } : {}),
     ...(assignedToId ? { assignedToId } : {}),
@@ -85,7 +87,7 @@ export async function getSalesLeadById(id: string, viewer: SalesCrmViewer) {
     include: {
       assignedTo: true,
       createdBy: true,
-      project: { select: { id: true } },
+      projects: { select: { id: true, name: true, status: true }, orderBy: { createdAt: "desc" } },
       outreach: { orderBy: { createdAt: "desc" }, take: 1 },
       clientUser: { select: { id: true, name: true, email: true } },
     },

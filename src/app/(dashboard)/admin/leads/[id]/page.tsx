@@ -58,7 +58,12 @@ export default async function LeadDetailPage({ params }: LeadDetailPageProps) {
           </Link>
         </Button>
         <h1 className="text-foreground text-2xl font-semibold tracking-tight">{lead.name}</h1>
-        <LeadStatusBadge status={lead.status} />
+        <LeadStatusBadge status={lead.status} leadType={lead.leadType} />
+        {lead.promotedSalesLeadId && (
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/admin/sales-crm/leads/${lead.promotedSalesLeadId}`}>View client in Sales CRM</Link>
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

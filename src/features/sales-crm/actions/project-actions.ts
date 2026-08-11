@@ -21,6 +21,9 @@ export type ConvertToProjectResult = ActionResult & { projectId?: string };
  * click Convert to Project" - never automatic, always a deliberate click.
  * totalValue is entered fresh at conversion time rather than trusting the
  * lead's estimatedValue, since that was only ever a pre-negotiation guess.
+ * A WON lead can hold more than one project (a repeat/expanded engagement
+ * with an already-won client) - this action is callable repeatedly on the
+ * same lead, each call creating one more named SalesProject.
  */
 export async function convertLeadToProject(input: unknown): Promise<ConvertToProjectResult> {
   const user = await requireRole("ADMIN", "SUPER_ADMIN");
@@ -30,10 +33,9 @@ export async function convertLeadToProject(input: unknown): Promise<ConvertToPro
   const data = parsed.data;
 
   try {
-    const lead = await prisma.salesLead.findUnique({ where: { id: data.salesLeadId }, include: { project: true } });
+    const lead = await prisma.salesLead.findUnique({ where: { id: data.salesLeadId } });
     if (!lead) return { success: false, error: "Lead not found." };
     if (lead.status !== "WON") return { success: false, error: "Only a Won lead can be converted to a project." };
-    if (lead.project) return { success: false, error: "This lead already has a project." };
 
     const actorId = await actorTeamMemberId(user.id);
 
@@ -41,6 +43,9 @@ export async function convertLeadToProject(input: unknown): Promise<ConvertToPro
       const created = await tx.salesProject.create({
         data: {
           salesLeadId: lead.id,
+          name: data.name,
+          type: data.type,
+          priority: data.priority,
           clientName: lead.businessName,
           salesPersonId: lead.assignedToId,
           projectManagerId: data.projectManagerId,
@@ -51,7 +56,12 @@ export async function convertLeadToProject(input: unknown): Promise<ConvertToPro
         },
       });
       await tx.salesLeadActivity.create({
-        data: { salesLeadId: lead.id, type: "PROJECT_CREATED", performedById: actorId ?? null },
+        data: {
+          salesLeadId: lead.id,
+          type: "PROJECT_CREATED",
+          description: `Project created: ${data.name}`,
+          performedById: actorId ?? null,
+        },
       });
       return created;
     });
@@ -72,7 +82,7 @@ export async function convertLeadToProject(input: unknown): Promise<ConvertToPro
               userId: m.userId!,
               type: "SALES_PROJECT_ASSIGNED",
               title: "Project assigned",
-              body: `${lead.businessName} has been converted to a project.`,
+              body: `${data.name} (${lead.businessName}) has been created.`,
               link: `/admin/sales-crm/projects/${project.id}`,
             })
           )

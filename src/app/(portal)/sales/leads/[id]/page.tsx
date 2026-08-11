@@ -21,6 +21,7 @@ import { SalesLeadDetail } from "@/features/sales-crm/components/admin/sales-lea
 import { getSalesLeadDiscovery } from "@/features/proposals/server/discovery-queries";
 import { getActiveProposalForLead } from "@/features/proposals/server/proposal-queries";
 import { getClientDocumentsForLead } from "@/features/client-workspace/server/queries";
+import { getDiscoveryFormsForLead } from "@/features/discovery-forms/server/queries";
 
 interface SalesPortalLeadDetailPageProps {
   params: Promise<{ id: string }>;
@@ -36,7 +37,7 @@ export default async function SalesPortalLeadDetailPage({ params }: SalesPortalL
   const lead = await getSalesLeadById(id, viewer);
   if (!lead) notFound();
 
-  const [activities, notes, attachments, followUps, quotes, meetings, messages, offerings, discovery, teamMembers, activeProposal, clientDocuments] = await Promise.all([
+  const [activities, notes, attachments, followUps, quotes, meetings, messages, offerings, discovery, teamMembers, activeProposal, clientDocuments, discoveryForms] = await Promise.all([
     getSalesLeadTimeline(id),
     getSalesLeadNotes(id),
     getSalesLeadAttachments(id),
@@ -49,6 +50,7 @@ export default async function SalesPortalLeadDetailPage({ params }: SalesPortalL
     getSalesTeamMembers(),
     getActiveProposalForLead(id, viewer),
     getClientDocumentsForLead(id, viewer),
+    getDiscoveryFormsForLead(id, viewer),
   ]);
 
   return (
@@ -70,6 +72,7 @@ export default async function SalesPortalLeadDetailPage({ params }: SalesPortalL
           activeProposal={activeProposal}
           teamMembers={teamMembers}
           clientDocuments={clientDocuments}
+          discoveryForms={discoveryForms}
           basePath="/sales/projects"
           proposalBasePath="/sales"
           canReassign={false}

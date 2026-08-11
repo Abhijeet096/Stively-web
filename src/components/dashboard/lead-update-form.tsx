@@ -5,7 +5,7 @@ import type { Lead, LeadStatus, LeadPriority, LostReason, LeadType } from "@pris
 
 import { updateLead } from "@/actions/crm";
 import type { ActionResult } from "@/actions/leads";
-import { STATUS_LABEL } from "@/components/dashboard/lead-status-badge";
+import { STATUS_LABEL, getLeadStatusLabel } from "@/components/dashboard/lead-status-badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -92,11 +92,17 @@ function LeadUpdateForm({ lead }: { lead: Lead }) {
           <SelectContent>
             {STATUS_OPTIONS.map((opt) => (
               <SelectItem key={opt} value={opt}>
-                {STATUS_LABEL[opt]}
+                {getLeadStatusLabel(opt, leadType)}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+        {leadType === "BUSINESS" && status === "CONVERTED" && !lead.promotedSalesLeadId && (
+          <p className="text-muted-foreground text-xs">
+            Saving will qualify this lead into the Sales CRM as a client - creating a new record, or linking to an
+            existing one if the email/phone already matches a client.
+          </p>
+        )}
       </div>
 
       <div className="flex flex-col gap-1.5">

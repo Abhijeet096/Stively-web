@@ -8,6 +8,8 @@ import { updateLeadSchema, addNoteSchema, reassignOwnerSchema } from "@/lib/vali
 import { getDefaultOwner } from "@/lib/queries/team-members";
 import { auth } from "@/lib/auth";
 import type { ActionResult } from "@/actions/leads";
+import { qualifyBusinessLeadTx, resolveAssigneeUserId, QualifyLeadError } from "@/features/leads/server/qualify";
+import { notifyAllAdmins } from "@/features/notifications/server/creation";
 
 /**
  * Resolves "who is performing this action" from the real logged-in
@@ -66,7 +68,14 @@ export async function updateLead(
 
     const actorId = await resolveActorId();
 
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    // A BUSINESS lead moving to CONVERTED ("Qualified" in the B2B UI) also
+    // qualifies it into the real Sales CRM - see AD-015. Runs inside the
+    // same transaction as the status change below, so the two either both
+    // happen or neither does.
+    const willQualify =
+      data.status === "CONVERTED" && current.status !== "CONVERTED" && current.leadType === "BUSINESS" && !current.promotedSalesLeadId;
+
+    const runTransaction = () => prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.lead.update({
         where: { id: leadId },
         data: {
@@ -127,7 +136,68 @@ export async function updateLead(
           },
         });
       }
-    });
+
+      if (!willQualify) return null;
+
+      const qualifyResult = await qualifyBusinessLeadTx(tx, current, actorId);
+      await tx.leadHistory.create({
+        data: {
+          leadId,
+          eventType: "CONVERTED",
+          description: qualifyResult.linkedExisting
+            ? "Qualified - linked to an existing client record"
+            : "Qualified - new client record created",
+          performedBy: actorId,
+        },
+      });
+      const assigneeUserId = await resolveAssigneeUserId(tx, current.currentOwnerId);
+      return { qualifyResult, assigneeUserId };
+    }, willQualify ? { isolationLevel: Prisma.TransactionIsolationLevel.Serializable } : undefined);
+
+    // Qualification's dedupe check (qualifyBusinessLeadTx's tx.salesLead.findFirst)
+    // is a check-then-act race under Postgres's default READ COMMITTED
+    // isolation: two leads sharing a phone/email, qualified within the same
+    // moment, could each miss the other's uncommitted insert and each
+    // create a separate SalesLead - exactly the "no duplicate records"
+    // requirement this bridge exists to uphold. Serializable isolation
+    // (set above) makes Postgres detect that conflict itself and abort one
+    // of the two transactions with a write-conflict error (P2034) rather
+    // than silently letting both succeed - retrying the aborted one then
+    // re-runs the dedupe check against the now-committed first row, so it
+    // correctly links instead of duplicating. Bounded at 3 attempts; a real
+    // conflict this specific is expected to resolve on the first retry.
+    const MAX_QUALIFY_ATTEMPTS = 3;
+    let txResult: Awaited<ReturnType<typeof runTransaction>> | undefined;
+    for (let attempt = 1; attempt <= MAX_QUALIFY_ATTEMPTS; attempt++) {
+      try {
+        txResult = await runTransaction();
+        break;
+      } catch (error) {
+        const isWriteConflict = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034";
+        if (!isWriteConflict || attempt === MAX_QUALIFY_ATTEMPTS) throw error;
+      }
+    }
+
+    if (txResult?.qualifyResult) {
+      try {
+        await notifyAllAdmins(
+          {
+            type: "SALES_LEAD_ASSIGNED",
+            title: "Lead qualified",
+            body: `${current.companyName || current.name} has been qualified into the Sales CRM.`,
+            link: `/admin/sales-crm/leads/${txResult.qualifyResult.salesLeadId}`,
+          },
+          txResult.assigneeUserId
+        );
+      } catch (error) {
+        console.error("updateLead: qualify notification failed:", error);
+      }
+    }
+
+    if (txResult?.qualifyResult) {
+      revalidatePath("/admin/sales-crm/leads");
+      revalidatePath(`/admin/sales-crm/leads/${txResult.qualifyResult.salesLeadId}`);
+    }
 
     revalidatePath(`/admin/leads/${leadId}`);
     revalidatePath("/admin/dashboard");
@@ -136,6 +206,12 @@ export async function updateLead(
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return { success: false, error: "This email already has a lead of that type - merge or update the existing one instead." };
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+      return { success: false, error: "This lead is being updated elsewhere right now - please try again." };
+    }
+    if (error instanceof QualifyLeadError) {
+      return { success: false, error: error.message };
     }
     console.error("updateLead failed:", error);
     return { success: false, error: "Something went wrong. Please try again." };

@@ -14,8 +14,14 @@ const PROJECT_STATUS_PHASE: Record<SalesProjectStatus, WorkspacePhase> = {
   CANCELLED: { label: "Cancelled", variant: "destructive" },
 };
 
-/** No AI/derived scoring - just a plain-language read of real, already-known state (whether a project exists yet, and its status if so). */
-export function getWorkspacePhase(project: { status: SalesProjectStatus } | null): WorkspacePhase {
-  if (!project) return { label: "Proposal & onboarding", variant: "secondary" };
-  return PROJECT_STATUS_PHASE[project.status];
+/**
+ * No AI/derived scoring - just a plain-language read of real, already-known
+ * state. A client can now have several projects - the "headline" phase is
+ * whichever ACTIVE one exists (there's usually at most one being worked at
+ * a time), falling back to the most recently created project otherwise.
+ */
+export function getWorkspacePhase(projects: { status: SalesProjectStatus }[]): WorkspacePhase {
+  if (projects.length === 0) return { label: "Proposal & onboarding", variant: "secondary" };
+  const active = projects.find((p) => p.status === "ACTIVE");
+  return PROJECT_STATUS_PHASE[(active ?? projects[0]).status];
 }

@@ -37,3 +37,23 @@ export async function createNotifications(inputs: CreateNotificationInput[]) {
   const results = await Promise.allSettled(inputs.map((input) => createNotification(input)));
   return results;
 }
+
+/**
+ * Every ADMIN/SUPER_ADMIN, plus an optional extra recipient (e.g. an
+ * assigned salesperson), deduped so nobody gets the same event twice. The
+ * standing pattern for "this must never go unnoticed" events in a
+ * solo-founder-scale operation - see AD-014 (client messages) and AD-016
+ * (lead qualification) for why assignment-only notification isn't enough
+ * here: leads/threads sit unassigned far more often than not, so
+ * "notify the assignee" alone can mean "notify nobody."
+ */
+export async function notifyAllAdmins(
+  input: Omit<CreateNotificationInput, "userId">,
+  extraUserId?: string | null
+): Promise<void> {
+  const admins = await prisma.user.findMany({ where: { role: { in: ["ADMIN", "SUPER_ADMIN"] } }, select: { id: true } });
+  const recipientIds = new Set(admins.map((a) => a.id));
+  if (extraUserId) recipientIds.add(extraUserId);
+
+  await createNotifications(Array.from(recipientIds).map((userId) => ({ ...input, userId })));
+}

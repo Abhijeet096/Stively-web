@@ -26,12 +26,17 @@ export interface ConvertToProjectDialogProps {
   salesLeadId: string;
   suggestedValue?: number | null;
   teamMembers: TeamMember[];
+  /** True once this lead already has at least one project - changes the trigger label/copy from "Convert" (first project) to "Add project" (a client can now have more than one). */
+  hasExistingProject?: boolean;
 }
 
-/** Admin-only trigger for convertLeadToProject - totalValue defaults to the lead's estimated value but is always re-confirmed here, since that figure predates any real negotiation. */
-function ConvertToProjectDialog({ salesLeadId, suggestedValue, teamMembers }: ConvertToProjectDialogProps) {
+/** Admin-only trigger for convertLeadToProject - totalValue defaults to the lead's estimated value but is always re-confirmed here, since that figure predates any real negotiation. Callable more than once per lead - a client can have multiple projects. */
+function ConvertToProjectDialog({ salesLeadId, suggestedValue, teamMembers, hasExistingProject = false }: ConvertToProjectDialogProps) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
+  const [name, setName] = React.useState("");
+  const [type, setType] = React.useState("");
+  const [priority, setPriority] = React.useState<"LOW" | "MEDIUM" | "HIGH">("MEDIUM");
   const [totalValue, setTotalValue] = React.useState(suggestedValue ? String(suggestedValue / 100) : "");
   const [projectManagerId, setProjectManagerId] = React.useState<string>("");
   const [assignedDeveloperId, setAssignedDeveloperId] = React.useState<string>("");
@@ -45,6 +50,9 @@ function ConvertToProjectDialog({ salesLeadId, suggestedValue, teamMembers }: Co
     setError(undefined);
     const result = await convertLeadToProject({
       salesLeadId,
+      name,
+      type: type || undefined,
+      priority,
       totalValue: Math.round(Number(totalValue) * 100),
       projectManagerId: projectManagerId || undefined,
       assignedDeveloperId: assignedDeveloperId || undefined,
@@ -64,18 +72,39 @@ function ConvertToProjectDialog({ salesLeadId, suggestedValue, teamMembers }: Co
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" className="mt-3 w-full">
+        <Button size="sm" variant={hasExistingProject ? "outline" : "primary"} className="mt-3 w-full">
           <ArrowRightCircle className="size-4" aria-hidden="true" />
-          Convert to Project
+          {hasExistingProject ? "Add another project" : "Convert to Project"}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Convert to project</DialogTitle>
+          <DialogTitle>{hasExistingProject ? "Add project" : "Convert to project"}</DialogTitle>
           <DialogDescription>Creates a project linked to this lead and the assigned salesperson.</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="ctp-name">Project name</Label>
+            <Input id="ctp-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Restaurant Website & Ordering Platform" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="ctp-type">Project type</Label>
+            <Input id="ctp-type" value={type} onChange={(e) => setType(e.target.value)} placeholder="e.g. Website, Mobile App" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="ctp-priority">Priority</Label>
+            <Select value={priority} onValueChange={(v) => setPriority(v as "LOW" | "MEDIUM" | "HIGH")}>
+              <SelectTrigger id="ctp-priority">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="LOW">Low</SelectItem>
+                <SelectItem value="MEDIUM">Medium</SelectItem>
+                <SelectItem value="HIGH">High</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="ctp-value">Agreed project value (₹)</Label>
             <Input id="ctp-value" type="number" min={1} value={totalValue} onChange={(e) => setTotalValue(e.target.value)} />
@@ -127,7 +156,7 @@ function ConvertToProjectDialog({ salesLeadId, suggestedValue, teamMembers }: Co
                 Cancel
               </Button>
             </DialogClose>
-            <Button onClick={handleSubmit} loading={isPending} disabled={!totalValue || Number(totalValue) <= 0}>
+            <Button onClick={handleSubmit} loading={isPending} disabled={!name.trim() || !totalValue || Number(totalValue) <= 0}>
               Create project
             </Button>
           </DialogFooter>

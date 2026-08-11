@@ -44,9 +44,9 @@ export interface SalesLeadFiltersToolbarProps {
   showAssigneeFilter: boolean;
 }
 
-/** Same instant, URL-driven Select pattern as operations/components/operation-filters-toolbar.tsx. */
+/** Same instant, URL-driven Select pattern as operations/components/operation-filters-toolbar.tsx. Picking an exact status here clears the page's `?stage=` quick-filter in the same navigation - the two are mutually exclusive ways of narrowing by status. */
 function SalesLeadFiltersToolbar({ teamMembers, showAssigneeFilter }: SalesLeadFiltersToolbarProps) {
-  const { searchParams, setFilter, clearFilters } = useSalesLeadFilters();
+  const { searchParams, setFilter, setFilters, clearFilters } = useSalesLeadFilters();
   const urlQuery = searchParams.get("q") ?? "";
   const [search, setSearch] = React.useState(urlQuery);
 
@@ -95,7 +95,10 @@ function SalesLeadFiltersToolbar({ teamMembers, showAssigneeFilter }: SalesLeadF
       <div className="flex flex-wrap items-end gap-4">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="status-filter">Status</Label>
-          <Select value={status ?? "any"} onValueChange={(value) => setFilter("status", value === "any" ? undefined : value)}>
+          <Select
+            value={status ?? "any"}
+            onValueChange={(value) => setFilters({ status: value === "any" ? undefined : value, stage: undefined })}
+          >
             <SelectTrigger id="status-filter" className="w-44">
               <SelectValue placeholder="Any status" />
             </SelectTrigger>

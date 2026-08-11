@@ -32,7 +32,7 @@ export async function getClientWorkspaces(viewer: ClientWorkspaceViewer) {
   return prisma.salesLead.findMany({
     where: { id: { in: viewer.salesLeadIds } },
     orderBy: { createdAt: "desc" },
-    include: { project: true },
+    include: { projects: { orderBy: { createdAt: "desc" } } },
   });
 }
 
@@ -45,7 +45,8 @@ export async function getClientWorkspaceById(salesLeadId: string, viewer: Client
   return prisma.salesLead.findUnique({
     where: { id: salesLeadId },
     include: {
-      project: {
+      projects: {
+        orderBy: { createdAt: "desc" },
         include: {
           payments: { orderBy: { createdAt: "asc" } },
           updates: { orderBy: { createdAt: "desc" } },
@@ -62,6 +63,31 @@ export async function getClientWorkspaceById(salesLeadId: string, viewer: Client
       assignedTo: { select: { name: true } },
     },
   });
+}
+
+/**
+ * Client-side - one specific project's Payments/Progress/Timeline, scoped
+ * to a project split out onto its own page now that a client can have more
+ * than one (see getClientWorkspaceById's Projects tab). Ownership check is
+ * two-layered: the lead must be this viewer's, and the project must
+ * actually belong to that lead - so a client can never reach another
+ * client's project by guessing a projectId.
+ */
+export async function getClientProjectById(salesLeadId: string, projectId: string, viewer: ClientWorkspaceViewer) {
+  if (!viewer.salesLeadIds.includes(salesLeadId)) return null;
+
+  await promoteDuePaymentsForLeads([salesLeadId]);
+
+  const project = await prisma.salesProject.findUnique({
+    where: { id: projectId },
+    include: {
+      payments: { orderBy: { createdAt: "asc" }, include: { documents: { where: { lifecycleStatus: { not: "ARCHIVED" } } } } },
+      updates: { orderBy: { createdAt: "desc" } },
+      milestones: { orderBy: { order: "asc" } },
+    },
+  });
+  if (!project || project.salesLeadId !== salesLeadId) return null;
+  return project;
 }
 
 /** Client-side - every payment across every linked business, most recent first, for the /client/invoices list. */

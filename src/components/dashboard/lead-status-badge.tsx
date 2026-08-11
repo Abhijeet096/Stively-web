@@ -1,4 +1,4 @@
-import type { LeadStatus } from "@prisma/client";
+import type { LeadStatus, LeadType } from "@prisma/client";
 
 import { Badge } from "@/components/ui/badge";
 
@@ -58,8 +58,14 @@ const STATUS_LABEL: Record<LeadStatus, string> = {
   LOST: "Lost",
 };
 
-function LeadStatusBadge({ status }: { status: LeadStatus }) {
-  return <Badge variant={STATUS_VARIANT[status]}>{STATUS_LABEL[status]}</Badge>;
+/** CONVERTED reads as "Qualified" for a BUSINESS lead - see AD-015's Lead -> SalesLead bridge, which triggers off this exact status. Every other status/leadType combination keeps its plain label. */
+function getLeadStatusLabel(status: LeadStatus, leadType?: LeadType): string {
+  if (status === "CONVERTED" && leadType === "BUSINESS") return "Qualified";
+  return STATUS_LABEL[status];
 }
 
-export { LeadStatusBadge, STATUS_LABEL };
+function LeadStatusBadge({ status, leadType }: { status: LeadStatus; leadType?: LeadType }) {
+  return <Badge variant={STATUS_VARIANT[status]}>{getLeadStatusLabel(status, leadType)}</Badge>;
+}
+
+export { LeadStatusBadge, STATUS_LABEL, getLeadStatusLabel };
