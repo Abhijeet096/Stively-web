@@ -26,7 +26,7 @@ export default async function SalesPortalProjectDetailPage({ params }: SalesPort
     <>
       <SetPageTitle title={project.clientName} />
       <Container className="py-8">
-        <SalesProjectDetail project={project} leadBasePath="/sales/leads" />
+        <SalesProjectDetail project={project} leadBasePath="/sales/leads" projectBasePath="/sales/projects" />
       </Container>
     </>
   );

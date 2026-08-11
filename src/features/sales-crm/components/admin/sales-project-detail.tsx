@@ -11,6 +11,7 @@ import { SalesProjectPaymentsPanel } from "./sales-project-payments-panel";
 import { SalesProjectUpdatesPanel } from "./sales-project-updates-panel";
 import { SalesProjectMilestonesPanel } from "./sales-project-milestones-panel";
 import { SalesProjectProgressEditor } from "./sales-project-progress-editor";
+import { OnboardingFormsPanel } from "@/features/onboarding-forms/components/admin/onboarding-forms-panel";
 import type { SalesProjectWithRelations } from "../../server/queries";
 
 function formatDate(date: Date | null) {
@@ -18,7 +19,15 @@ function formatDate(date: Date | null) {
   return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(date);
 }
 
-function SalesProjectDetail({ project, leadBasePath = "/admin/sales-crm/leads" }: { project: SalesProjectWithRelations; leadBasePath?: string }) {
+function SalesProjectDetail({
+  project,
+  leadBasePath = "/admin/sales-crm/leads",
+  projectBasePath = "/admin/sales-crm/projects",
+}: {
+  project: SalesProjectWithRelations;
+  leadBasePath?: string;
+  projectBasePath?: string;
+}) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -63,6 +72,8 @@ function SalesProjectDetail({ project, leadBasePath = "/admin/sales-crm/leads" }
               {project.description && <p className="text-muted-foreground col-span-full text-sm">{project.description}</p>}
             </CardContent>
           </Card>
+
+          <OnboardingFormsPanel salesProjectId={project.id} forms={project.onboardingForms} basePath={projectBasePath} />
 
           <SalesProjectPaymentsPanel salesProjectId={project.id} clientName={project.clientName} payments={project.payments} />
 

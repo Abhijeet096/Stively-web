@@ -340,6 +340,7 @@ export async function getSalesProjectById(id: string, viewer: SalesCrmViewer) {
       commissions: true,
       updates: { orderBy: { createdAt: "desc" }, include: { postedBy: { select: { name: true } } } },
       milestones: { orderBy: { order: "asc" } },
+      onboardingForms: { orderBy: { createdAt: "desc" }, include: { sentBy: { select: { name: true } }, reviewedBy: { select: { name: true } } } },
     },
   });
 }

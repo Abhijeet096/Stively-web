@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 
 import { B2B_ONLY_MODE } from "@/config/site";
+import { RECENT_LEAD_EMAIL_COOKIE } from "@/lib/auth-constants";
 import { RegisterForm } from "@/components/forms/register-form";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 
@@ -20,8 +22,9 @@ interface RegisterPageProps {
  * one-off param name.
  */
 export default async function RegisterPage({ searchParams }: RegisterPageProps) {
-  const { type, callbackUrl } = await searchParams;
+  const [{ type, callbackUrl }, cookieStore] = await Promise.all([searchParams, cookies()]);
   const defaultRole = type === "business" ? "CLIENT" : "STUDENT";
+  const defaultEmail = cookieStore.get(RECENT_LEAD_EMAIL_COOKIE)?.value;
 
   return (
     <Card className="w-full">
@@ -32,7 +35,7 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <RegisterForm defaultRole={defaultRole} callbackUrl={callbackUrl} />
+        <RegisterForm defaultRole={defaultRole} callbackUrl={callbackUrl} defaultEmail={defaultEmail} />
       </CardContent>
     </Card>
   );

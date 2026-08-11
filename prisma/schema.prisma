@@ -505,6 +505,10 @@ model TeamMember {
   discoveryFormsSent     DiscoveryForm[] @relation("DiscoveryFormSentBy")
   discoveryFormsReviewed DiscoveryForm[] @relation("DiscoveryFormReviewedBy")
 
+  /// Post-approval kickoff form - see OnboardingForm below.
+  onboardingFormsSent     OnboardingForm[] @relation("OnboardingFormSentBy")
+  onboardingFormsReviewed OnboardingForm[] @relation("OnboardingFormReviewedBy")
+
   createdAt DateTime @default(now())
 }
 
@@ -2679,10 +2683,23 @@ model SalesLead {
   /// second project bolted onto the first) - resolveClientProjectViewer
   /// aggregates every SalesLead where clientUserId matches this User.
   clientUserId String?
-  clientUser   User?            @relation("SalesLeadClient", fields: [clientUserId], references: [id], onDelete: SetNull)
+  clientUser   User?   @relation("SalesLeadClient", fields: [clientUserId], references: [id], onDelete: SetNull)
+
+  /// Self-serve account creation - admin generates this link (or it's
+  /// auto-attached to a quote email), the client opens it and sets their own
+  /// name/password, no password-reset detour. Same unguessable-token pattern
+  /// as Proposal.token/DiscoveryForm.token. Cleared (set to null) once
+  /// accepted - one-time use, can't be replayed after the account exists.
+  /// See AD-017.
+  inviteToken          String?   @unique
+  inviteTokenExpiresAt DateTime?
+  inviteSentAt         DateTime?
+  inviteOpenedAt       DateTime?
+  inviteAcceptedAt     DateTime?
+
   /// Client Workspace - every document delivered to this business (contract,
   /// invoice, welcome packet, handover, warranty...). See ClientDocument.
-  documents    ClientDocument[]
+  documents ClientDocument[]
 
   assignments SalesLeadAssignment[]
   activities  SalesLeadActivity[]
@@ -3008,6 +3025,137 @@ model DiscoveryForm {
 
   @@index([salesLeadId])
   @@index([status])
+}
+
+enum OnboardingFormStatus {
+  DRAFT
+  SENT
+  OPENED
+  SUBMITTED
+  REVIEWED
+  /// Same lazily-persisted expiry pattern as DiscoveryFormStatus.EXPIRED
+  /// (see AD-016) - learned from that build that a dedicated IN_PROGRESS
+  /// value never actually gets set anywhere without real autosave, so it's
+  /// not repeated here.
+  EXPIRED
+}
+
+/// Stively's own post-approval project kickoff form - built from a real
+/// Claude Design handoff (see AD-018), fields transcribed verbatim from
+/// that design, not invented. Distinct from DiscoveryForm (AD-016): that one
+/// gathers pre-sale requirements and is lead-scoped; this one kicks off one
+/// specific already-WON engagement (brand assets, technical access,
+/// content, start date) and is project-scoped - a client with two projects
+/// needs two separate onboarding forms, one per project. Same
+/// token/status/notify architecture as DiscoveryForm throughout.
+model OnboardingForm {
+  id String @id @default(cuid())
+
+  salesProjectId String
+  salesProject   SalesProject @relation(fields: [salesProjectId], references: [id], onDelete: Cascade)
+
+  token     String    @unique
+  expiresAt DateTime?
+
+  status      OnboardingFormStatus @default(DRAFT)
+  sentAt      DateTime?
+  openedAt    DateTime?
+  submittedAt DateTime?
+  reviewedAt  DateTime?
+
+  // --- Header ---
+  formDate   DateTime?
+  preparedBy String?
+
+  // --- Section 1: Client Information ---
+  company        String?
+  primaryContact String?
+  email          String?
+  phone          String?
+  billingInfo    String? @db.Text
+
+  // --- Section 2: Project Information ---
+  projectName      String?
+  targetAudience   String?
+  approvedScope    String? @db.Text
+  primaryObjective String? @db.Text
+
+  // --- Section 3: Brand Assets (text fields only - files are OnboardingFormUpload rows) ---
+  brandColors String?
+  brandFonts  String?
+
+  // --- Section 4: Technical Access ---
+  domainRegistrar      String?
+  hostingProvider      String?
+  githubOrg            String?
+  cloudInfrastructure  String?
+  apiCredentialsNeeded String?
+  thirdPartyServices   String?
+
+  // --- Section 5: Content (text fields only - files are OnboardingFormUpload rows) ---
+  productInformation String? @db.Text
+  legalPages         String? @db.Text
+
+  // --- Section 6: Communication ---
+  primaryCommunicationChannel String?
+  primaryDecisionMaker        String?
+  reviewApprovalContact       String?
+
+  // --- Section 7: Project Approval ---
+  projectStartDate       DateTime?
+  expectedMilestoneDates String?
+  notes                  String?   @db.Text
+  /// The design's confirmation checkbox ("I confirm the information above
+  /// is accurate... and I am authorized to submit it").
+  confirmedAccurate      Boolean   @default(false)
+
+  uploads OnboardingFormUpload[]
+
+  sentById String?
+  sentBy   TeamMember? @relation("OnboardingFormSentBy", fields: [sentById], references: [id], onDelete: SetNull)
+
+  reviewedById String?
+  reviewedBy   TeamMember? @relation("OnboardingFormReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([salesProjectId])
+  @@index([status])
+}
+
+/// One of the design's 7 upload fields (logo, brand guidelines, brand
+/// images, existing design files, website copy, content images, documents).
+/// A single relational model discriminated by `field`, not 7 separate
+/// URL/array columns on OnboardingForm - handles the design's mixed
+/// single-file/multi-file fields uniformly (a single-file field just never
+/// has more than one row), and mirrors SalesLeadAttachment's existing shape
+/// rather than inventing a JSON-blob convention.
+enum OnboardingUploadField {
+  LOGO
+  BRAND_GUIDELINES
+  BRAND_IMAGE
+  DESIGN_FILE
+  WEBSITE_COPY
+  CONTENT_IMAGE
+  DOCUMENT
+}
+
+model OnboardingFormUpload {
+  id String @id @default(cuid())
+
+  onboardingFormId String
+  onboardingForm   OnboardingForm @relation(fields: [onboardingFormId], references: [id], onDelete: Cascade)
+
+  field    OnboardingUploadField
+  fileName String
+  fileUrl  String
+  fileType String?
+  fileSize Int?
+
+  createdAt DateTime @default(now())
+
+  @@index([onboardingFormId])
 }
 
 enum ProposalStatus {
@@ -3550,6 +3698,12 @@ model SalesProject {
   /// ProjectMilestone below).
   updates    ProjectUpdate[]
   milestones ProjectMilestone[]
+
+  /// Post-approval kickoff form - see OnboardingForm below. Project-scoped
+  /// (not lead-scoped like DiscoveryForm) because onboarding kicks off one
+  /// specific engagement - a client with two projects needs two separate
+  /// onboarding forms, one per project.
+  onboardingForms OnboardingForm[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

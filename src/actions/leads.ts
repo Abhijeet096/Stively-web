@@ -1,9 +1,12 @@
 "use server";
 
+import { cookies } from "next/headers";
+
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { leadSchema, contactEnquirySchema, startProjectLeadSchema, type LeadInput } from "@/lib/validations/lead";
 import { notifyNewLeadCreated } from "@/features/leads/server/notify";
+import { RECENT_LEAD_EMAIL_COOKIE } from "@/lib/auth-constants";
 
 export type ActionResult = { success: true } | { success: false; error: string };
 
@@ -26,6 +29,21 @@ export async function submitLead(input: LeadInput): Promise<ActionResult> {
       await notifyNewLeadCreated(lead);
     } catch (error) {
       console.error("notifyNewLeadCreated failed:", error);
+    }
+
+    // Carries the email forward to /register (prefill, never lock - see
+    // AD-017) if this same browser comes back later to create an account.
+    // 30 days: long enough to cover "inquired, thought about it, signed up
+    // a few weeks later," short enough that a shared/public device doesn't
+    // keep suggesting a stale email indefinitely.
+    if (lead.email) {
+      const store = await cookies();
+      store.set(RECENT_LEAD_EMAIL_COOKIE, lead.email, {
+        httpOnly: true,
+        maxAge: 60 * 60 * 24 * 30,
+        path: "/",
+        sameSite: "lax",
+      });
     }
 
     return { success: true };

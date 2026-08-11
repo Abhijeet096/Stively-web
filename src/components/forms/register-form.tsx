@@ -16,6 +16,8 @@ type PublicRole = "STUDENT" | "CLIENT";
 export interface RegisterFormProps {
   defaultRole?: PublicRole;
   callbackUrl?: string;
+  /** Prefilled (never locked - see AD-017) from a recent contact/start-project inquiry on this browser, so someone who already reached out doesn't drift into a second, disconnected identity by registering under a different email. */
+  defaultEmail?: string;
 }
 
 /**
@@ -23,7 +25,7 @@ export interface RegisterFormProps {
  * "expose Student and Business/Client only" rule, enforced again (not just
  * here) by src/lib/validations/auth.ts's registerSchema server-side.
  */
-function RegisterForm({ defaultRole = "STUDENT", callbackUrl }: RegisterFormProps) {
+function RegisterForm({ defaultRole = "STUDENT", callbackUrl, defaultEmail }: RegisterFormProps) {
   // B2B_ONLY_MODE (see site.ts): no new student sign-ups while the founder
   // is pausing training/instructor activity - always Business here,
   // regardless of what a caller passes as defaultRole.
@@ -84,8 +86,12 @@ function RegisterForm({ defaultRole = "STUDENT", callbackUrl }: RegisterFormProp
           <Input name="name" required autoComplete="name" />
         </FormField>
 
-        <FormField id="email" label="Email">
-          <Input name="email" type="email" required autoComplete="email" />
+        <FormField
+          id="email"
+          label="Email"
+          helpText={defaultEmail ? "This matches your recent inquiry to Stively - change it if you'd like to use a different one." : undefined}
+        >
+          <Input name="email" type="email" required autoComplete="email" defaultValue={defaultEmail} />
         </FormField>
 
         {role === "CLIENT" && (
@@ -119,7 +125,7 @@ function RegisterForm({ defaultRole = "STUDENT", callbackUrl }: RegisterFormProp
         <div className="bg-border h-px flex-1" />
       </div>
 
-      <GoogleSignInButton callbackUrl={callbackUrl} role={role} />
+      <GoogleSignInButton callbackUrl={callbackUrl} role={role} email={defaultEmail} />
 
       <p className="text-muted-foreground text-center text-sm">
         Already have an account?{" "}

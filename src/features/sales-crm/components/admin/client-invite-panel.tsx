@@ -2,11 +2,11 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { UserPlus, CheckCircle2 } from "lucide-react";
+import { UserPlus, CheckCircle2, Copy } from "lucide-react";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { inviteClientToPortal } from "../../actions/client-invite-actions";
+import { sendClientInviteLink } from "../../actions/client-invite-actions";
 
 export interface ClientInvitePanelProps {
   salesLeadId: string;
@@ -18,25 +18,37 @@ export interface ClientInvitePanelProps {
  * "The salesperson gets the client to create a real Stively account" - one
  * deliberate click, never automatic. Once linked, every document/payment/
  * progress update for this business becomes visible in the client's own
- * dashboard - see src/features/client-workspace/.
+ * dashboard - see src/features/client-workspace/. Clicking again after an
+ * account already exists elsewhere isn't offered (button disappears once
+ * `clientUser` is set) - re-inviting an already-linked business has no
+ * meaning.
  */
 function ClientInvitePanel({ salesLeadId, clientUser, leadHasEmail }: ClientInvitePanelProps) {
   const router = useRouter();
   const [isInviting, setIsInviting] = React.useState(false);
   const [error, setError] = React.useState<string | undefined>();
-  const [justInvited, setJustInvited] = React.useState(false);
+  const [inviteLink, setInviteLink] = React.useState<string | undefined>();
+  const [justLinkedExisting, setJustLinkedExisting] = React.useState(false);
 
   async function handleInvite() {
     setIsInviting(true);
     setError(undefined);
-    const result = await inviteClientToPortal({ salesLeadId });
+    const result = await sendClientInviteLink({ salesLeadId });
     setIsInviting(false);
     if (!result.success) {
       setError(result.error);
       return;
     }
-    setJustInvited(true);
+    if (result.alreadyHadAccount) {
+      setJustLinkedExisting(true);
+    } else {
+      setInviteLink(result.inviteLink);
+    }
     router.refresh();
+  }
+
+  function copyLink() {
+    if (inviteLink) navigator.clipboard.writeText(inviteLink);
   }
 
   return (
@@ -53,20 +65,29 @@ function ClientInvitePanel({ salesLeadId, clientUser, leadHasEmail }: ClientInvi
               <span className="text-muted-foreground text-xs">
                 {clientUser.name ?? "Client"} · {clientUser.email}
               </span>
-              {justInvited && <span className="text-muted-foreground text-xs">An email was just sent to set up account access.</span>}
+              {justLinkedExisting && <span className="text-muted-foreground text-xs">They already had an account - it&apos;s now linked.</span>}
             </div>
           </div>
         ) : (
           <>
             <p className="text-muted-foreground text-xs">
-              Give this business its own login - proposal, contract, invoices, payments, and project progress all in one place instead of email/WhatsApp.
+              Give this business its own login - quotes, contract, invoices, payments, and project progress all in one place instead of email/WhatsApp.
             </p>
             {!leadHasEmail && <p className="text-destructive text-xs">Add an email address to this lead first.</p>}
             {error && <p className="text-destructive text-xs">{error}</p>}
             <Button type="button" size="sm" variant="outline" loading={isInviting} disabled={!leadHasEmail} onClick={handleInvite} className="w-fit">
               <UserPlus className="size-3.5" aria-hidden="true" />
-              Invite to client portal
+              {inviteLink ? "Send new invite link" : "Invite to client portal"}
             </Button>
+            {inviteLink && (
+              <div className="border-border flex items-center justify-between gap-2 rounded-lg border p-2">
+                <span className="text-muted-foreground truncate text-xs">{inviteLink}</span>
+                <Button type="button" size="sm" variant="ghost" onClick={copyLink}>
+                  <Copy className="size-3.5" aria-hidden="true" />
+                  Copy
+                </Button>
+              </div>
+            )}
           </>
         )}
       </CardContent>

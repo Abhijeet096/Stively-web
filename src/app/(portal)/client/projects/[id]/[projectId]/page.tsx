@@ -8,6 +8,7 @@ import { Container } from "@/components/shared/container";
 import { resolveClientWorkspaceViewer } from "@/features/client-workspace/server/rbac";
 import { getClientProjectById } from "@/features/client-workspace/server/queries";
 import { ClientProjectDetail } from "@/features/client-workspace/components/client/client-project-detail";
+import { getOnboardingFormsForClientProject } from "@/features/onboarding-forms/server/queries";
 import { prisma } from "@/lib/prisma";
 
 interface ClientProjectDetailPageProps {
@@ -23,9 +24,10 @@ export default async function ClientProjectSubPage({ params }: ClientProjectDeta
   const viewer = await resolveClientWorkspaceViewer(user.id);
   if (!viewer.salesLeadIds.includes(id)) notFound();
 
-  const [project, lead] = await Promise.all([
+  const [project, lead, onboardingForms] = await Promise.all([
     getClientProjectById(id, projectId, viewer),
     prisma.salesLead.findUnique({ where: { id }, select: { businessName: true } }),
+    getOnboardingFormsForClientProject(projectId, viewer),
   ]);
   if (!project || !lead) notFound();
 
@@ -39,6 +41,7 @@ export default async function ClientProjectSubPage({ params }: ClientProjectDeta
           leadId={id}
           businessName={lead.businessName}
           project={project}
+          onboardingForms={onboardingForms}
           userName={user.name ?? undefined}
           userEmail={user.email ?? undefined}
           nonce={nonce}

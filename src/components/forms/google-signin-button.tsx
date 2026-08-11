@@ -5,6 +5,8 @@ export interface GoogleSignInButtonProps {
   callbackUrl?: string;
   /** Only meaningful on /register - staged into a cookie for a brand-new account's role. See googleSignIn's own comment in src/actions/auth.ts. */
   role?: "STUDENT" | "CLIENT";
+  /** Only meaningful on /register - pre-selects (never forces) this Google account via login_hint when the visitor recently submitted an inquiry with this email. See AD-017. */
+  email?: string;
 }
 
 /**
@@ -15,11 +17,12 @@ export interface GoogleSignInButtonProps {
  * read instead), and the server-action form-post pattern is the
  * documented Auth.js v5 App Router approach that doesn't need one.
  */
-function GoogleSignInButton({ callbackUrl, role }: GoogleSignInButtonProps) {
+function GoogleSignInButton({ callbackUrl, role, email }: GoogleSignInButtonProps) {
   return (
     <form action={googleSignIn}>
       {callbackUrl && <input type="hidden" name="callbackUrl" value={callbackUrl} />}
       {role && <input type="hidden" name="role" value={role} />}
+      {email && <input type="hidden" name="email" value={email} />}
       <Button type="submit" variant="outline" size="lg" className="w-full">
         <svg viewBox="0 0 24 24" className="size-4" aria-hidden="true">
           <path

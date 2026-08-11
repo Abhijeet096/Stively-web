@@ -21,25 +21,7 @@ import {
 } from "@/lib/validations/auth";
 import { resend, EMAIL_FROM } from "@/lib/resend";
 import { siteConfig } from "@/config/site";
-
-/**
- * `signIn()` signals its own success by throwing Next.js's internal
- * redirect error (digest starting with "NEXT_REDIRECT") when `redirectTo`
- * is set - that has to be re-thrown, not swallowed, or the redirect never
- * happens. Checked by digest string rather than importing Next's internal
- * `isRedirectError` helper (not part of the public API, and this project
- * pins a nonstandard Next.js build per AGENTS.md - see that file's warning
- * about relying on internals here).
- */
-function isNextRedirectError(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "digest" in error &&
-    typeof (error as { digest?: unknown }).digest === "string" &&
-    (error as { digest: string }).digest.startsWith("NEXT_REDIRECT")
-  );
-}
+import { isNextRedirectError } from "@/lib/next-redirect";
 
 /**
  * Same shape as src/actions/leads.ts's ActionResult, widened with an
@@ -302,7 +284,13 @@ export async function googleSignIn(formData: FormData): Promise<void> {
   }
 
   const callbackUrl = (formData.get("callbackUrl") as string | null) || "/login";
-  await signIn("google", { redirectTo: callbackUrl });
+  // login_hint pre-selects (never forces - Google doesn't offer a true
+  // restriction here) this Google account on the picker screen, for the
+  // same "prefill, don't lock" case as the plain email field above it -
+  // see AD-017.
+  const emailHint = formData.get("email");
+  const authorizationParams = typeof emailHint === "string" && emailHint ? { login_hint: emailHint } : undefined;
+  await signIn("google", { redirectTo: callbackUrl }, authorizationParams);
 }
 
 /** Used by ProfileDropdown's sign-out item - see src/components/dashboard-shell/profile/profile-dropdown.tsx. */

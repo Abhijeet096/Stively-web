@@ -12,6 +12,7 @@ import { SalesLeadLostReason } from "./sales-lead-lost-reason";
 import { SalesLeadOwnerPanel } from "./sales-lead-owner-panel";
 import { SalesLeadOutreachPanel } from "./sales-lead-outreach-panel";
 import { ClientInvitePanel } from "./client-invite-panel";
+import { EditBusinessDetailsDialog } from "./edit-business-details-dialog";
 import { ClientDocumentsPanel } from "@/features/client-workspace/components/admin/client-documents-panel";
 import type { getClientDocumentsForLead } from "@/features/client-workspace/server/queries";
 import { DiscoveryChecklistPanel, type DiscoveryOfferingOption } from "@/features/proposals/components/admin/discovery-checklist-panel";
@@ -126,8 +127,9 @@ function SalesLeadDetail({
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="flex flex-col gap-6 lg:col-span-2">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Business details</CardTitle>
+              <EditBusinessDetailsDialog lead={lead} />
             </CardHeader>
             <CardContent className="grid gap-2.5 sm:grid-cols-2">
               <InfoRow icon={Phone}>{lead.phone}</InfoRow>

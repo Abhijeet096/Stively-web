@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { MessageCircle, ShieldCheck, FileCheck, MessagesSquare, Rocket } from "lucide-react";
 
 import { siteConfig } from "@/config/site";
+import { auth } from "@/lib/auth";
 import { getWhatsAppUrl } from "@/lib/whatsapp";
 import { getFeaturedPortfolioItems } from "@/lib/queries/portfolio";
 import { Section } from "@/components/shared/section";
@@ -68,7 +69,11 @@ const STEPS = [
  * not another dark full-bleed sales pitch.
  */
 export default async function StartProjectPage() {
-  const portfolioItems = await getFeaturedPortfolioItems(3);
+  const [portfolioItems, session] = await Promise.all([getFeaturedPortfolioItems(3), auth()]);
+  // Only a CLIENT's own email is worth prefilling here - anyone else logged
+  // in (staff, a student account, etc.) has no reason to have their session
+  // email attached to a new business inquiry.
+  const defaultEmail = session?.user?.role === "CLIENT" ? (session.user.email ?? undefined) : undefined;
 
   return (
     <>
@@ -146,7 +151,7 @@ export default async function StartProjectPage() {
               <p className="text-muted-foreground mb-6 text-sm">
                 Takes under a minute. We never share your details.
               </p>
-              <StartProjectForm />
+              <StartProjectForm defaultEmail={defaultEmail} />
             </Card>
           </div>
         </Container>

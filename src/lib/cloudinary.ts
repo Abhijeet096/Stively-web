@@ -58,7 +58,7 @@ export type CloudinaryFileUploadResult = {
  */
 export async function uploadFile(
   file: Buffer,
-  folder: "sales-leads" | "client-documents" | "interview-recordings",
+  folder: "sales-leads" | "client-documents" | "interview-recordings" | "onboarding-forms",
   fileName: string
 ): Promise<CloudinaryFileUploadResult> {
   return new Promise((resolve, reject) => {

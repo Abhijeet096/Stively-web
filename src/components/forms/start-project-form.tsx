@@ -76,7 +76,12 @@ function PillGroup<T extends string>({
  * (see startProjectLeadSchema, src/lib/validations/lead.ts), not optional,
  * since the founder wants that signal on every lead that comes through.
  */
-function StartProjectForm() {
+export interface StartProjectFormProps {
+  /** Prefilled (never locked - the visitor can still change it) when a logged-in CLIENT reaches this page directly, so their portal account's email is the one this Lead gets created with, instead of drifting into a second, unlinked identity. */
+  defaultEmail?: string;
+}
+
+function StartProjectForm({ defaultEmail }: StartProjectFormProps = {}) {
   const router = useRouter();
   // Defaults to Website - the first Google Ads campaign targets web
   // development search terms specifically, so most visitors landing here
@@ -134,7 +139,7 @@ function StartProjectForm() {
         optional
         helpText="We'll send a quick confirmation here too."
       >
-        <Input name="email" type="email" autoComplete="email" />
+        <Input name="email" type="email" autoComplete="email" defaultValue={defaultEmail} />
       </FormField>
 
       <div className="flex flex-col gap-2">

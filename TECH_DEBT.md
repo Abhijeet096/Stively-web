@@ -82,6 +82,18 @@ Every shortcut, gap, or deferred decision goes here the moment it's identified â
 **Priority:** P3
 **Estimated effort:** ~30 minutes (add the same `rateLimitWindowStart`/`rateLimitCount` fields + reuse `checkProposalRateLimit`'s pattern) if real abuse is ever observed.
 
+## Public `/onboarding/[token]` submission has no rate limiting
+
+**Reason:** Same judgment call as `/discovery/[token]` above - a one-time form fill is a low abuse surface, and this codebase's rate-limit pattern already exists to reuse if it's ever actually needed.
+**Priority:** P3
+**Estimated effort:** ~30 minutes.
+
+## `OnboardingFormUpload` files have no lifecycle tracking
+
+**Reason:** Unlike `ClientDocument` (archival/versioning, lifecycle status), an onboarding-form upload is just a Cloudinary URL with no expiry/archival concept - fine for one-time kickoff assets (logo, brand guidelines, etc.), but if these ever need to be superseded/re-uploaded with history kept, they don't currently support that.
+**Priority:** P3
+**Estimated effort:** ~1-2 hours if ever needed (add the same lifecycle fields `ClientDocument` already has).
+
 ## Near-duplicate priority enums
 
 **Reason:** `RequestPriority` and `OperationPriority` are structurally identical (both LOW/MEDIUM/HIGH/URGENT) and could have been one shared enum.

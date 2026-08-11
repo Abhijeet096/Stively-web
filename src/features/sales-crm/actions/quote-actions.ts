@@ -10,6 +10,7 @@ import { siteConfig } from "@/config/site";
 import type { ActionResult } from "@/actions/leads";
 import { createAndSendQuoteSchema, markQuoteResponseSchema } from "../validation/quote-schemas";
 import { resolveSalesCrmViewer } from "../server/rbac";
+import { ensureClientInviteToken } from "../server/invite-creation";
 import { createNotification } from "@/features/notifications/server/creation";
 
 async function actorTeamMember(userId: string) {
@@ -28,8 +29,10 @@ function buildQuoteEmailHtml(params: {
   standardAmount: number | null;
   currency: string;
   message?: string;
-  /** Set only when the lead's contact already has a CLIENT portal account - gives them a real in-app place to respond instead of "reply to this email". */
+  /** Set only when the lead's contact already has a CLIENT portal account - gives them a real in-app place to respond instead of "reply to this email". Mutually exclusive with inviteLink - a lead either already has an account or doesn't. */
   portalLink?: string;
+  /** Set only when there's no portal account yet - the same "don't lose them" invite link as sendClientInviteLink, folded into the quote email instead of a separate one (see AD-017). */
+  inviteLink?: string;
 }) {
   const quotedFormatted = formatPrice(params.quotedAmount, params.currency);
   const standardLine =
@@ -39,7 +42,10 @@ function buildQuoteEmailHtml(params: {
   const messageHtml = params.message ? `<p style="color:#374151;line-height:1.6;">${params.message.replace(/\n/g, "<br/>")}</p>` : "";
   const portalCta = params.portalLink
     ? `<p style="margin-top:24px;"><a href="${params.portalLink}" style="display:inline-block;background:#111827;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;">View & respond in your dashboard</a></p>`
-    : "";
+    : params.inviteLink
+      ? `<p style="margin-top:24px;"><a href="${params.inviteLink}" style="display:inline-block;background:#111827;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;">Create your account to track this quote</a></p>
+         <p style="color:#6b7280;font-size:13px;margin-top:8px;">Set up a free account to view this quote, chat with us, and track your project once it starts.</p>`
+      : "";
 
   return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; color: #111827;">
@@ -117,6 +123,11 @@ export async function createAndSendQuote(input: unknown): Promise<CreateAndSendQ
     });
 
     const portalLink = lead.clientUserId ? `${siteConfig.url}/client/projects/${lead.id}` : undefined;
+    // No portal account yet - fold a fresh invite link into this same email
+    // instead of a separate one, so the client's first touch with a real
+    // number attached to their project is also the moment they're offered
+    // an account to track it in. See AD-017.
+    const inviteLink = !lead.clientUserId && lead.email ? (await ensureClientInviteToken(lead.id)).link : undefined;
 
     let emailSent = false;
     if (lead.email) {
@@ -131,6 +142,7 @@ export async function createAndSendQuote(input: unknown): Promise<CreateAndSendQ
           currency: "INR",
           message: data.message,
           portalLink,
+          inviteLink,
         });
         await resend.emails.send({ from: EMAIL_FROM, to: lead.email, subject: `Your quote from Stively - ${data.title}`, html });
         emailSent = true;
