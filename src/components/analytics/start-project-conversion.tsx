@@ -5,12 +5,20 @@ import * as React from "react";
 import { START_PROJECT_CONVERSION_KEY } from "@/lib/conversion-tracking";
 
 /**
- * Google Ads conversion action "Start Project Lead" (Contact category).
- * Conversion ID/label are fixed identifiers issued by Google Ads for this
- * exact conversion action - never regenerate or recompute these, and never
- * fire this event anywhere else without going through this same component.
+ * Google Ads conversion action "Start Project Lead" (Contact category), on
+ * the new AW-18357349291 account (replaces the AW-17718751960 one this
+ * account superseded on 2026-08-11 - see NEXT_PUBLIC_GOOGLE_ADS_ID in .env/
+ * .env.local). Conversion ID/label are fixed identifiers issued by Google
+ * Ads for this exact conversion action - never regenerate or recompute
+ * these, and never fire this event anywhere else without going through this
+ * same component. "Page load" measurement, not "Click" - this event only
+ * fires from real code on /thank-you after a genuinely successful
+ * submission (see the component below), never tied to a button click, which
+ * is what caused AD-011's original misconfiguration.
  */
-const CONVERSION_LABEL = "AW-17718751960/4kRyCOyJ3t0cENjl-oBC";
+const CONVERSION_LABEL = "AW-18357349291/-GutCJKL9t8cEKvXu7FE";
+const CONVERSION_VALUE = 1.0;
+const CONVERSION_CURRENCY = "INR";
 
 /** How long to keep polling for `window.gtag` to exist before giving up and falling back to a raw dataLayer push. */
 const GTAG_WAIT_TIMEOUT_MS = 5000;
@@ -78,7 +86,7 @@ export function StartProjectConversion() {
       if (cancelled) return;
 
       if (typeof window.gtag === "function") {
-        window.gtag("event", "conversion", { send_to: CONVERSION_LABEL });
+        window.gtag("event", "conversion", { send_to: CONVERSION_LABEL, value: CONVERSION_VALUE, currency: CONVERSION_CURRENCY });
         console.info(
           `[stively-conversion] fired via window.gtag after ${Date.now() - startedAt}ms: ${CONVERSION_LABEL}`
         );
@@ -92,7 +100,7 @@ export function StartProjectConversion() {
         // path means something upstream (the base tag scripts) isn't
         // loading the way it's supposed to.
         window.dataLayer = window.dataLayer || [];
-        window.dataLayer.push(["event", "conversion", { send_to: CONVERSION_LABEL }]);
+        window.dataLayer.push(["event", "conversion", { send_to: CONVERSION_LABEL, value: CONVERSION_VALUE, currency: CONVERSION_CURRENCY }]);
         console.warn(
           `[stively-conversion] window.gtag never became available within ${GTAG_WAIT_TIMEOUT_MS}ms - used a raw dataLayer.push fallback for ${CONVERSION_LABEL}`
         );
