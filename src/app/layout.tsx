@@ -93,6 +93,7 @@ export default async function RootLayout({
             sameAs: [
               siteConfig.links.linkedin,
               siteConfig.links.instagram,
+              siteConfig.links.facebook,
               siteConfig.links.twitter,
             ].filter(Boolean),
           }}

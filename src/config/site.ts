@@ -27,7 +27,8 @@ export const siteConfig = {
   url: (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.stively.com").replace(/\/+$/, ""),
   links: {
     linkedin: "https://www.linkedin.com/company/stively-technologies/",
-    instagram: "https://www.instagram.com/stivelyTechnologies",
+    instagram: "https://www.instagram.com/stivelytechnologies/",
+    facebook: "https://www.facebook.com/stivelytechnologies/",
     // Not live yet - omitted (not a placeholder URL) until there's a real
     // profile, same "no fabricated content" discipline as contactPhone/
     // businessHours below. Footer and the Organization JSON-LD both treat

@@ -141,6 +141,14 @@ function Footer() {
             >
               Instagram
             </a>
+            <a
+              href={siteConfig.links.facebook}
+              className="text-ink-muted-foreground hover:text-ink-foreground text-sm transition-colors duration-150"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Facebook
+            </a>
           </div>
         </div>
       </Container>
