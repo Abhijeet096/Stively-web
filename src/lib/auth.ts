@@ -61,8 +61,45 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
         remember: { label: "Remember me", type: "text" },
+        // Guest-checkout auto-login (see acceptOrderAutoLogin in
+        // src/features/orders/actions/guest-checkout-actions.ts) - an
+        // alternate credential to email/password, never both at once. The
+        // account was created server-side with a random password the caller
+        // never has, so a normal password sign-in isn't possible for this
+        // first-touch moment; the token's own unguessability is the
+        // credential instead, same trust model as every other public
+        // token flow in this codebase (InterviewLink, Proposal,
+        // DiscoveryForm, ClientInvite).
+        token: { label: "Auto-login token", type: "text" },
       },
       async authorize(credentials) {
+        const token = typeof credentials?.token === "string" ? credentials.token : "";
+        if (token) {
+          const order = await prisma.order.findUnique({ where: { autoLoginToken: token } });
+          if (!order || !order.userId || !order.autoLoginTokenExpiresAt || order.autoLoginTokenExpiresAt < new Date()) {
+            return null;
+          }
+          const user = await prisma.user.findUnique({ where: { id: order.userId } });
+          if (!user) return null;
+
+          // One-time use - cleared the moment it's consumed, same
+          // "resend = a genuinely new token, not the same dead link"
+          // discipline as every other token in this codebase.
+          await prisma.$transaction([
+            prisma.order.update({ where: { id: order.id }, data: { autoLoginToken: null, autoLoginTokenExpiresAt: null } }),
+            prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } }),
+          ]);
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            image: user.image,
+            role: user.role,
+            remember: true,
+          } as unknown as { id: string; email: string; name: string | null; image: string | null; role: Role };
+        }
+
         const email = typeof credentials?.email === "string" ? credentials.email.trim() : "";
         const password = typeof credentials?.password === "string" ? credentials.password : "";
         const remember = credentials?.remember === "true";

@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 
 import {
   getOfferings,
   getOfferingBySlug,
   getRelatedOfferings,
   getAllOfferingSlugs,
+  getOfferingCurriculumOutline,
 } from "@/features/offerings/server/queries";
+import { CourseDetailView } from "@/features/offerings/components/course-detail-view";
 import { parseOfferingFilters } from "@/features/offerings/validation/offering-filters";
 import { slugToCategory } from "@/features/offerings/lib/category-slug";
 import { CATEGORY_LABEL } from "@/features/offerings/lib/labels";
@@ -169,6 +172,39 @@ export default async function OfferingSlugPage({ params, searchParams }: Offerin
   const related = await getRelatedOfferings(offering);
   const faqs = parseOfferingFaqs(offering.faqs);
   const primaryCta = getPrimaryOfferingCtaAction(offering);
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
+  // A course sells on a different page than a service does - one focused
+  // decision page with the price and enrol action always reachable, instead
+  // of the generic hero + list-section stack every other category uses.
+  // Same route and canonical URL either way, so this is a layout branch,
+  // not a second competing page for the same offering.
+  if (offering.category === "TRAINING") {
+    const curriculum = await getOfferingCurriculumOutline(offering.id);
+    return (
+      <>
+        <JsonLd
+          data={{
+            "@context": "https://schema.org",
+            "@type": "Course",
+            name: offering.title,
+            description: offering.shortDescription,
+            provider: { "@type": "Organization", name: siteConfig.name, sameAs: siteConfig.url },
+            ...(offering.price != null
+              ? {
+                  offers: {
+                    "@type": "Offer",
+                    price: ((offering.discountPrice ?? offering.price) / 100).toString(),
+                    priceCurrency: offering.currency,
+                  },
+                }
+              : {}),
+          }}
+        />
+        <CourseDetailView offering={offering} curriculum={curriculum} nonce={nonce} />
+      </>
+    );
+  }
 
   return (
     <>
@@ -198,7 +234,7 @@ export default async function OfferingSlugPage({ params, searchParams }: Offerin
       <OfferingListSection title="Benefits" items={offering.benefits} background="default" />
       <OfferingListSection title="Who it's for" items={offering.whoItsFor} background="muted" />
       <OfferingListSection title="Requirements" items={offering.requirements} background="default" />
-      <OfferingPricingCard offering={offering} />
+      <OfferingPricingCard offering={offering} nonce={nonce} />
       {faqs.length > 0 && <FAQSection items={faqs} />}
       <OfferingTestimonialsPlaceholder />
       <RelatedOfferings offerings={related} />

@@ -7,6 +7,8 @@ import Script from "next/script";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { formatPrice } from "@/lib/utils";
 import "@/lib/razorpay-client-types";
 import { createOrder, verifyPayment, markOrderFailed } from "../actions/order-actions";
 
@@ -15,6 +17,11 @@ export interface CheckoutButtonProps {
   offeringTitle: string;
   isFree: boolean;
   priceLabel: string;
+  /** Base price in paise - needed alongside priceLabel to compute a running total when the prompts-pack add-on is toggled. Undefined for FREE offerings. */
+  basePrice?: number;
+  currency: string;
+  /** Same one-fixed-optional-add-on offer as the guest-checkout flow (GuestCheckoutForm) - null means this offering doesn't have one. */
+  promptsPackPrice: number | null;
   userName?: string;
   userEmail?: string;
   /** /student/orders or /client/orders - where the confirmation page lives. */
@@ -35,6 +42,9 @@ function CheckoutButton({
   offeringTitle,
   isFree,
   priceLabel,
+  basePrice,
+  currency,
+  promptsPackPrice,
   userName,
   userEmail,
   detailPathPrefix,
@@ -43,14 +53,18 @@ function CheckoutButton({
   const router = useRouter();
   const [scriptReady, setScriptReady] = React.useState(false);
   const [phone, setPhone] = React.useState("");
+  const [promptsPack, setPromptsPack] = React.useState(false);
   const [isPending, setIsPending] = React.useState(false);
   const [error, setError] = React.useState<string | undefined>();
+
+  const total = basePrice != null ? basePrice + (promptsPack && promptsPackPrice ? promptsPackPrice : 0) : undefined;
+  const payLabel = isFree ? "Get access" : total != null ? `Pay ${formatPrice(total, currency)}` : `Pay ${priceLabel}`;
 
   async function handleClick() {
     setIsPending(true);
     setError(undefined);
 
-    const result = await createOrder(offeringId, phone.trim() || undefined);
+    const result = await createOrder(offeringId, phone.trim() || undefined, promptsPack);
 
     if (!result.success) {
       setIsPending(false);
@@ -129,6 +143,16 @@ function CheckoutButton({
         </div>
       )}
 
+      {!isFree && promptsPackPrice != null && (
+        <div className="border-primary/30 bg-primary/5 flex items-start gap-2.5 rounded-lg border p-3">
+          <Checkbox id="checkout-prompts-pack" checked={promptsPack} onCheckedChange={(v) => setPromptsPack(v === true)} className="mt-0.5" />
+          <Label htmlFor="checkout-prompts-pack" className="flex-1 cursor-pointer font-normal">
+            <span className="text-foreground font-medium">Add 100+ ready-to-use prompt templates</span>
+            <span className="text-muted-foreground block text-sm">One-time add-on, {formatPrice(promptsPackPrice, currency)}</span>
+          </Label>
+        </div>
+      )}
+
       {error && (
         <p role="alert" className="text-destructive text-sm">
           {error}
@@ -136,7 +160,7 @@ function CheckoutButton({
       )}
 
       <Button size="lg" loading={isPending} onClick={handleClick} className="w-full">
-        {isFree ? "Get access" : `Pay ${priceLabel}`}
+        {payLabel}
       </Button>
     </div>
   );

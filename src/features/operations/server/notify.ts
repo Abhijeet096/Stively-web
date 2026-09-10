@@ -36,6 +36,12 @@ export async function notifyMeetingScheduled(
   if (!source) return;
 
   const { user, offering } = source;
+  // A guest-checkout Order's user gets backfilled the moment payment is
+  // confirmed (see guest-fulfillment.ts) - an OperationItem only ever
+  // exists for an already-fulfilled order, so this should never actually
+  // be null in practice. Guarding anyway since Order.userId is nullable at
+  // the type level now.
+  if (!user) return;
   const isOrder = item.type === "ORDER";
   const link = promotedSalesLeadId
     ? `/client/projects/${promotedSalesLeadId}`

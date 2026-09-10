@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 
-import { B2B_ONLY_MODE } from "@/config/site";
 import { RECENT_LEAD_EMAIL_COOKIE } from "@/lib/auth-constants";
 import { RegisterForm } from "@/components/forms/register-form";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -30,9 +29,7 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
     <Card className="w-full">
       <CardHeader>
         <CardTitle className="font-display text-2xl">Create your account</CardTitle>
-        <CardDescription>
-          {B2B_ONLY_MODE ? "Get started with your business." : "Get started as a student or a business."}
-        </CardDescription>
+        <CardDescription>Get started as a student or a business.</CardDescription>
       </CardHeader>
       <CardContent>
         <RegisterForm defaultRole={defaultRole} callbackUrl={callbackUrl} defaultEmail={defaultEmail} />

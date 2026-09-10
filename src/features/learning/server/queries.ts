@@ -1,9 +1,10 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
-import type { Module, Lesson, LessonBlock, LessonProgress, Resource, Assessment, LiveSession, AssessmentSubmission } from "@prisma/client";
+import type { Module, Lesson, LessonBlock, LessonBlockType, LessonProgress, Resource, Assessment, LiveSession, AssessmentSubmission, AiTutorMessage } from "@prisma/client";
 import { getAccessPolicyForEnrollment } from "@/features/enrollments/server/access-policy";
-import { flattenLessons, findNextLesson, isLessonUnlocked } from "../lib/progress";
+import { flattenLessons, findNextLesson, isLessonUnlocked, calculateProgressPercentage } from "../lib/progress";
+import { AI_TUTOR_DAILY_MESSAGE_LIMIT, startOfTodayUtc } from "../lib/ai-tutor";
 
 export type ModuleWithLessons = Module & { lessons: Lesson[] };
 export type LessonBlockWithRelations = LessonBlock & {
@@ -12,13 +13,59 @@ export type LessonBlockWithRelations = LessonBlock & {
   liveSession: LiveSession | null;
 };
 
+/**
+ * One navigable entry in the course player's sidebar - a single LessonBlock
+ * (the video, the reading, the quiz), not a whole lesson. The learner
+ * navigates block by block, so the sidebar mirrors exactly what the main
+ * area can show. Deliberately a projection of existing LessonBlock rows
+ * rather than a new model.
+ */
+export interface CurriculumItem {
+  id: string;
+  lessonId: string;
+  type: LessonBlockType;
+  title: string;
+  order: number;
+  /**
+   * Quiz items carry their own real state, read from this enrollment's
+   * AssessmentSubmission - a passed quiz stays ticked even before the
+   * lesson itself is marked complete. Undefined for every non-quiz item,
+   * which inherits the lesson's own LessonProgress instead.
+   */
+  quizPassed?: boolean;
+}
+
 export interface Curriculum {
   learningExperienceId: string;
   title: string;
   modules: ModuleWithLessons[];
   progressByLessonId: Map<string, LessonProgress>;
+  /** Sidebar items per lesson, ordered - see CurriculumItem. */
+  itemsByLessonId: Map<string, CurriculumItem[]>;
   nextLesson: Lesson | null;
+  totalLessons: number;
+  completedLessons: number;
+  /** Real completion percentage from LessonProgress rows - never a static or estimated figure. */
+  progressPercentage: number;
 }
+
+/** Fallback label for a block with no title of its own, so the sidebar never shows a blank row. */
+const BLOCK_TYPE_LABEL: Partial<Record<LessonBlockType, string>> = {
+  VIDEO: "Video lesson",
+  MARKDOWN: "Reading material",
+  RICH_TEXT: "Reading material",
+  QUIZ: "Quiz",
+  ASSIGNMENT: "Assignment",
+  PROJECT: "Project",
+  AI_CONVERSATION: "Ask the AI Tutor",
+  PDF: "PDF",
+  SLIDES: "Slides",
+  DOWNLOAD: "Download",
+  EXTERNAL_LINK: "Link",
+  EMBED: "Embed",
+  CODE: "Code",
+  LIVE_SESSION: "Live session",
+};
 
 /**
  * The one student-facing curriculum query - always goes through
@@ -52,13 +99,100 @@ export async function getCurriculumForEnrollment(
   const statusByLessonId = new Map(orderedLessons.map((l) => [l.id, progressByLessonId.get(l.id)?.status ?? "NOT_STARTED"]));
   const nextLesson = findNextLesson(orderedLessons, statusByLessonId);
 
+  // Sidebar items: every block across the whole curriculum in one query,
+  // plus this enrollment's quiz results so a passed quiz can show its own
+  // tick independently of whether the lesson was marked complete.
+  const blocks = await prisma.lessonBlock.findMany({
+    where: { lessonId: { in: orderedLessons.map((l) => l.id) } },
+    orderBy: { order: "asc" },
+    select: {
+      id: true,
+      lessonId: true,
+      type: true,
+      title: true,
+      order: true,
+      assessmentId: true,
+      assessment: { select: { passingScore: true } },
+    },
+  });
+
+  const quizAssessmentIds = blocks
+    .filter((b) => b.type === "QUIZ" && b.assessmentId)
+    .map((b) => b.assessmentId as string);
+  const submissions = quizAssessmentIds.length
+    ? await prisma.assessmentSubmission.findMany({
+        where: { enrollmentId, assessmentId: { in: quizAssessmentIds } },
+        select: { assessmentId: true, score: true },
+      })
+    : [];
+  const scoreByAssessmentId = new Map(submissions.map((s) => [s.assessmentId, s.score ?? 0]));
+
+  const itemsByLessonId = new Map<string, CurriculumItem[]>();
+  for (const block of blocks) {
+    const item: CurriculumItem = {
+      id: block.id,
+      lessonId: block.lessonId,
+      type: block.type,
+      title: block.title?.trim() || BLOCK_TYPE_LABEL[block.type] || "Lesson content",
+      order: block.order,
+      ...(block.type === "QUIZ" && block.assessmentId
+        ? {
+            quizPassed:
+              (scoreByAssessmentId.get(block.assessmentId) ?? -1) >= (block.assessment?.passingScore ?? 0) &&
+              scoreByAssessmentId.has(block.assessmentId),
+          }
+        : {}),
+    };
+    const list = itemsByLessonId.get(block.lessonId);
+    if (list) list.push(item);
+    else itemsByLessonId.set(block.lessonId, [item]);
+  }
+
+  const completedLessons = orderedLessons.filter((l) => statusByLessonId.get(l.id) === "COMPLETED").length;
+
   return {
     learningExperienceId: learningExperience.id,
     title: learningExperience.title ?? learningExperience.offering.title,
     modules,
     progressByLessonId,
+    itemsByLessonId,
     nextLesson,
+    totalLessons: orderedLessons.length,
+    completedLessons,
+    progressPercentage: calculateProgressPercentage(orderedLessons.length, completedLessons),
   };
+}
+
+/**
+ * True if this lesson has a QUIZ block that hasn't been passed yet
+ * (score >= Assessment.passingScore, default 0 - i.e. no minimum means
+ * never blocking) - the real enforcement point behind "must pass the quiz
+ * to unlock the next lesson." Called from both getLessonForStudent (to
+ * disable "Mark as complete" in the UI) and markLessonComplete (to
+ * re-verify server-side - a disabled button is not real enforcement on its
+ * own). `blocks` can be passed in when the caller already has them
+ * (avoids a duplicate query); omitted, it fetches them itself.
+ */
+export async function isLessonBlockedByUnpassedQuiz(
+  lessonId: string,
+  enrollmentId: string,
+  blocks?: (Pick<LessonBlock, "type"> & { assessment?: Assessment | null })[]
+): Promise<boolean> {
+  const quizBlocks =
+    blocks ?? (await prisma.lessonBlock.findMany({ where: { lessonId, type: "QUIZ" }, include: { assessment: true } }));
+  const quizAssessments = quizBlocks
+    .filter((b) => b.type === "QUIZ" && !!b.assessment)
+    .map((b) => b.assessment as Assessment);
+  if (quizAssessments.length === 0) return false;
+
+  const assessmentIds = quizAssessments.map((a) => a.id);
+  const submissions = await prisma.assessmentSubmission.findMany({
+    where: { enrollmentId, assessmentId: { in: assessmentIds } },
+    select: { assessmentId: true, score: true },
+  });
+  const scoreByAssessmentId = new Map(submissions.map((s) => [s.assessmentId, s.score ?? 0]));
+
+  return quizAssessments.some((a) => (scoreByAssessmentId.get(a.id) ?? 0) < (a.passingScore ?? 0));
 }
 
 export interface LessonView {
@@ -69,6 +203,8 @@ export interface LessonView {
   previousLesson: Lesson | null;
   nextLesson: Lesson | null;
   moduleTitle: string;
+  /** True if this lesson has at least one QUIZ block that hasn't been passed yet (score >= Assessment.passingScore) - blocks "Mark as complete" until the student actually passes, not just attempts, the quiz. A lesson with no QUIZ block is never blocked. */
+  blockedByUnpassedQuiz: boolean;
 }
 
 /**
@@ -118,6 +254,7 @@ export async function getLessonForStudent(
     previousLesson,
     nextLesson: index < orderedLessons.length - 1 ? orderedLessons[index + 1] : null,
     moduleTitle,
+    blockedByUnpassedQuiz: await isLessonBlockedByUnpassedQuiz(lessonId, enrollmentId, blocks),
   };
 }
 
@@ -129,6 +266,46 @@ export async function getSubmissionForAssessment(
   return prisma.assessmentSubmission.findUnique({
     where: { assessmentId_enrollmentId: { assessmentId, enrollmentId } },
   });
+}
+
+export interface AiTutorConversationState {
+  messages: Pick<AiTutorMessage, "id" | "role" | "content" | "createdAt">[];
+  remainingToday: number;
+  dailyLimit: number;
+}
+
+/**
+ * Loads a student's existing AI Tutor conversation on one lesson, plus
+ * today's remaining quota - powers the chat block's initial server render
+ * (same async-Server-Component pattern as BlockAssessment/
+ * getSubmissionForAssessment above), so a returning student sees their
+ * prior conversation with no client-side fetch/flicker. Re-verifies access
+ * via getLessonForStudent rather than trusting the caller already did -
+ * this can be called directly, not just from a rendered block.
+ */
+export async function getAiTutorConversation(
+  enrollmentId: string,
+  lessonId: string,
+  studentId: string
+): Promise<AiTutorConversationState | null> {
+  const lessonView = await getLessonForStudent(lessonId, enrollmentId, studentId);
+  if (!lessonView) return null;
+
+  const since = startOfTodayUtc();
+  const [messages, usedToday] = await Promise.all([
+    prisma.aiTutorMessage.findMany({
+      where: { studentId, lessonId },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, role: true, content: true, createdAt: true },
+    }),
+    prisma.aiTutorMessage.count({ where: { studentId, role: "USER", createdAt: { gte: since } } }),
+  ]);
+
+  return {
+    messages,
+    remainingToday: Math.max(0, AI_TUTOR_DAILY_MESSAGE_LIMIT - usedToday),
+    dailyLimit: AI_TUTOR_DAILY_MESSAGE_LIMIT,
+  };
 }
 
 /** Search within the student's own enrolled curriculum only - never across other students' or other offerings' content. */

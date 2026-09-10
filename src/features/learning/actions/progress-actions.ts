@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import type { ActionResult } from "@/actions/leads";
 import { recalculateEnrollmentProgress } from "../server/progression";
+import { isLessonBlockedByUnpassedQuiz } from "../server/queries";
 
 /**
  * Every action here re-verifies the enrollment belongs to the signed-in
@@ -47,6 +48,13 @@ export async function markLessonStarted(enrollmentId: string, lessonId: string):
 export async function markLessonComplete(enrollmentId: string, lessonId: string): Promise<ActionResult> {
   const enrollment = await requireOwnedEnrollment(enrollmentId);
   if (!enrollment) return { success: false, error: "Not found" };
+
+  // Re-verified here, not just left to the UI disabling the button - a
+  // request straight to this action would otherwise bypass the quiz-pass
+  // requirement entirely.
+  if (await isLessonBlockedByUnpassedQuiz(lessonId, enrollmentId)) {
+    return { success: false, error: "Pass the quiz above before marking this lesson complete." };
+  }
 
   try {
     await prisma.lessonProgress.upsert({

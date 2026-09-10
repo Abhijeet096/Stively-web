@@ -31,8 +31,31 @@ function AssessmentSubmissionForm({
   const [fileUrl, setFileUrl] = React.useState(existingSubmission?.fileUrl ?? "");
   const [isPending, setIsPending] = React.useState(false);
   const [error, setError] = React.useState<string | undefined>();
+  // A failed QUIZ can be retried (setting this bypasses the graded-result
+  // view below and re-shows the question form) - a passed one can't, and
+  // ASSIGNMENT/PROJECT submissions never retry from here since a mentor
+  // owns that review, not the student.
+  const [retrying, setRetrying] = React.useState(false);
 
-  if (existingSubmission && existingSubmission.status !== "NOT_STARTED") {
+  const isQuiz = assessment.type === "QUIZ";
+  const passingScore = assessment.passingScore ?? 0;
+  const passed = isQuiz && (existingSubmission?.score ?? 0) >= passingScore;
+
+  if (existingSubmission && existingSubmission.status !== "NOT_STARTED" && !(isQuiz && !passed && retrying)) {
+    if (isQuiz) {
+      return (
+        <div className="flex flex-col gap-3 text-sm">
+          <span className={"font-medium " + (passed ? "text-success" : "text-destructive")}>
+            {passed ? "Passed" : "Not passed yet"} - {existingSubmission.score ?? 0}% (need {passingScore}%)
+          </span>
+          {!passed && (
+            <Button type="button" variant="outline" size="sm" onClick={() => setRetrying(true)} className="self-start">
+              Try again
+            </Button>
+          )}
+        </div>
+      );
+    }
     return (
       <div className="flex flex-col gap-2 text-sm">
         <span className="text-foreground font-medium">

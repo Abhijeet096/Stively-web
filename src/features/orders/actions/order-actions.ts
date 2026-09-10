@@ -7,7 +7,7 @@ import type { OrderStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { requireRole } from "@/lib/session";
-import { createRazorpayOrder, verifyRazorpaySignature } from "@/lib/razorpay";
+import { createRazorpayOrder, verifyRazorpaySignature, describeRazorpayError } from "@/lib/razorpay";
 import type { ActionResult } from "@/actions/leads";
 import { emitOrderEvent } from "../lib/events";
 import { notifyOrderPaid } from "../server/notify";
@@ -33,8 +33,13 @@ export type CreateOrderResult =
  * existing row - every "Buy Now" click is a fresh purchase attempt, so a
  * user can legitimately buy the same offering more than once (e.g. gifting
  * it, or a subscription renewal later).
+ *
+ * `promptsPack` mirrors createGuestOrder's identical add-on handling
+ * (guest-checkout-actions.ts) - same one-fixed-optional-add-on shape
+ * (Offering.promptsPackPrice / Order.addons), just reachable from the
+ * normal authenticated checkout too, not only the guest-checkout flow.
  */
-export async function createOrder(offeringId: string, phone?: string): Promise<CreateOrderResult> {
+export async function createOrder(offeringId: string, phone?: string, promptsPack?: boolean): Promise<CreateOrderResult> {
   const session = await auth();
   if (!session?.user?.id) {
     return { success: false, error: "You must be signed in." };
@@ -108,13 +113,20 @@ export async function createOrder(offeringId: string, phone?: string): Promise<C
     }
   }
 
-  const amount = offering.discountPrice ?? offering.price;
-  if (amount == null) {
+  const basePrice = offering.discountPrice ?? offering.price;
+  if (basePrice == null) {
     return { success: false, error: "This offering doesn't have a price set yet." };
   }
+  const wantsPromptsPack = promptsPack && offering.promptsPackPrice != null;
+  const amount = basePrice + (wantsPromptsPack ? offering.promptsPackPrice! : 0);
 
   const keyId = process.env.RAZORPAY_KEY_ID;
   if (!keyId || !process.env.RAZORPAY_KEY_SECRET) {
+    // Logged distinctly from the catch below - both return the same
+    // deliberately vague message to the buyer, but "no keys in this
+    // environment" and "Razorpay rejected our keys" need very different
+    // fixes, and are otherwise indistinguishable in production.
+    console.error("createOrder: RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET are not set in this environment.");
     return { success: false, error: "Payments aren't set up yet - please contact us directly." };
   }
 
@@ -139,6 +151,7 @@ export async function createOrder(offeringId: string, phone?: string): Promise<C
         status: "PENDING",
         razorpayOrderId: razorpayOrder.id,
         phone,
+        addons: wantsPromptsPack ? { promptsPack: { purchased: true, price: offering.promptsPackPrice } } : undefined,
       },
     });
 
@@ -152,7 +165,7 @@ export async function createOrder(offeringId: string, phone?: string): Promise<C
       keyId,
     };
   } catch (error) {
-    console.error("createOrder (Razorpay) failed:", error);
+    console.error("createOrder (Razorpay) failed:", describeRazorpayError(error));
     return { success: false, error: "Payments aren't set up yet - please contact us directly." };
   }
 }
@@ -252,7 +265,7 @@ export async function createOrderFromApprovedQuote(requestId: string, phone?: st
       keyId,
     };
   } catch (error) {
-    console.error("createOrderFromApprovedQuote (Razorpay) failed:", error);
+    console.error("createOrderFromApprovedQuote (Razorpay) failed:", describeRazorpayError(error));
     return { success: false, error: "Payments aren't set up yet - please contact us directly." };
   }
 }

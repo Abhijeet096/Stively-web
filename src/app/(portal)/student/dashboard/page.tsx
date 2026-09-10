@@ -10,6 +10,8 @@ import { RequestList } from "@/features/offering-requests/components/request-lis
 import { getStudentAccessSummary } from "@/features/enrollments/server/access-policy";
 import { ProgressCard } from "@/features/enrollments/components/progress-card";
 import { EnrollmentStatusBadge } from "@/features/enrollments/components/enrollment-status-badge";
+import { PrimeMembershipBanner } from "@/features/enrollments/components/prime-membership-banner";
+import { prisma } from "@/lib/prisma";
 import { SetPageTitle } from "@/components/dashboard-shell/layout/dashboard-title-context";
 import { SectionHeader } from "@/components/dashboard-shell/widgets/section-header";
 import { QuickActionCard } from "@/components/dashboard-shell/widgets/quick-action-card";
@@ -74,6 +76,7 @@ export default async function StudentDashboardPage() {
   const offerings = await getOfferingsForAudience("STUDENT");
   const { requests } = await getMyRequests(user.id, "STUDENT", {});
   const accessSummary = await getStudentAccessSummary(user.id);
+  const { isPrimeMember } = await prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { isPrimeMember: true } });
 
   return (
     <>
@@ -87,6 +90,8 @@ export default async function StudentDashboardPage() {
             Here&apos;s where to start exploring what Stively offers students.
           </p>
         </div>
+
+        {accessSummary.hasAnyAccess && !isPrimeMember && <PrimeMembershipBanner />}
 
         {accessSummary.hasAnyAccess && accessSummary.primaryEnrollment && (
           <Card>

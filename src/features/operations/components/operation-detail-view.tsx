@@ -116,7 +116,7 @@ function OperationDetailView({
     return <EmptyState icon={FolderKanban} title="Source record missing" description="This item's underlying request or order could not be found." />;
   }
 
-  const customerName = source.user.name ?? "—";
+  const customerName = source.user?.name ?? ("guestName" in source ? source.guestName : null) ?? "—";
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -142,7 +142,7 @@ function OperationDetailView({
               <dl className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <dt className="text-muted-foreground text-xs tracking-wide uppercase">Email</dt>
-                  <dd className="text-foreground text-sm">{source.user.email ?? "—"}</dd>
+                  <dd className="text-foreground text-sm">{source.user?.email ?? ("guestEmail" in source ? source.guestEmail : null) ?? "—"}</dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground text-xs tracking-wide uppercase">Offering</dt>

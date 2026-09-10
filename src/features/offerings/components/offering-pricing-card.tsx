@@ -6,9 +6,10 @@ import { Container } from "@/components/shared/container";
 import { Card, CardContent } from "@/components/ui/card";
 import { MODE_LABEL, PRICING_TYPE_LABEL, formatOfferingPrice } from "../lib/labels";
 import { OfferingCTA } from "./offering-cta";
+import { GuestCheckoutForm } from "@/features/orders/components/guest-checkout-form";
 
-/** Generic version of program-pricing-recap.tsx - built only from fields that actually exist on Offering, audience-aware CTA instead of a hardcoded "Enroll now". */
-function OfferingPricingCard({ offering }: { offering: Offering }) {
+/** Generic version of program-pricing-recap.tsx - built only from fields that actually exist on Offering, audience-aware CTA instead of a hardcoded "Enroll now". `nonce` only matters when allowsGuestCheckout renders the embedded Razorpay script directly on this page. */
+function OfferingPricingCard({ offering, nonce }: { offering: Offering; nonce?: string }) {
   const details = [
     offering.duration ? { label: "Duration", value: offering.duration } : null,
     { label: "Mode", value: MODE_LABEL[offering.mode] },
@@ -17,7 +18,7 @@ function OfferingPricingCard({ offering }: { offering: Offering }) {
   ].filter((detail): detail is { label: string; value: string } => detail !== null);
 
   return (
-    <Section background="default">
+    <Section background="default" id="enroll">
       <Container className="flex justify-center">
         <Card className="w-full max-w-md rounded-3xl">
           <CardContent className="flex flex-col items-center gap-4 text-center">
@@ -37,10 +38,25 @@ function OfferingPricingCard({ offering }: { offering: Offering }) {
                 </div>
               ))}
             </dl>
-            <OfferingCTA
-              offering={offering}
-              className="flex w-full flex-col gap-3 [&_[data-slot=button]]:w-full"
-            />
+            {offering.allowsGuestCheckout && offering.price != null ? (
+              <div className="w-full text-left">
+                <GuestCheckoutForm
+                  offering={{
+                    id: offering.id,
+                    title: offering.title,
+                    price: offering.discountPrice ?? offering.price,
+                    currency: offering.currency,
+                    promptsPackPrice: offering.promptsPackPrice,
+                  }}
+                  nonce={nonce}
+                />
+              </div>
+            ) : (
+              <OfferingCTA
+                offering={offering}
+                className="flex w-full flex-col gap-3 [&_[data-slot=button]]:w-full"
+              />
+            )}
           </CardContent>
         </Card>
       </Container>

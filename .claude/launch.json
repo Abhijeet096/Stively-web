@@ -8,6 +8,11 @@
       "port": 3000
     },
     {
+      "name": "attach",
+      "url": "http://localhost:3000",
+      "port": 3000
+    },
+    {
       "name": "dev-verify",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["next", "dev", "-p", "3001"],

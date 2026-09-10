@@ -78,6 +78,9 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
           offeringTitle={offering.title}
           isFree={isFree}
           priceLabel={priceLabel}
+          basePrice={amount ?? undefined}
+          currency={offering.currency}
+          promptsPackPrice={offering.promptsPackPrice}
           userName={session.user.name ?? undefined}
           userEmail={session.user.email ?? undefined}
           detailPathPrefix={detailPathPrefix}

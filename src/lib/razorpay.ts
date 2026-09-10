@@ -42,6 +42,30 @@ export async function createRazorpayOrder(params: {
 }
 
 /**
+ * Pulls the useful parts out of a Razorpay SDK rejection - status code plus
+ * Razorpay's own error code/description. Worth having because the raw error
+ * object serializes to an unhelpful "{}" in most log sinks, which is what
+ * made a live 401 ("Authentication failed" - a dead/regenerated key) look
+ * identical in production to the gateway simply not being configured.
+ */
+export function describeRazorpayError(error: unknown): string {
+  if (error && typeof error === "object") {
+    const e = error as {
+      statusCode?: number;
+      error?: { code?: string; description?: string };
+      message?: string;
+    };
+    const parts = [
+      e.statusCode ? `HTTP ${e.statusCode}` : "",
+      e.error?.code ?? "",
+      e.error?.description ?? e.message ?? "",
+    ].filter(Boolean);
+    if (parts.length > 0) return parts.join(" | ");
+  }
+  return String(error);
+}
+
+/**
  * Verifies the HMAC signature Razorpay sends on payment webhooks/callbacks.
  * Never trust a "payment succeeded" client-side event without this check -
  * it's the only way to confirm the payment actually came from Razorpay.

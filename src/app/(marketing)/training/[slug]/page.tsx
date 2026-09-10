@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { getProgramBySlug, getAllProgramSlugs } from "@/lib/queries/programs";
 import { getTestimonialsByProgramId } from "@/lib/queries/testimonials";
-import { siteConfig, B2B_ONLY_MODE } from "@/config/site";
+import { siteConfig } from "@/config/site";
 import { JsonLd } from "@/components/shared/json-ld";
 import { ProgramHero } from "@/components/sections/program-hero";
 import { StickyEnrollBar } from "@/components/sections/sticky-enroll-bar";
@@ -41,8 +41,6 @@ export async function generateMetadata({ params }: ProgramPageProps): Promise<Me
     title: program.seoTitle ?? program.title,
     description: program.seoDescription ?? program.shortDescription,
     alternates: { canonical: `/training/${program.slug}` },
-    // B2B_ONLY_MODE (see site.ts) - see /training's own generateMetadata comment.
-    ...(B2B_ONLY_MODE && { robots: { index: false, follow: true } }),
     // Falls back to the generated /opengraph-image when a program has no
     // featuredImageUrl - a page-level openGraph/twitter block replaces the
     // root layout's instead of merging, so it must supply its own image

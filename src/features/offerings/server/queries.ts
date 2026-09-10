@@ -167,6 +167,69 @@ export async function getRelatedOfferings(offering: Offering, limit = 3): Promis
   }
 }
 
+export interface CurriculumOutlineModule {
+  id: string;
+  title: string;
+  lessonCount: number;
+  /** Summed from each lesson's estimatedMinutes - null when no lesson in the module has one set, so the UI can omit the duration rather than print a misleading "0 mins". */
+  totalMinutes: number | null;
+}
+
+export interface CurriculumOutline {
+  modules: CurriculumOutlineModule[];
+  moduleCount: number;
+  lessonCount: number;
+}
+
+/**
+ * The public, pre-purchase view of an offering's real curriculum - read off
+ * the actual Module/Lesson rows a buyer would get, not Offering.curriculum's
+ * hand-maintained Json summary, so the syllabus on the sales page can never
+ * drift from the course that's actually built. Titles and counts only: no
+ * lesson content, no video URLs, nothing that would leak the paid material.
+ *
+ * Returns null for an offering with no LearningExperience at all (most
+ * categories - a website build has no curriculum), which the detail page
+ * treats as "omit the section" rather than an error.
+ */
+export async function getOfferingCurriculumOutline(offeringId: string): Promise<CurriculumOutline | null> {
+  try {
+    const experience = await prisma.learningExperience.findUnique({
+      where: { offeringId },
+      select: {
+        modules: {
+          orderBy: { order: "asc" },
+          select: {
+            id: true,
+            title: true,
+            lessons: { select: { estimatedMinutes: true } },
+          },
+        },
+      },
+    });
+    if (!experience || experience.modules.length === 0) return null;
+
+    const modules = experience.modules.map((module) => {
+      const minutes = module.lessons.reduce<number>((sum, lesson) => sum + (lesson.estimatedMinutes ?? 0), 0);
+      return {
+        id: module.id,
+        title: module.title,
+        lessonCount: module.lessons.length,
+        totalMinutes: minutes > 0 ? minutes : null,
+      };
+    });
+
+    return {
+      modules,
+      moduleCount: modules.length,
+      lessonCount: modules.reduce((sum, module) => sum + module.lessonCount, 0),
+    };
+  } catch (error) {
+    console.error("getOfferingCurriculumOutline failed:", error);
+    return null;
+  }
+}
+
 /** For generateStaticParams and sitemap.ts - published offering slugs only. */
 export async function getAllOfferingSlugs(): Promise<string[]> {
   try {

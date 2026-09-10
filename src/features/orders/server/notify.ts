@@ -18,6 +18,11 @@ import { createNotification } from "@/features/notifications/server/creation";
  * failed notification should never make a successful payment look failed.
  */
 export async function notifyOrderPaid(order: Order): Promise<void> {
+  // Same "should never actually be null by the time an order is PAID" note
+  // as createEnrollmentFromOrder - guest-checkout orders get userId
+  // backfilled by guest-fulfillment.ts before this is ever called.
+  if (!order.userId) return;
+
   const [user, offering] = await Promise.all([
     prisma.user.findUnique({
       where: { id: order.userId },

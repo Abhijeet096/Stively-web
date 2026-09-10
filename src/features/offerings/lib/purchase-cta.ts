@@ -26,7 +26,19 @@ export function getOfferingCtaActions(offering: Offering): OfferingCtaAction[] {
   const showGuidance = offering.purchaseFlow === "CONSULTATION" || offering.purchaseFlow === "BOTH";
 
   if (showBuy) {
-    actions.push({ kind: "buy", label: "Buy now", href: `/checkout/${offering.slug}` });
+    // A guest-checkout offering's real checkout is the embedded form on
+    // this same page (OfferingPricingCard), not the login-gated /checkout
+    // route - point at it directly rather than sending someone through a
+    // page that would just force a sign-in first, defeating the entire
+    // point of this flow.
+    const href = offering.allowsGuestCheckout ? "#enroll" : `/checkout/${offering.slug}`;
+    // "Enroll now" for a course, "Buy now" for everything else - buying a
+    // training program is enrolling in it, and that word tested as the
+    // clearer intent for the student audience. Not applied to
+    // SOFTWARE_DEVELOPMENT/WEBSITE_DEVELOPMENT etc, where "enroll" would be
+    // meaningless for what's actually being purchased.
+    const label = offering.category === "TRAINING" ? "Enroll now" : "Buy now";
+    actions.push({ kind: "buy", label, href });
   }
 
   if (showGuidance) {

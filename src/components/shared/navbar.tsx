@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { B2B_ONLY_MODE } from "@/config/site";
 import { Container } from "@/components/shared/container";
 import { Logo } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
@@ -16,19 +15,19 @@ import { Sheet, SheetTrigger, SheetContent, SheetTitle, SheetClose } from "@/com
 // yet - a live nav item pointing at a 404 is worse than a nav item that
 // doesn't exist yet. Add back once it ships. "/pricing" shipped - see it
 // re-added below.
-// "Training" dropped while B2B_ONLY_MODE is on (see site.ts) - the route
-// itself is untouched, just not promoted in nav right now.
+// "Training" is back (2026-08-14, superseding AD-013's B2B_ONLY_MODE pause) -
+// a secondary revenue path, not co-equal with the business funnel, so it's
+// a normal nav link, not the primary CTA (see PRIMARY_CTA below, which
+// stays fixed on "Start a project" regardless).
 const NAV_LINKS = [
   { href: "/about", label: "About" },
   { href: "/services", label: "Services" },
   { href: "/work", label: "Our Work" },
   { href: "/pricing", label: "Pricing" },
-  ...(B2B_ONLY_MODE ? [] : [{ href: "/training", label: "Training" }]),
+  { href: "/training", label: "Training" },
 ] as const;
 
-const PRIMARY_CTA = B2B_ONLY_MODE
-  ? { href: "/start-project", label: "Start a project" }
-  : { href: "/training", label: "Explore programs" };
+const PRIMARY_CTA = { href: "/start-project", label: "Start a project" };
 
 export interface NavbarProps {
   /**

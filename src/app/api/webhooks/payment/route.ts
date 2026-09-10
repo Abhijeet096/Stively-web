@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { createOperationItemForOrder } from "@/features/operations/server/creation";
 import { createEnrollmentFromOrder } from "@/features/enrollments/server/creation";
 import { notifyOrderPaid } from "@/features/orders/server/notify";
+import { fulfillGuestOrder } from "@/features/orders/server/guest-fulfillment";
 
 /**
  * Razorpay webhook receiver. Configure this URL (`/api/webhooks/payment`)
@@ -57,7 +58,20 @@ export async function POST(req: NextRequest) {
     // OperationItem (OperationItem.orderId is @unique, so a second attempt
     // would fail loudly instead of silently duplicating).
     const pendingOrder = await prisma.order.findFirst({ where: { razorpayOrderId: orderId, status: "PENDING" } });
-    if (pendingOrder) {
+    if (pendingOrder && !pendingOrder.userId) {
+      // Guest-checkout order (Offering.allowsGuestCheckout) - no account
+      // exists yet either, so this needs the full fulfillGuestOrder pipeline
+      // (account creation, enrollment, auto-login token, welcome email), not
+      // just a status flip. Safe if verifyGuestPayment already won this race
+      // client-side - fulfillGuestOrder's own atomic claim makes this a
+      // no-op in that case.
+      try {
+        await prisma.order.update({ where: { id: pendingOrder.id }, data: { razorpayPaymentId: paymentId } });
+        await fulfillGuestOrder(pendingOrder.id);
+      } catch (error) {
+        console.error("fulfillGuestOrder (webhook) failed:", error);
+      }
+    } else if (pendingOrder) {
       const paid = await prisma.order.update({
         where: { id: pendingOrder.id },
         data: { status: "PAID", razorpayPaymentId: paymentId, paidAt: new Date() },

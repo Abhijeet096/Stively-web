@@ -1,16 +1,10 @@
-/**
- * Founder decision, 2026-08-08: no new training/instructor activity for the
- * next 2-3 months - all focus is on closing B2B clients. Deliberately a
- * single flag rather than deleting/commenting out the training feature
- * (real code, real content, real routes - none of it is going away, it's
- * just not being promoted right now). Every place that reads this flag is
- * listed in ARCHITECTURE_DECISIONS.md's entry for this change - flip it
- * back to `false` there to fully restore student-facing promotion.
- * Deliberately does NOT touch RBAC/login - existing STUDENT accounts (none
- * exist in production today, confirmed before this change shipped) would
- * keep working exactly as before regardless of this flag.
- */
-export const B2B_ONLY_MODE = true;
+// The B2B_ONLY_MODE flag that lived here (2026-08-08 - 2026-08-14, see
+// AD-013) has been retired: training is back as a real, deliberately
+// secondary revenue path alongside the B2B funnel, not a blanket toggle.
+// Training is reachable/indexed again (nav, footer, homepage's
+// EcosystemNote, /register's role picker) but "Start a project" stays the
+// one primary CTA everywhere - see the training-relaunch entry in
+// ARCHITECTURE_DECISIONS.md for the full per-surface reasoning.
 
 export const siteConfig = {
   name: "Stively",

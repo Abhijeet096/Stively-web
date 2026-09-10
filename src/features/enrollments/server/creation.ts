@@ -59,7 +59,22 @@ async function createEnrollment(input: CreateEnrollmentInput): Promise<OfferingE
  * the webhook's PAID branch - the same three call sites Phase 7's
  * createOperationItemForOrder already touches.
  */
-export async function createEnrollmentFromOrder(order: Order): Promise<OfferingEnrollment> {
+export async function createEnrollmentFromOrder(order: Order): Promise<OfferingEnrollment | null> {
+  // Guest-checkout orders (Offering.allowsGuestCheckout) start with no
+  // userId - by the time an order is genuinely PAID, guest-fulfillment.ts
+  // has already backfilled it, so this should never actually be null in
+  // practice. Guarding anyway rather than assuming, since Order.userId is
+  // nullable at the type level now.
+  if (!order.userId) return null;
+
+  // A "membership" product's own paid Order is what actually grants the
+  // perk - see Offering.grantsPrimeMembership's schema comment for why this
+  // rides on the normal checkout flow rather than a separate mechanism.
+  const offering = await prisma.offering.findUnique({ where: { id: order.offeringId }, select: { grantsPrimeMembership: true } });
+  if (offering?.grantsPrimeMembership) {
+    await prisma.user.update({ where: { id: order.userId }, data: { isPrimeMember: true, primeMemberSince: new Date() } });
+  }
+
   return createEnrollment({
     studentId: order.userId,
     offeringId: order.offeringId,

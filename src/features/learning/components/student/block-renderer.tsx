@@ -6,6 +6,7 @@ import { BlockEmbed } from "./block-embed";
 import { BlockCode } from "./block-code";
 import { BlockAssessment } from "./block-assessment";
 import { BlockLiveSession } from "./block-live-session";
+import { BlockAiConversation } from "./block-ai-conversation";
 import { BlockUnbuiltPlaceholder } from "./block-unbuilt-placeholder";
 import type { LessonBlockWithRelations } from "../../server/queries";
 
@@ -34,7 +35,7 @@ function BlockRenderer({ block, enrollmentId }: { block: LessonBlockWithRelation
     case "LIVE_SESSION":
       return block.liveSession ? <BlockLiveSession session={block.liveSession} /> : null;
     case "AI_CONVERSATION":
-      return <BlockUnbuiltPlaceholder type={block.type} />;
+      return <BlockAiConversation enrollmentId={enrollmentId} lessonId={block.lessonId} />;
     default:
       return <BlockUnbuiltPlaceholder type={block.type} />;
   }

@@ -31,8 +31,21 @@ function OfferingCard({ offering, hrefBase = "/offerings" }: { offering: Offerin
           <CardDescription>{offering.shortDescription}</CardDescription>
         </CardHeader>
         <CardFooter className="border-border/70 mt-auto justify-between border-t pt-4">
-          <span className="text-foreground font-display text-base font-semibold tabular-nums">
-            {formatOfferingPrice(offering.price, offering.currency, offering.pricingType, formatPrice)}
+          {/* Shows what the buyer actually pays, with the list price struck through - a discounted offering that advertised its pre-discount price here would contradict every other surface (checkout charges discountPrice). */}
+          <span className="flex flex-wrap items-baseline gap-2">
+            <span className="text-foreground font-display text-base font-semibold tabular-nums">
+              {formatOfferingPrice(
+                offering.discountPrice ?? offering.price,
+                offering.currency,
+                offering.pricingType,
+                formatPrice
+              )}
+            </span>
+            {offering.discountPrice != null && offering.price != null && (
+              <span className="text-muted-foreground text-xs line-through tabular-nums">
+                {formatPrice(offering.price, offering.currency)}
+              </span>
+            )}
           </span>
           {offering.duration && <span className="text-muted-foreground text-sm">{offering.duration}</span>}
         </CardFooter>

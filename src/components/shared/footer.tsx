@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { siteConfig, B2B_ONLY_MODE } from "@/config/site";
+import { siteConfig } from "@/config/site";
 import { Container } from "@/components/shared/container";
 import { Logo } from "@/components/shared/logo";
 import { Separator } from "@/components/ui/separator";
@@ -15,7 +15,7 @@ const FOOTER_LINKS = {
     { href: "/services", label: "Services" },
     { href: "/work", label: "Our Work" },
     { href: "/pricing", label: "Pricing" },
-    ...(B2B_ONLY_MODE ? [] : [{ href: "/training", label: "Training" }]),
+    { href: "/training", label: "Training" },
   ],
   Company: [
     { href: "/about", label: "About" },

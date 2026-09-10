@@ -11,10 +11,13 @@ function LessonCompleteButton({
   enrollmentId,
   lessonId,
   isCompleted,
+  blockedByUnpassedQuiz = false,
 }: {
   enrollmentId: string;
   lessonId: string;
   isCompleted: boolean;
+  /** True when this lesson has a QUIZ block that hasn't been passed yet - see isLessonBlockedByUnpassedQuiz. The button disables with an explanation rather than just disappearing, so it's clear why. */
+  blockedByUnpassedQuiz?: boolean;
 }) {
   const router = useRouter();
   const [isPending, setIsPending] = React.useState(false);
@@ -25,6 +28,15 @@ function LessonCompleteButton({
         <CheckCircle2 className="text-success size-4" aria-hidden="true" />
         Completed
       </Button>
+    );
+  }
+
+  if (blockedByUnpassedQuiz) {
+    return (
+      <div className="flex flex-col items-start gap-1.5">
+        <Button disabled>Mark as complete</Button>
+        <span className="text-muted-foreground text-xs">Pass the quiz above to unlock this.</span>
+      </div>
     );
   }
 

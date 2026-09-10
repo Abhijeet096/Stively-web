@@ -24,6 +24,14 @@ model User {
   /// Null for every other role.
   companyName String?
 
+  /// A lasting, permanent account perk (not time-limited) purchased as a
+  /// checkout add-on on a guest-checkout Offering (e.g. "50% off upcoming
+  /// courses") - see Order.addons for the purchase record and
+  /// guest-checkout-actions.ts for where this gets set. Checked at future
+  /// checkout time to auto-apply the discount, not just a marketing badge.
+  isPrimeMember    Boolean   @default(false)
+  primeMemberSince DateTime?
+
   /// Null for OAuth-only accounts (Google). Set for anyone who registered
   /// or set a password via the Credentials provider - see src/lib/auth.ts.
   password String?
@@ -71,6 +79,10 @@ model User {
   /// `enrollments` field above (the legacy Program-tied Enrollment) -
   /// same parallel-systems reasoning as Offering/Program themselves.
   offeringEnrollments OfferingEnrollment[]
+
+  /// Every AI Tutor message this STUDENT sent or received, across every
+  /// lesson - see AiTutorMessage below. Only meaningful for role STUDENT.
+  aiTutorMessages AiTutorMessage[]
 
   /// Phase 10 (Mentor & Learning Delivery) - a MENTOR-role user's rich
   /// profile, if they have one. See Mentor below for why this is a
@@ -774,6 +786,31 @@ model Offering {
   /// behaving exactly as it did in Phase 5.
   purchaseFlow     PurchaseFlow     @default(CONSULTATION)
 
+  /// Opt-in, per-offering - skips login entirely at checkout (name/email/
+  /// phone captured on the checkout form itself, account silently created
+  /// after payment - see guest-checkout-actions.ts). Only meaningful when
+  /// purchaseFlow is DIRECT_PAYMENT or BOTH; a low-ticket impulse-buy
+  /// product (this was built for a ₹499 course) wants zero friction before
+  /// payment. Defaults false - every existing offering (the training
+  /// courses, website packages) keeps requiring login-first checkout
+  /// unchanged, which is the right default for a higher-consideration
+  /// purchase where the buyer already has an account from browsing/comparing.
+  allowsGuestCheckout   Boolean @default(false)
+  /// Price (paise) for the one pre-payment checkout add-on this flow
+  /// supports today ("100+ prompt templates" style bonus) - null means no
+  /// bump is offered for this offering. Deliberately one fixed optional
+  /// add-on, not a general multi-item cart - see Order.addons for what
+  /// actually got purchased on a given order.
+  promptsPackPrice      Int?
+  /// True for a "membership" product itself (e.g. the ₹399 prime-membership
+  /// upsell) - buying THIS offering, through the normal authenticated
+  /// checkout, is what actually flips User.isPrimeMember on. Deliberately
+  /// NOT part of guest checkout's own addon flow (see Order.addons) - a
+  /// post-purchase upsell shown once someone already has an account
+  /// converts better than one more pre-payment checkbox on an impulse buy,
+  /// and reuses the existing /checkout/[slug] flow unchanged.
+  grantsPrimeMembership Boolean @default(false)
+
   // Business information
   /// Smallest currency unit (paise), same convention as Program.price.
   /// Null for Free and Custom Quote pricing types, where a fixed number
@@ -1147,13 +1184,31 @@ model Order {
 
   offeringId String
   offering   Offering @relation(fields: [offeringId], references: [id], onDelete: Restrict)
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Nullable for the guest-checkout flow (Offering.allowsGuestCheckout) -
+  /// the order exists BEFORE any account does. guestOrderActions.ts backfills
+  /// this the moment the payment.captured webhook fires: find-or-create a
+  /// User by guestEmail, then link it here in the same transaction that
+  /// marks the order PAID. Every other order (the normal authenticated
+  /// checkout flow, createOrder/verifyPayment) still sets this at creation
+  /// time as before - never null for those.
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Guest-checkout contact capture, taken BEFORE any account exists -
+  /// only set when userId starts null. `phone` below already covers phone
+  /// for both flows (it predates this one). Once linked to a real account
+  /// (see userId's comment), these stay as the original snapshot - the
+  /// account's own name/email are the live source of truth afterward.
+  guestName  String?
+  guestEmail String?
 
   /// Paise, snapshotted at purchase time - an Offering's price changing
   /// later must never retroactively change what a paid order actually
   /// cost. Zero for a FREE + DIRECT_PAYMENT offering (see createOrder()'s
   /// free-offering short-circuit - no Razorpay order exists for those).
+  /// For a guest-checkout order this already includes any selected addons
+  /// below - one real Razorpay charge, not a separate order per addon.
   amount   Int
   currency String      @default("INR")
   status   OrderStatus @default(PENDING)
@@ -1166,6 +1221,24 @@ model Order {
   /// otherwise known - see the checkout page's phone-prompt logic.
   phone String?
   notes String? @db.Text
+
+  /// Which pre-payment checkout add-ons were selected, and what each cost
+  /// at the time (an Offering's addon pricing changing later must never
+  /// retroactively change what was actually charged - same snapshot
+  /// reasoning as `amount` above). Shape:
+  /// { promptsPack?: { purchased: true, price: number } }. Settable from
+  /// both the guest-checkout flow (createGuestOrder) and the normal
+  /// authenticated flow (createOrder) - same one-fixed-optional-add-on
+  /// feature, reachable either way. Null when no add-on was offered/selected.
+  addons Json?
+
+  /// One-time auto-login link for the guest-checkout flow's "silent account
+  /// creation" moment - see acceptOrderAutoLogin (guest-checkout-actions.ts).
+  /// Same shape as SalesLead's inviteToken (AD-017): unguessable, cleared on
+  /// first use, expires per DEFAULT_AUTO_LOGIN_EXPIRY_HOURS. Null for every
+  /// normal order and for a guest order before it's actually paid.
+  autoLoginToken          String?   @unique
+  autoLoginTokenExpiresAt DateTime?
 
   paidAt    DateTime?
   createdAt DateTime  @default(now())
@@ -1660,8 +1733,9 @@ model Lesson {
   requiresPreviousCompletion Boolean   @default(true)
   unlocksAt                  DateTime?
 
-  blocks   LessonBlock[]
-  progress LessonProgress[]
+  blocks          LessonBlock[]
+  progress        LessonProgress[]
+  aiTutorMessages AiTutorMessage[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1874,6 +1948,35 @@ model LessonProgress {
   @@unique([enrollmentId, lessonId])
   @@index([enrollmentId])
   @@index([lessonId])
+}
+
+enum AiTutorMessageRole {
+  USER
+  ASSISTANT
+}
+
+/// One row per turn in a student's AI Tutor conversation on a lesson -
+/// doubles as this feature's own rate-limit ledger (count today's USER-role
+/// rows for a student, same "count recent rows of a type" pattern as
+/// askProposalQuestion's AI_CHAT_MAX_PER_WINDOW check, no separate counter
+/// table needed). Answers are grounded ONLY in that lesson's own content
+/// (reading material - no real video transcripts exist yet) and explicitly
+/// restricted to on-topic questions - see aiTutorEngine's system prompt.
+model AiTutorMessage {
+  id String @id @default(cuid())
+
+  studentId String
+  student   User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  lessonId  String
+  lesson    Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  role    AiTutorMessageRole
+  content String             @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([studentId, lessonId])
+  @@index([studentId, createdAt])
 }
 
 enum LiveSessionStatus {

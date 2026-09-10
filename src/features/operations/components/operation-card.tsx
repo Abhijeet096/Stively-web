@@ -11,7 +11,9 @@ function OperationCard({ item }: { item: OperationItemWithRelations }) {
   const source = item.type === "REQUEST" ? item.request : item.order;
   if (!source) return null;
 
-  const customerName = source.user.name ?? source.user.email ?? "Unknown";
+  // Guest-checkout orders have no user yet (see Order.userId's schema
+  // comment) - fall back to the contact info captured at checkout.
+  const customerName = source.user?.name ?? source.user?.email ?? (item.type === "ORDER" ? item.order?.guestName : null) ?? "Guest";
 
   return (
     <Link

@@ -26,14 +26,17 @@ function getGroqClient(): Groq {
 }
 
 /**
- * The one small/instant model every feature on this Groq org account can
- * actually use - larger models (including Llama 3.3 70B) are blocked at
- * the org level and return 403 model_permission_blocked_org (confirmed
- * live against console.groq.com). Callers can override via
- * requestValidatedJson's `options.model` once the org enables something
- * bigger, but this is the safe default for any new feature.
+ * 2026-08-18: llama-3.1-8b-instant (the previous default) was fully
+ * deprecated by Groq (404 model_not_found, not just org-blocked) - every
+ * other model on this org's account was also confirmed blocked at the org
+ * level (model_permission_blocked_org) except this one, which the org admin
+ * explicitly enabled at console.groq.com/settings/limits for exactly this
+ * reason. Callers can override via requestValidatedJson's `options.model`
+ * once the org enables something else, but this is the safe default for
+ * any new feature - re-verify against console.groq.com's Allowed Models
+ * list before assuming any other model ID works.
  */
-export const DEFAULT_GROQ_MODEL = "llama-3.1-8b-instant";
+export const DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b";
 
 const MAX_ATTEMPTS = 3;
 

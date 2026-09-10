@@ -1,33 +1,25 @@
 import Link from "next/link";
-import type { Program } from "@prisma/client";
-import type { DurationBucket } from "@/lib/queries/programs";
+import type { Difficulty, Mode } from "@prisma/client";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
-const LEVEL_OPTIONS: { value: Program["level"]; label: string }[] = [
+const LEVEL_OPTIONS: { value: Difficulty; label: string }[] = [
   { value: "BEGINNER", label: "Beginner" },
   { value: "INTERMEDIATE", label: "Intermediate" },
   { value: "ADVANCED", label: "Advanced" },
 ];
 
-const MODE_OPTIONS: { value: Program["mode"]; label: string }[] = [
+const MODE_OPTIONS: { value: Mode; label: string }[] = [
   { value: "ONLINE", label: "Online" },
   { value: "OFFLINE", label: "Offline" },
   { value: "HYBRID", label: "Hybrid" },
-];
-
-const DURATION_OPTIONS: { value: DurationBucket; label: string }[] = [
-  { value: "under-4", label: "Under 4 weeks" },
-  { value: "4-8", label: "4-8 weeks" },
-  { value: "8-plus", label: "8+ weeks" },
 ];
 
 export interface TrainingFiltersProps {
   search?: string;
   level?: string;
   mode?: string;
-  duration?: string;
 }
 
 /**
@@ -48,7 +40,7 @@ const nativeSelectClassName =
  * with zero JS, and "preserve URL query parameters" for free. There's no
  * `page` field, so any filter submission naturally lands back on page 1.
  */
-function TrainingFilters({ search, level, mode, duration }: TrainingFiltersProps) {
+function TrainingFilters({ search, level, mode }: TrainingFiltersProps) {
   return (
     <form method="get" action="/training" className="flex flex-wrap items-end gap-4">
       <div className="flex flex-col gap-1.5">
@@ -92,26 +84,9 @@ function TrainingFilters({ search, level, mode, duration }: TrainingFiltersProps
         </select>
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="duration">Duration</Label>
-        <select
-          id="duration"
-          name="duration"
-          defaultValue={duration ?? ""}
-          className={nativeSelectClassName}
-        >
-          <option value="">Any duration</option>
-          {DURATION_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
       <Button type="submit">Apply filters</Button>
 
-      {(search || level || mode || duration) && (
+      {(search || level || mode) && (
         <Button type="button" variant="ghost" asChild>
           <Link href="/training">Clear filters</Link>
         </Button>
