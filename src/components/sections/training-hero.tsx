@@ -1,9 +1,9 @@
 import Link from "next/link";
-import Image from "next/image";
 import { Users, Infinity as InfinityIcon, Award, Briefcase } from "lucide-react";
 
 import { Section } from "@/components/shared/section";
 import { Container } from "@/components/shared/container";
+import { HeroFeatheredImage } from "@/components/shared/hero-feathered-image";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -82,17 +82,18 @@ function TrainingHero() {
           </div>
         </div>
 
-        <div className="w-full lg:w-[48%]">
-          <div className="border-ink-border-strong relative aspect-[16/10] w-full overflow-hidden rounded-2xl border bg-white/[0.04]">
-            <Image
-              src={HERO_IMAGE_SRC}
-              alt="A student building real projects on a laptop as part of a Stively training program"
-              fill
-              priority
-              sizes="(max-width: 1024px) 100vw, 48vw"
-              className="object-cover"
-            />
-          </div>
+        {/* Bleeds slightly past the content column on large screens so the artwork reads as part of the section, not an inset panel. */}
+        <div className="w-full lg:w-[52%] lg:-mr-6 xl:-mr-12">
+          <HeroFeatheredImage
+            src={HERO_IMAGE_SRC}
+            alt="A student building real projects on a laptop as part of a Stively training program"
+            priority
+            sizes="(max-width: 1024px) 100vw, 52vw"
+            // Source artwork is 1371x1148 (~5:4) - matching it keeps the
+            // student's head and the laptop headline out of the crop.
+            className="aspect-[4/3] lg:aspect-[5/4]"
+            objectPosition="55% 50%"
+          />
         </div>
       </Container>
     </Section>

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Image from "next/image";
 import {
   Check,
   X,
@@ -20,6 +19,7 @@ import { formatPrice } from "@/lib/utils";
 import { siteConfig } from "@/config/site";
 import { Section } from "@/components/shared/section";
 import { Container } from "@/components/shared/container";
+import { HeroFeatheredImage } from "@/components/shared/hero-feathered-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -300,24 +300,23 @@ function CourseDetailView({
             </ul>
           </div>
 
-          <div className="lg:w-[45%]">
-            <div className="border-ink-border-strong relative aspect-[16/10] w-full overflow-hidden rounded-2xl border bg-white/[0.04]">
-              {heroImage ? (
-                <Image
-                  src={heroImage}
-                  alt={`${offering.title} course preview`}
-                  fill
-                  priority
-                  sizes="(max-width: 1024px) 100vw, 45vw"
-                  className="object-cover"
-                />
-              ) : (
-                <div className="text-ink-muted-foreground flex size-full flex-col items-center justify-center gap-2">
-                  <PlayCircle className="size-10" aria-hidden="true" />
-                  <span className="text-sm">Course preview coming soon</span>
-                </div>
-              )}
-            </div>
+          {/* Bleeds slightly past the content column on large screens so the artwork reads as part of the section, not an inset panel. */}
+          <div className="lg:-mr-6 lg:w-[48%] xl:-mr-12">
+            {heroImage ? (
+              <HeroFeatheredImage
+                src={heroImage}
+                alt={`${offering.title} course preview`}
+                priority
+                sizes="(max-width: 1024px) 100vw, 48vw"
+                className="aspect-[16/10]"
+              />
+            ) : (
+              // Only the placeholder keeps a frame - there's no artwork to blend into the section.
+              <div className="border-ink-border-strong text-ink-muted-foreground flex aspect-[16/10] w-full flex-col items-center justify-center gap-2 rounded-2xl border bg-white/[0.04]">
+                <PlayCircle className="size-10" aria-hidden="true" />
+                <span className="text-sm">Course preview coming soon</span>
+              </div>
+            )}
           </div>
         </Container>
       </Section>
