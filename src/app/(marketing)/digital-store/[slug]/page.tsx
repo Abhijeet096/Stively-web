@@ -10,6 +10,7 @@ import { siteConfig } from "@/config/site";
 import { Section } from "@/components/shared/section";
 import { Container } from "@/components/shared/container";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FAQSection } from "@/components/sections/faq-section";
 import { GuestCheckoutForm } from "@/features/orders/components/guest-checkout-form";
@@ -100,7 +101,7 @@ export default async function DigitalProductPage({ params }: DigitalProductPageP
 
           <div className="grid gap-10 lg:grid-cols-2 lg:gap-16">
             {/* ── Product image ─────────────────────────── */}
-            <div className="flex flex-col items-center gap-4 lg:sticky lg:top-24 lg:h-fit lg:self-start">
+            <div className="flex flex-col items-center gap-4">
               <div className="relative aspect-square w-full max-w-md overflow-hidden rounded-2xl shadow-lg">
                 {offering.thumbnailUrl && (
                   <Image
@@ -122,8 +123,70 @@ export default async function DigitalProductPage({ params }: DigitalProductPageP
                 <h1 className="font-display text-foreground text-3xl font-semibold tracking-[-0.02em] text-balance sm:text-4xl">
                   {offering.title}
                 </h1>
-                <p className="text-muted-foreground text-base text-pretty">{offering.longDescription}</p>
               </div>
+
+              {/* Price + buy form come immediately after the title, before
+                  the description/feature list below - a page this short has
+                  no real "sticky sidebar" room (the card is the last, and
+                  tallest, thing in this column, so `position: sticky` has
+                  zero scrollable range to actually hold it in view), so the
+                  reliable fix is putting the button where it's already
+                  visible rather than fighting for scroll-based placement.
+                  id="buy" is still the mobile bottom bar's scroll target. */}
+              <div id="buy">
+                <Card className="border-border/80 shadow-sm">
+                  <CardContent className="flex flex-col gap-4">
+                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                      <span className="text-foreground font-display text-3xl font-semibold tabular-nums">
+                        {price != null ? formatPrice(price, offering.currency) : "-"}
+                      </span>
+                      {hasAnchorPrice && (
+                        <>
+                          <span className="text-muted-foreground text-base line-through tabular-nums">
+                            {formatPrice(offering.price!, offering.currency)}
+                          </span>
+                          {percentOff != null && percentOff > 0 && <Badge variant="success">{percentOff}% OFF</Badge>}
+                        </>
+                      )}
+                    </div>
+
+                    {offering.allowsGuestCheckout && price != null ? (
+                      <GuestCheckoutForm
+                        offering={{
+                          id: offering.id,
+                          title: offering.title,
+                          price,
+                          currency: offering.currency,
+                          promptsPackPrice: offering.promptsPackPrice,
+                        }}
+                        nonce={nonce}
+                        ctaLabel="Buy Now for"
+                        namePlaceholder="Your name"
+                      />
+                    ) : (
+                      <p className="text-muted-foreground text-sm">This product isn&apos;t available for purchase right now.</p>
+                    )}
+
+                    <p className="text-muted-foreground flex items-center justify-center gap-1.5 text-xs">
+                      <ShieldCheck className="size-3.5" aria-hidden="true" />
+                      Secure payment powered by Razorpay
+                    </p>
+
+                    <ul className="border-border/70 flex flex-col gap-2.5 border-t pt-4">
+                      <li className="text-foreground flex items-center gap-2.5 text-sm">
+                        <Download className="text-primary size-4 shrink-0" aria-hidden="true" />
+                        Instant download after payment
+                      </li>
+                      <li className="text-foreground flex items-center gap-2.5 text-sm">
+                        <InfinityIcon className="text-primary size-4 shrink-0" aria-hidden="true" />
+                        Re-download any time for 30 days
+                      </li>
+                    </ul>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <p className="text-muted-foreground text-base text-pretty">{offering.longDescription}</p>
 
               <ul className="flex flex-col gap-2.5">
                 {WHAT_YOU_GET.map((item) => (
@@ -133,63 +196,38 @@ export default async function DigitalProductPage({ params }: DigitalProductPageP
                   </li>
                 ))}
               </ul>
-
-              <Card className="border-border/80 shadow-sm">
-                <CardContent className="flex flex-col gap-4">
-                  <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                    <span className="text-foreground font-display text-3xl font-semibold tabular-nums">
-                      {price != null ? formatPrice(price, offering.currency) : "-"}
-                    </span>
-                    {hasAnchorPrice && (
-                      <>
-                        <span className="text-muted-foreground text-base line-through tabular-nums">
-                          {formatPrice(offering.price!, offering.currency)}
-                        </span>
-                        {percentOff != null && percentOff > 0 && <Badge variant="success">{percentOff}% OFF</Badge>}
-                      </>
-                    )}
-                  </div>
-
-                  {offering.allowsGuestCheckout && price != null ? (
-                    <GuestCheckoutForm
-                      offering={{
-                        id: offering.id,
-                        title: offering.title,
-                        price,
-                        currency: offering.currency,
-                        promptsPackPrice: offering.promptsPackPrice,
-                      }}
-                      nonce={nonce}
-                      ctaLabel="Buy Now for"
-                      namePlaceholder="Your name"
-                    />
-                  ) : (
-                    <p className="text-muted-foreground text-sm">This product isn&apos;t available for purchase right now.</p>
-                  )}
-
-                  <p className="text-muted-foreground flex items-center justify-center gap-1.5 text-xs">
-                    <ShieldCheck className="size-3.5" aria-hidden="true" />
-                    Secure payment powered by Razorpay
-                  </p>
-
-                  <ul className="border-border/70 flex flex-col gap-2.5 border-t pt-4">
-                    <li className="text-foreground flex items-center gap-2.5 text-sm">
-                      <Download className="text-primary size-4 shrink-0" aria-hidden="true" />
-                      Instant download after payment
-                    </li>
-                    <li className="text-foreground flex items-center gap-2.5 text-sm">
-                      <InfinityIcon className="text-primary size-4 shrink-0" aria-hidden="true" />
-                      Re-download any time for 30 days
-                    </li>
-                  </ul>
-                </CardContent>
-              </Card>
             </div>
           </div>
         </Container>
       </Section>
 
       <FAQSection heading="Frequently asked questions" items={[...FAQ_ITEMS]} />
+
+      {/* Extra bottom clearance so the fixed mobile buy bar never covers the last FAQ item. */}
+      <div className="h-20 lg:hidden" aria-hidden="true" />
+
+      {/* Persistent mobile buy bar - always visible, no scrolling needed to
+          reach a purchase action, same pattern as the course detail page's
+          own bottom bar. Desktop instead gets the sticky card above. */}
+      {offering.allowsGuestCheckout && price != null && (
+        <div className="border-border bg-background/95 supports-[backdrop-filter]:bg-background/80 fixed inset-x-0 bottom-0 z-40 border-t p-3 backdrop-blur lg:hidden">
+          <div className="flex items-center justify-between gap-3 pl-16">
+            <div className="flex flex-col">
+              <span className="text-foreground font-display text-lg font-semibold tabular-nums">
+                {formatPrice(price, offering.currency)}
+              </span>
+              {hasAnchorPrice && (
+                <span className="text-muted-foreground text-xs line-through tabular-nums">
+                  {formatPrice(offering.price!, offering.currency)}
+                </span>
+              )}
+            </div>
+            <Button asChild className="max-w-[60%] flex-1">
+              <Link href="#buy">Buy Now</Link>
+            </Button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
