@@ -43,22 +43,34 @@ async function main() {
     {
       slug: "500-ai-prompt-templates",
       title: "500 AI Prompt Templates",
-      shortDescription: "A massive library of 500 ready-to-use prompts across multiple categories.",
+      // 203 prompts across the 5 complete parts (Study & Learning, Career &
+      // Job Search, Work & Productivity, Writing & Communication, Content &
+      // Social Media) is what's actually in this PDF today - the book's own
+      // cover says as much ("203 prompts - Parts 01-05 in this build"). 7
+      // more parts (Coding & Technology through Everyday AI) are outlined
+      // inside as what's coming next, same "ship what's real, be upfront
+      // about what's next" approach as the GenAI course's Coming Soon
+      // modules - not the full 500 yet, and the listing shouldn't imply it is.
+      shortDescription: "203 curated AI prompts across 5 complete categories, with 7 more parts on the way.",
       longDescription:
-        "500 ready-to-use AI prompt templates spanning chat, content creation, productivity, learning, development and strategy - coming soon to the Stively Digital Store.",
+        "203 ready-to-use AI prompts across 5 complete parts - Study & Learning, Career & Job Search, Work & Productivity, Writing & Communication, and Content & Social Media. Plus a prompting-principles guide, a cheat sheet and a build-your-own-prompt page. 7 more parts (Coding & Technology, Business, Marketing, Freelancing, Research, Personal Productivity, Everyday AI) are already outlined and will be added to this same download as they're finished.",
       category: "DIGITAL_PRODUCT" as const,
       audience: "BOTH" as const,
-      status: "COMING_SOON" as const,
+      status: "PUBLISHED" as const,
       featured: false,
       visible: true,
       purchaseFlow: "DIRECT_PAYMENT" as const,
+      allowsGuestCheckout: true,
       price: 19_900,
       pricingType: "FIXED" as const,
       thumbnailUrl: "/digital-store/500-prompts.png",
+      digitalAssetPath: "digital-products/500-ai-prompt-templates.pdf",
+      tags: ["AI & Prompting"],
       benefits: [],
       whatYoullLearn: [],
-      whoItsFor: [],
+      whoItsFor: ["Students", "Job seekers", "Working professionals", "Content creators", "Writers"],
       requirements: [],
+      publishedAt: new Date(),
     },
     {
       slug: "resume-job-search-toolkit",
