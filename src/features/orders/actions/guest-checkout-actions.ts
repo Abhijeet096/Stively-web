@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { signIn } from "@/lib/auth";
+import { auth, signIn } from "@/lib/auth";
 import { isNextRedirectError } from "@/lib/next-redirect";
 import { createRazorpayOrder, verifyRazorpaySignature, describeRazorpayError } from "@/lib/razorpay";
 import type { ActionResult } from "@/actions/leads";
@@ -18,7 +18,14 @@ export type CreateGuestOrderResult =
       currency: string;
       keyId: string;
     }
-  | { success: false; error: string };
+  | { success: false; error: string }
+  | {
+      success: false;
+      alreadyOwned: true;
+      error: string;
+      /** Set only when the person filling out the form is already signed in as the account that owns this - send them straight there instead of making them log in again. */
+      redirectUrl?: string;
+    };
 
 /**
  * The guest-checkout twin of createOrder (order-actions.ts) - no session,
@@ -48,6 +55,31 @@ export async function createGuestOrder(input: unknown): Promise<CreateGuestOrder
     // See createOrder's identical comment - same two-causes-one-message problem.
     console.error("createGuestOrder: RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET are not set in this environment.");
     return { success: false, error: "Payments aren't set up yet - please contact us directly." };
+  }
+
+  // Someone re-buying a course/product they already paid for and own - most
+  // often a returning customer who forgot they'd already purchased, or one
+  // who typed the email they bought under. Catch it before Razorpay even
+  // opens rather than let them pay twice and sort it out afterwards.
+  const existingOrder = await prisma.order.findFirst({
+    where: {
+      offeringId: offering.id,
+      status: "PAID",
+      OR: [{ guestEmail: { equals: data.email, mode: "insensitive" } }, { user: { email: { equals: data.email, mode: "insensitive" } } }],
+    },
+    select: { id: true, userId: true, downloadToken: true },
+  });
+  if (existingOrder) {
+    const session = await auth();
+    const isSignedInAsOwner = existingOrder.userId != null && session?.user?.id === existingOrder.userId;
+    return {
+      success: false,
+      alreadyOwned: true,
+      error: isSignedInAsOwner
+        ? "You already own this - here's your account."
+        : `You already own this. Please log in with ${data.email} to get access.`,
+      redirectUrl: isSignedInAsOwner ? (existingOrder.downloadToken ? `/student/orders/${existingOrder.id}` : "/student/learning") : undefined,
+    };
   }
 
   const basePrice = offering.discountPrice ?? offering.price;

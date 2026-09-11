@@ -2,11 +2,13 @@
 
 import * as React from "react";
 import Script from "next/script";
+import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { formatPrice } from "@/lib/utils";
 import "@/lib/razorpay-client-types";
 import { createGuestOrder, verifyGuestPayment } from "../actions/guest-checkout-actions";
@@ -50,6 +52,7 @@ function GuestCheckoutForm({
   const [promptsPack, setPromptsPack] = React.useState(false);
   const [isPending, setIsPending] = React.useState(false);
   const [error, setError] = React.useState<string | undefined>();
+  const [alreadyOwned, setAlreadyOwned] = React.useState<{ message: string; redirectUrl?: string } | undefined>();
 
   const total = offering.price + (promptsPack && offering.promptsPackPrice ? offering.promptsPackPrice : 0);
 
@@ -61,6 +64,10 @@ function GuestCheckoutForm({
     const result = await createGuestOrder({ offeringId: offering.id, name, email, phone, promptsPack });
     if (!result.success) {
       setIsPending(false);
+      if ("alreadyOwned" in result && result.alreadyOwned) {
+        setAlreadyOwned({ message: result.error, redirectUrl: result.redirectUrl });
+        return;
+      }
       setError(result.error);
       return;
     }
@@ -150,6 +157,26 @@ function GuestCheckoutForm({
       <Button type="submit" size="lg" loading={isPending} className="w-full">
         {ctaLabel} {formatPrice(total, offering.currency)}
       </Button>
+
+      <Dialog open={!!alreadyOwned} onOpenChange={(open) => !open && setAlreadyOwned(undefined)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>You already have this</DialogTitle>
+            <DialogDescription>{alreadyOwned?.message}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            {alreadyOwned?.redirectUrl ? (
+              <Button asChild>
+                <Link href={alreadyOwned.redirectUrl}>Go to my account</Link>
+              </Button>
+            ) : (
+              <Button asChild>
+                <Link href="/login">Log in</Link>
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </form>
   );
 }
