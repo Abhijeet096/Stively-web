@@ -3,8 +3,9 @@
 import * as React from "react";
 import Link from "next/link";
 
+import type { Timeline } from "animejs";
+
 import { cn } from "@/lib/utils";
-import { playHeroLoadTimeline, driftOrb } from "@/lib/animations";
 import { Section } from "@/components/shared/section";
 import { Container } from "@/components/shared/container";
 import { Magnetic } from "@/components/shared/magnetic-button";
@@ -78,11 +79,32 @@ function HeroSection({
   React.useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    const timeline = playHeroLoadTimeline(root);
-    const orb = auroraRef.current ? driftOrb(auroraRef.current, 32, 11000) : null;
+    const auroraEl = auroraRef.current;
+
+    // Dynamic import, not a static one - this is every marketing page's
+    // hero, so a top-level `import ... from "@/lib/animations"` here would
+    // put the full animejs library on the critical path of every page on
+    // the site. Deferring it into the effect lets the rest of the page
+    // (including the hero heading itself, which is pure CSS - see
+    // heroRevealStyle above) paint and hydrate without waiting on it; the
+    // signal-path draw and aurora drift it powers are both decorative,
+    // aria-hidden, and never LCP candidates, so a beat's delay is invisible.
+    let cancelled = false;
+    let timeline: Timeline | null = null;
+    // The aurora orb loops forever once started (see observeDriftOrb's own
+    // comment) - most heroes render above the fold and never leave the
+    // viewport, but this keeps the cost bounded (and correctly zero while
+    // off-screen) for the ones that don't, at no cost to the ones that do.
+    let stopOrb: (() => void) | undefined;
+    import("@/lib/animations").then(({ playHeroLoadTimeline, observeDriftOrb }) => {
+      if (cancelled) return;
+      timeline = playHeroLoadTimeline(root);
+      if (auroraEl) stopOrb = observeDriftOrb(auroraEl, 32, 11000);
+    });
     return () => {
+      cancelled = true;
       timeline?.revert();
-      orb?.revert();
+      stopOrb?.();
     };
   }, []);
 

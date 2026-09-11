@@ -16,6 +16,7 @@ const FOOTER_LINKS = {
     { href: "/work", label: "Our Work" },
     { href: "/pricing", label: "Pricing" },
     { href: "/training", label: "Training" },
+    { href: "/digital-store", label: "Digital Store" },
   ],
   Company: [
     { href: "/about", label: "About" },

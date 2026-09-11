@@ -5,7 +5,6 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 import { SERVICES } from "@/lib/services-data";
-import { driftOrb } from "@/lib/animations";
 import { Section } from "@/components/shared/section";
 import { Container } from "@/components/shared/container";
 import { Reveal } from "@/components/shared/reveal";
@@ -26,9 +25,23 @@ function CapabilitiesStrip() {
   const orbRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
-    const orb = orbRef.current ? driftOrb(orbRef.current, 18, 8000) : null;
+    const node = orbRef.current;
+    if (!node) return;
+
+    // animejs is loaded on demand here (not a static top-level import) so
+    // its ~30-40KB doesn't sit in the initial homepage bundle for a purely
+    // decorative ambient drift - see lib/animations.ts's module comment.
+    // observeDriftOrb (not driftOrb directly) pauses this while the orb is
+    // scrolled out of view instead of looping forever regardless.
+    let cancelled = false;
+    let stopOrb: (() => void) | undefined;
+    import("@/lib/animations").then(({ observeDriftOrb }) => {
+      if (cancelled) return;
+      stopOrb = observeDriftOrb(node, 18, 8000);
+    });
     return () => {
-      orb?.revert();
+      cancelled = true;
+      stopOrb?.();
     };
   }, []);
 

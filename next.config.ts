@@ -40,6 +40,20 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "60mb",
     },
   },
+  // The digital-store download route reads its PDF from private/ via a path
+  // built at runtime from Offering.digitalAssetPath (a DB value, not a
+  // string literal) - Next's build-time file tracer can't follow that, so
+  // without this the file silently wouldn't ship in the deployed function
+  // bundle even though `next dev` (which has the whole repo on disk) works
+  // fine. Same class of gap as the invoice PDF's Cloudinary "restricted
+  // media types" issue (see ROADMAP.md) - a download that works locally but
+  // 404s in production - fixed at the source this time, not discovered later.
+  outputFileTracingIncludes: {
+    // Brackets are picomatch character-class syntax, not literal route
+    // syntax - escaped so this actually matches the [token] dynamic
+    // segment instead of a single literal char from the set {t,o,k,e,n}.
+    "/api/digital-store/download/\\[token\\]": ["./private/digital-products/**/*"],
+  },
   images: {
     remotePatterns: [
       {

@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Check } from "lucide-react";
 
 import { cn, formatPrice } from "@/lib/utils";
-import { countUpPrice } from "@/lib/animations";
 import { PRICING_TIERS, type PricingTier } from "@/lib/pricing";
 import { Section } from "@/components/shared/section";
 import { Container } from "@/components/shared/container";
@@ -31,8 +30,23 @@ function PricingCard({ tier, index }: { tier: PricingTier; index: number }) {
   const priceRef = React.useRef<HTMLParagraphElement>(null);
 
   React.useEffect(() => {
-    if (!priceRef.current) return;
-    return countUpPrice(priceRef.current, tier.priceInPaise, formatPrice);
+    const el = priceRef.current;
+    if (!el) return;
+
+    // Dynamic import - see lib/animations.ts's module comment. Homepage
+    // and /pricing both render three of these at once, so this is real
+    // weight to keep off the initial bundle for a count-up that only fires
+    // once the card scrolls into view anyway.
+    let cancelled = false;
+    let cleanup: (() => void) | undefined;
+    import("@/lib/animations").then(({ countUpPrice }) => {
+      if (cancelled) return;
+      cleanup = countUpPrice(el, tier.priceInPaise, formatPrice);
+    });
+    return () => {
+      cancelled = true;
+      cleanup?.();
+    };
   }, [tier.priceInPaise]);
 
   return (

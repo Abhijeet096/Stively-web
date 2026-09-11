@@ -13,3 +13,17 @@ export function computeAutoLoginExpiry(hours: number = DEFAULT_AUTO_LOGIN_EXPIRY
   expires.setHours(expires.getHours() + hours);
   return expires;
 }
+
+/** Same generator as generateAutoLoginToken - named separately so a download token's call sites read as what they are, not as a login mechanism. */
+export function generateDownloadToken(): string {
+  return randomBytes(24).toString("base64url");
+}
+
+/** Long-lived relative to auto-login - a paid file download is something someone comes back to re-fetch days or weeks later, not "right after checkout" only. */
+export const DEFAULT_DOWNLOAD_EXPIRY_DAYS = 30;
+
+export function computeDownloadTokenExpiry(days: number = DEFAULT_DOWNLOAD_EXPIRY_DAYS): Date {
+  const expires = new Date();
+  expires.setDate(expires.getDate() + days);
+  return expires;
+}

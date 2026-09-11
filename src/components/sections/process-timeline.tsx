@@ -2,7 +2,6 @@
 
 import * as React from "react";
 
-import { driftOrb, linkPathDrawToScroll } from "@/lib/animations";
 import { Section } from "@/components/shared/section";
 import { Container } from "@/components/shared/container";
 import { Reveal } from "@/components/shared/reveal";
@@ -47,13 +46,28 @@ function ProcessTimeline({
   const pathRef = React.useRef<SVGPathElement>(null);
 
   React.useEffect(() => {
-    const orb = auroraRef.current ? driftOrb(auroraRef.current, 24, 10000) : null;
-    const unlinkPath =
-      pathRef.current && timelineRef.current
-        ? linkPathDrawToScroll(pathRef.current, timelineRef.current)
-        : null;
+    const auroraEl = auroraRef.current;
+    const pathEl = pathRef.current;
+    const timelineEl = timelineRef.current;
+
+    // Dynamic import - see lib/animations.ts's module comment. This
+    // component renders on the homepage (via business-process.tsx) and
+    // /website-development, so this keeps animejs out of both pages'
+    // initial bundles for a scroll-linked path draw that has nothing to do
+    // with the first paint anyway. observeDriftOrb (not driftOrb directly)
+    // pauses the orb while it's scrolled out of view instead of looping
+    // forever regardless.
+    let cancelled = false;
+    let stopOrb: (() => void) | undefined;
+    let unlinkPath: (() => void) | null = null;
+    import("@/lib/animations").then(({ observeDriftOrb, linkPathDrawToScroll }) => {
+      if (cancelled) return;
+      if (auroraEl) stopOrb = observeDriftOrb(auroraEl, 24, 10000);
+      unlinkPath = pathEl && timelineEl ? linkPathDrawToScroll(pathEl, timelineEl) : null;
+    });
     return () => {
-      orb?.revert();
+      cancelled = true;
+      stopOrb?.();
       unlinkPath?.();
     };
   }, []);

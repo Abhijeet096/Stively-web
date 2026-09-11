@@ -25,6 +25,7 @@ const NAV_LINKS = [
   { href: "/work", label: "Our Work" },
   { href: "/pricing", label: "Pricing" },
   { href: "/training", label: "Training" },
+  { href: "/digital-store", label: "Digital Store" },
 ] as const;
 
 const PRIMARY_CTA = { href: "/start-project", label: "Start a project" };

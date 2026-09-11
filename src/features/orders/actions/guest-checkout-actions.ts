@@ -82,7 +82,7 @@ export async function createGuestOrder(input: unknown): Promise<CreateGuestOrder
   }
 }
 
-export type VerifyGuestPaymentResult = ActionResult & { autoLoginLink?: string };
+export type VerifyGuestPaymentResult = ActionResult & { autoLoginLink?: string; downloadUrl?: string };
 
 /**
  * The guest-checkout twin of verifyPayment - no session to scope the order
@@ -99,7 +99,23 @@ export async function verifyGuestPayment(input: unknown): Promise<VerifyGuestPay
 
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order || !order.razorpayOrderId) return { success: false, error: "Order not found." };
-  if (order.status !== "PENDING") return { success: false, error: "This order has already been processed." };
+
+  // The Razorpay webhook (/api/webhooks/payment) and this client-side call
+  // both confirm the same payment independently, and the webhook can win
+  // the race - it often arrives before the browser's own handler callback
+  // even fires. That's a second confirmation of success, not an error:
+  // fulfillGuestOrder is race-safe and idempotent (see its own comment), so
+  // ask it for the already-computed result instead of re-verifying a
+  // signature that's already been checked once and telling a paying
+  // customer their own successful payment "has already been processed."
+  if (order.status === "PAID") {
+    const result = await waitForGuestOrderFulfillment(orderId);
+    if (!result) return { success: false, error: "Something went wrong finishing your order. We'll follow up by email." };
+    return { success: true, autoLoginLink: result.autoLoginLink ?? undefined, downloadUrl: result.downloadUrl ?? undefined };
+  }
+  if (order.status !== "PENDING") {
+    return { success: false, error: "This order has already been processed." };
+  }
 
   const isValid = verifyRazorpaySignature({ orderId: order.razorpayOrderId, paymentId: razorpayPaymentId, signature: razorpaySignature });
   if (!isValid) {
@@ -111,12 +127,30 @@ export async function verifyGuestPayment(input: unknown): Promise<VerifyGuestPay
   try {
     await prisma.order.update({ where: { id: orderId }, data: { razorpayPaymentId, razorpaySignature } });
     const result = await fulfillGuestOrder(orderId);
-    if (!result) return { success: false, error: "Something went wrong finishing your enrollment. We'll follow up by email." };
-    return { success: true, autoLoginLink: result.autoLoginLink ?? undefined };
+    if (!result) return { success: false, error: "Something went wrong finishing your order. We'll follow up by email." };
+    return { success: true, autoLoginLink: result.autoLoginLink ?? undefined, downloadUrl: result.downloadUrl ?? undefined };
   } catch (error) {
     console.error("verifyGuestPayment failed:", error);
     return { success: false, error: "Something went wrong. Please try again." };
   }
+}
+
+/**
+ * Only reached when the webhook already flipped this order to PAID.
+ * fulfillGuestOrder's own atomic claim means calling it here just reports
+ * the webhook's result rather than redoing the work - but the webhook's own
+ * call may still be mid-flight (status flips to PAID before its account
+ * creation / token generation finishes), so a single immediate call can
+ * briefly see a real order with no tokens on it yet. A short, bounded
+ * retry covers that window without ever blocking a genuinely broken order.
+ */
+async function waitForGuestOrderFulfillment(orderId: string, attempts = 5, delayMs = 400) {
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const result = await fulfillGuestOrder(orderId);
+    if (result?.autoLoginLink || result?.downloadUrl) return result;
+    if (attempt < attempts - 1) await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  return await fulfillGuestOrder(orderId);
 }
 
 /**
@@ -130,11 +164,20 @@ export async function acceptOrderAutoLogin(_prevState: AuthActionResult | null, 
   const parsed = acceptOrderAutoLoginSchema.safeParse({ token: formData.get("token") });
   if (!parsed.success) return { success: false, error: "This link isn't valid." };
 
+  // Read-only lookup by the same token authorize() will consume below -
+  // doesn't touch the token itself, just decides where this particular
+  // order should land once signed in. A pure course order still goes
+  // straight into My Learning (one extra click to find the course is
+  // exactly the friction this flow exists to remove); an order that
+  // unlocked a real file (a digital product, or a course bought with the
+  // eBook add-on) goes to My Purchases instead, where that file's
+  // download button actually lives - landing on the (empty, for a
+  // standalone digital product) LMS would be a dead end.
+  const order = await prisma.order.findUnique({ where: { autoLoginToken: parsed.data.token }, select: { id: true, downloadToken: true } });
+  const redirectTo = order?.downloadToken ? `/student/orders/${order.id}` : "/student/learning";
+
   try {
-    // Straight into My Learning, not the generic dashboard - someone who
-    // just paid for a course wants the course, and one extra click to find
-    // it is exactly the friction this whole flow exists to remove.
-    await signIn("credentials", { token: parsed.data.token, redirectTo: "/student/learning" });
+    await signIn("credentials", { token: parsed.data.token, redirectTo });
     return { success: true };
   } catch (error) {
     if (isNextRedirectError(error)) throw error;

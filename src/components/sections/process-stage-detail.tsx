@@ -3,7 +3,6 @@
 import * as React from "react";
 import { Check, User } from "lucide-react";
 
-import { driftOrb, linkPathDrawToScroll } from "@/lib/animations";
 import { Section } from "@/components/shared/section";
 import { Container } from "@/components/shared/container";
 import { Reveal } from "@/components/shared/reveal";
@@ -58,11 +57,24 @@ function ProcessStageDetailList({
   const pathRef = React.useRef<SVGPathElement>(null);
 
   React.useEffect(() => {
-    const orb = auroraRef.current ? driftOrb(auroraRef.current, 24, 10000) : null;
-    const unlinkPath =
-      pathRef.current && listRef.current ? linkPathDrawToScroll(pathRef.current, listRef.current) : null;
+    const auroraEl = auroraRef.current;
+    const pathEl = pathRef.current;
+    const listEl = listRef.current;
+
+    // Dynamic import - see lib/animations.ts's module comment.
+    // observeDriftOrb (not driftOrb directly) pauses the orb while it's
+    // scrolled out of view instead of looping forever regardless.
+    let cancelled = false;
+    let stopOrb: (() => void) | undefined;
+    let unlinkPath: (() => void) | null = null;
+    import("@/lib/animations").then(({ observeDriftOrb, linkPathDrawToScroll }) => {
+      if (cancelled) return;
+      if (auroraEl) stopOrb = observeDriftOrb(auroraEl, 24, 10000);
+      unlinkPath = pathEl && listEl ? linkPathDrawToScroll(pathEl, listEl) : null;
+    });
     return () => {
-      orb?.revert();
+      cancelled = true;
+      stopOrb?.();
       unlinkPath?.();
     };
   }, []);

@@ -18,6 +18,7 @@ export const CATEGORY_LABEL: Record<OfferingCategory, string> = {
   CAREER_GUIDANCE: "Career Guidance",
   CORPORATE_TRAINING: "Corporate Training",
   SAAS: "SaaS",
+  DIGITAL_PRODUCT: "Digital Product",
 };
 
 export const AUDIENCE_LABEL: Record<OfferingAudience, string> = {

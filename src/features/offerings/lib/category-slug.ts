@@ -19,6 +19,7 @@ export const CATEGORY_SLUG: Record<OfferingCategory, string> = {
   CAREER_GUIDANCE: "career-guidance",
   CORPORATE_TRAINING: "corporate-training",
   SAAS: "saas",
+  DIGITAL_PRODUCT: "digital-store",
 };
 
 const SLUG_TO_CATEGORY = Object.fromEntries(

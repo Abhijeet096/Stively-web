@@ -21,6 +21,11 @@ export interface GuestCheckoutFormProps {
   };
   /** CSP nonce from src/proxy.ts, read via `headers()` on the offering page. */
   nonce?: string;
+  /** "Enroll Now" reads right for a course, wrong for a one-off product - the call site names its own verb. Defaults to the original course wording so every existing caller is unaffected. */
+  ctaLabel?: string;
+  namePlaceholder?: string;
+  /** Overrides the promptsPack add-on's label/description - lets a course page point the bonus at the real, purchasable Digital Store product instead of the original unlinked promise. Ignored when the offering has no promptsPackPrice. */
+  promptsPackCopy?: { label: string; description: string };
 }
 
 /**
@@ -31,7 +36,13 @@ export interface GuestCheckoutFormProps {
  * traffic, ready-to-buy audience, zero distraction" brief this was built
  * for.
  */
-function GuestCheckoutForm({ offering, nonce }: GuestCheckoutFormProps) {
+function GuestCheckoutForm({
+  offering,
+  nonce,
+  ctaLabel = "Enroll Now for",
+  namePlaceholder = "For your certificate",
+  promptsPackCopy,
+}: GuestCheckoutFormProps) {
   const [scriptReady, setScriptReady] = React.useState(false);
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
@@ -80,9 +91,13 @@ function GuestCheckoutForm({ offering, nonce }: GuestCheckoutFormProps) {
           setError(verifyResult.error);
           return;
         }
-        // Straight into the account, no separate "click here to continue"
-        // step - the whole point of this flow is feeling instant.
-        window.location.href = verifyResult.autoLoginLink ?? "/login";
+        // Straight into the account, signed in - no separate "click here to
+        // continue" step. autoLoginLink now resolves to the right place for
+        // what was actually bought (My Purchases with a real download
+        // button for a digital product, My Learning for a course) - see
+        // acceptOrderAutoLogin. downloadUrl is the fallback only if
+        // fulfillment somehow produced a file but no account link.
+        window.location.href = verifyResult.autoLoginLink ?? verifyResult.downloadUrl ?? "/login";
       },
       modal: { ondismiss: () => setIsPending(false) },
     });
@@ -101,7 +116,7 @@ function GuestCheckoutForm({ offering, nonce }: GuestCheckoutFormProps) {
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="gc-name">Full name</Label>
-        <Input id="gc-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="For your certificate" required />
+        <Input id="gc-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={namePlaceholder} required />
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="gc-email">Email</Label>
@@ -116,9 +131,11 @@ function GuestCheckoutForm({ offering, nonce }: GuestCheckoutFormProps) {
         <div className="border-primary/30 bg-primary/5 flex items-start gap-2.5 rounded-lg border p-3">
           <Checkbox id="gc-prompts-pack" checked={promptsPack} onCheckedChange={(v) => setPromptsPack(v === true)} className="mt-0.5" />
           <Label htmlFor="gc-prompts-pack" className="flex-1 cursor-pointer font-normal">
-            <span className="text-foreground font-medium">Add 100+ ready-to-use prompt templates</span>
+            <span className="text-foreground font-medium">
+              {promptsPackCopy?.label ?? "Add 100+ ready-to-use prompt templates"}
+            </span>
             <span className="text-muted-foreground block text-sm">
-              One-time add-on, {formatPrice(offering.promptsPackPrice, offering.currency)}
+              {promptsPackCopy?.description ?? "One-time add-on"}, {formatPrice(offering.promptsPackPrice, offering.currency)}
             </span>
           </Label>
         </div>
@@ -131,7 +148,7 @@ function GuestCheckoutForm({ offering, nonce }: GuestCheckoutFormProps) {
       )}
 
       <Button type="submit" size="lg" loading={isPending} className="w-full">
-        Enroll Now for {formatPrice(total, offering.currency)}
+        {ctaLabel} {formatPrice(total, offering.currency)}
       </Button>
     </form>
   );

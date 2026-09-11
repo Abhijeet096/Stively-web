@@ -230,6 +230,25 @@ export async function getOfferingCurriculumOutline(offeringId: string): Promise<
   }
 }
 
+/**
+ * The Digital Store catalog - unlike getOfferings, deliberately includes
+ * COMING_SOON alongside PUBLISHED (the brief's own "show the other 5 as
+ * disabled Coming Soon cards"), scoped to DIGITAL_PRODUCT only. Published
+ * items first (what a buyer can actually act on), then coming-soon ones in
+ * a stable order.
+ */
+export async function getDigitalStoreOfferings(): Promise<Offering[]> {
+  try {
+    return await prisma.offering.findMany({
+      where: { category: "DIGITAL_PRODUCT", visible: true, status: { in: ["PUBLISHED", "COMING_SOON"] } },
+      orderBy: [{ status: "asc" }, { featured: "desc" }, { createdAt: "asc" }],
+    });
+  } catch (error) {
+    console.error("getDigitalStoreOfferings failed:", error);
+    return [];
+  }
+}
+
 /** For generateStaticParams and sitemap.ts - published offering slugs only. */
 export async function getAllOfferingSlugs(): Promise<string[]> {
   try {

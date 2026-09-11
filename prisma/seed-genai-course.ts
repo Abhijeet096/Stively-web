@@ -90,12 +90,25 @@ async function main() {
         "Anyone who wants prompting skills that transfer across AI tools, not tied to one specific product",
       ],
       requirements: ["A laptop/desktop with a modern browser", "Access to any AI assistant (ChatGPT, Claude, Gemini, or similar) for the practice activities"],
+      // 8 modules total - matches the real course outline. Only modules 1-4
+      // have recorded lessons below (real video + quiz); 5-8 are added as
+      // empty Module rows by a one-off migration (not this seed, which only
+      // ever runs once against an empty DB - see the `existing` guard
+      // above), so they show as real, correctly-titled "Coming soon" rows
+      // instead of being left out of the course outline entirely. A Module
+      // with zero Lessons is inert to progress/unlock/certificate logic
+      // (see lib/progress.ts's flattenLessons) - purely a display entry
+      // until its lesson is recorded.
       curriculum: {
         modules: [
           { title: "Introduction to Generative AI", topics: ["What Generative AI is", "Where it fits vs. traditional AI", "What it can create", "The instruction loop"] },
           { title: "Understanding LLMs & AI Assistants", topics: ["AI assistant vs. AI model", "What LLM means", "Tokens and training", "Why context matters"] },
           { title: "Prompt Engineering Fundamentals", topics: ["Goal, context, constraints, output format", "Role and audience", "Iterating on a prompt"] },
           { title: "Advanced Prompting Techniques", topics: ["Few-shot prompting", "Structured output", "Task decomposition", "Prompt chaining", "Grounding", "Evaluation"] },
+          { title: "AI for Study, Work & Productivity", topics: ["Studying with AI as a loop, not a summarizer", "AI as a writing partner", "Turning repetitive work into reusable workflows", "Research and document-grounded answers"] },
+          { title: "AI for Coding & Technical Work", topics: ["Understanding unfamiliar code", "Generating and reviewing small changes", "Debugging with real evidence", "Refactoring, tests, and documentation"] },
+          { title: "AI for Content, Business & Real-World Workflows", topics: ["Content creation and transformation", "Business research and documents", "Customer support with a human checkpoint", "Designing a repeatable workflow"] },
+          { title: "Applying AI: Workflows, Responsibility & Final Assessment", topics: ["Building a complete AI workflow", "Human-in-the-loop and evaluation criteria", "Responsible AI use", "Practical tasks and final assessment"] },
         ],
       },
     },

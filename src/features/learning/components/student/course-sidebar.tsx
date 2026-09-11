@@ -111,15 +111,35 @@ function CourseSidebar({
           {modules.map((module, moduleIndex) => (
             <AccordionItem key={module.id} value={module.id} className="border-b-0">
               <AccordionTrigger className="px-2 py-2.5 text-left hover:no-underline">
-                <span className="flex flex-col gap-0.5 pr-2">
-                  <span className="text-muted-foreground font-mono text-[11px] tracking-widest uppercase">
-                    Module {moduleIndex + 1}
+                <span className="flex flex-1 items-center justify-between gap-2 pr-2">
+                  <span className="flex flex-col gap-0.5">
+                    <span className="text-muted-foreground font-mono text-[11px] tracking-widest uppercase">
+                      Module {moduleIndex + 1}
+                    </span>
+                    <span
+                      className={cn(
+                        "text-sm font-medium",
+                        module.lessons.length === 0 ? "text-muted-foreground" : "text-foreground"
+                      )}
+                    >
+                      {module.title}
+                    </span>
                   </span>
-                  <span className="text-foreground text-sm font-medium">{module.title}</span>
+                  {module.lessons.length === 0 && (
+                    <span className="text-muted-foreground bg-muted shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium">
+                      Coming soon
+                    </span>
+                  )}
                 </span>
               </AccordionTrigger>
               <AccordionContent className="pb-1">
                 <ul className="flex flex-col gap-0.5">
+                  {module.lessons.length === 0 && (
+                    <li className="text-muted-foreground/70 flex items-start gap-2.5 px-3 py-2 text-sm">
+                      <Lock className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                      <span>Coming soon - added free once it&apos;s recorded.</span>
+                    </li>
+                  )}
                   {module.lessons.map((lesson) => {
                     const lessonIndex = orderedLessons.findIndex((l) => l.id === lesson.id);
                     const previousLesson = lessonIndex > 0 ? orderedLessons[lessonIndex - 1] : undefined;

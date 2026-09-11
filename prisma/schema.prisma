@@ -845,6 +845,15 @@ model Offering {
   bannerUrl    String?
   gallery      String[]
 
+  /// Relative path (under the repo's private/ directory, never public/) to
+  /// the real deliverable file for a DIGITAL_PRODUCT offering - e.g.
+  /// "digital-products/100-practical-ai-prompts.pdf". Read only by the
+  /// token-gated download route (src/app/api/digital-store/download/
+  /// [token]/route.ts), never served as a static asset - see
+  /// Order.downloadToken for why a plain public URL isn't used here.
+  /// Null for every other category.
+  digitalAssetPath String?
+
   // Lightweight future-relation fields - see the model-level comment above.
   instructorName String?
   tags           String[]
@@ -907,6 +916,9 @@ enum OfferingCategory {
   CAREER_GUIDANCE
   CORPORATE_TRAINING
   SAAS
+  /// A standalone downloadable product (ebook, template pack) - no
+  /// LearningExperience, no OfferingEnrollment. See Order.downloadToken.
+  DIGITAL_PRODUCT
 }
 
 enum OfferingAudience {
@@ -1239,6 +1251,16 @@ model Order {
   /// normal order and for a guest order before it's actually paid.
   autoLoginToken          String?   @unique
   autoLoginTokenExpiresAt DateTime?
+
+  /// Secure, expiring access to the paid deliverable - either this order's
+  /// own DIGITAL_PRODUCT offering, or (see guest-fulfillment.ts) a course
+  /// order that purchased the promptsPack add-on. Same shape/reasoning as
+  /// autoLoginToken above (unguessable, expiring) but deliberately NOT
+  /// single-use/cleared-on-use - a buyer should be able to re-download
+  /// their file any number of times until it expires, not just once.
+  /// Null for every order that never unlocked a real file download.
+  downloadToken          String?   @unique
+  downloadTokenExpiresAt DateTime?
 
   paidAt    DateTime?
   createdAt DateTime  @default(now())

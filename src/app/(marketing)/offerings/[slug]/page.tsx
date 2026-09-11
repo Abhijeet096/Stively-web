@@ -169,9 +169,6 @@ export default async function OfferingSlugPage({ params, searchParams }: Offerin
     notFound();
   }
 
-  const related = await getRelatedOfferings(offering);
-  const faqs = parseOfferingFaqs(offering.faqs);
-  const primaryCta = getPrimaryOfferingCtaAction(offering);
   const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   // A course sells on a different page than a service does - one focused
@@ -179,6 +176,13 @@ export default async function OfferingSlugPage({ params, searchParams }: Offerin
   // of the generic hero + list-section stack every other category uses.
   // Same route and canonical URL either way, so this is a layout branch,
   // not a second competing page for the same offering.
+  //
+  // Checked before computing related/faqs/primaryCta below - CourseDetailView
+  // parses its own FAQs and never renders RelatedOfferings or the generic CTA,
+  // so this branch used to pay for a full extra getRelatedOfferings() round
+  // trip on every request and then throw the result away unused. For a
+  // Instagram-traffic landing page, one fewer sequential DB query directly
+  // off the critical path to first byte is worth the real TTFB it saves.
   if (offering.category === "TRAINING") {
     const curriculum = await getOfferingCurriculumOutline(offering.id);
     return (
@@ -205,6 +209,10 @@ export default async function OfferingSlugPage({ params, searchParams }: Offerin
       </>
     );
   }
+
+  const related = await getRelatedOfferings(offering);
+  const faqs = parseOfferingFaqs(offering.faqs);
+  const primaryCta = getPrimaryOfferingCtaAction(offering);
 
   return (
     <>

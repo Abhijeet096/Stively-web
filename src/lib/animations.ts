@@ -1,20 +1,23 @@
+// This file statically imports the full animejs library - every caller
+// pulls that ~30-40KB in as part of whatever chunk it lands in. Import it
+// dynamically (`await import("@/lib/animations")` inside the effect that
+// needs it, not a top-level `import ... from`) rather than adding a new
+// static import here, so animejs stays off the initial/critical bundle for
+// every page. See every existing call site (hero-section.tsx,
+// capabilities-strip.tsx, pricing-tiers.tsx, process-timeline.tsx,
+// process-stage-detail.tsx, magnetic-button.tsx) for the pattern - and
+// magnetic-button.tsx specifically for how to skip the import entirely
+// when the guards below already say no.
 import { animate, createTimeline, createDrawable, type JSAnimation, type Timeline } from "animejs";
+import { prefersReducedMotion, isFinePointer } from "./motion-guards";
 
-/**
- * Single source of truth for "should JS-driven motion run at all" - the
- * global `prefers-reduced-motion` rule in globals.css only fast-forwards
- * CSS transitions/animations, it has no effect on animejs's imperative
- * tweens. Every entry point below checks this first.
- */
-export function prefersReducedMotion(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
-function isFinePointer(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.matchMedia("(pointer: fine)").matches;
-}
+// Re-exported (not defined here) so an existing importer of
+// prefersReducedMotion from this file keeps working unchanged. A caller
+// that only needs the guard - not the animejs-dependent functions below -
+// should import lib/motion-guards.ts directly instead, so it never pulls
+// animejs in at all. Every entry point below still checks
+// prefersReducedMotion first, same as before this split.
+export { prefersReducedMotion, isFinePointer };
 
 /**
  * Draws the hero's decorative signal-path SVG once on load. The eyebrow/
@@ -46,6 +49,12 @@ export function playHeroLoadTimeline(root: HTMLElement): Timeline | null {
 /**
  * Slow, looping ambient drift for background gradient orbs. Purely
  * decorative (aria-hidden elements only) - never applied to content.
+ *
+ * `loop: true` has no end condition, so once started this runs forever -
+ * not lifecycle-aware on its own. Exported mainly for observeDriftOrb below
+ * to build on; a caller rendering one of these orbs should use that instead
+ * of calling this directly, so the animation actually stops costing
+ * anything while its element is off-screen.
  */
 export function driftOrb(el: Element, distance = 26, duration = 9000): JSAnimation | null {
   if (prefersReducedMotion()) return null;
@@ -56,6 +65,62 @@ export function driftOrb(el: Element, distance = 26, duration = 9000): JSAnimati
     loop: true,
     ease: "inOutSine",
   });
+}
+
+/**
+ * Lifecycle-aware version of driftOrb - the three ambient orbs that use it
+ * (Hero's aurora, CapabilitiesStrip's, ProcessTimeline/ProcessStageDetail's)
+ * were each running driftOrb's infinite loop unconditionally for as long as
+ * the component stayed mounted, including while scrolled completely out of
+ * view. Confirmed via animejs's own engine source (engine.js): a `.pause()`d
+ * timer is removed from the engine's active list on its next tick, and once
+ * nothing is left active the engine stops scheduling `requestAnimationFrame`
+ * entirely - so pausing every visible orb genuinely stops the work, it
+ * doesn't just skip rendering while still ticking.
+ *
+ * Exactly one JSAnimation instance is created per call (on first
+ * intersection, not eagerly at mount) and every later enter/leave toggles
+ * `.resume()`/`.pause()` on that SAME instance - never a second one - so
+ * resuming continues the drift from where it paused rather than restarting
+ * it, and there's never more than one loop per element. `rootMargin` starts
+ * the drift a little before the orb is actually on-screen (and stops it a
+ * little after) so a fast scroll never catches it visibly kicking off
+ * mid-viewport.
+ *
+ * Skips creating the IntersectionObserver entirely under reduced motion or
+ * if IntersectionObserver isn't available, matching driftOrb's own no-op
+ * there - nothing to observe if it's never going to animate.
+ *
+ * Returns a single cleanup function: disconnects the observer and reverts
+ * the animation. Call it on unmount.
+ */
+export function observeDriftOrb(el: Element, distance = 26, duration = 9000): () => void {
+  if (prefersReducedMotion() || typeof IntersectionObserver === "undefined") {
+    return () => {};
+  }
+
+  let anim: JSAnimation | null = null;
+
+  const observer = new IntersectionObserver(
+    ([entry]) => {
+      if (entry.isIntersecting) {
+        if (anim) {
+          anim.resume();
+        } else {
+          anim = driftOrb(el, distance, duration);
+        }
+      } else {
+        anim?.pause();
+      }
+    },
+    { rootMargin: "150px 0px" }
+  );
+  observer.observe(el);
+
+  return () => {
+    observer.disconnect();
+    anim?.revert();
+  };
 }
 
 /**

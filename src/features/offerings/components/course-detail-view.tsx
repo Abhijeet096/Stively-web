@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import type { Offering } from "@prisma/client";
 
-import { formatPrice } from "@/lib/utils";
+import { cn, formatPrice } from "@/lib/utils";
 import { siteConfig } from "@/config/site";
 import { Section } from "@/components/shared/section";
 import { Container } from "@/components/shared/container";
@@ -204,6 +204,14 @@ function CourseDetailView({
               promptsPackPrice: offering.promptsPackPrice,
             }}
             nonce={nonce}
+            // The real, purchasable eBook this add-on actually unlocks - see
+            // PROMPTS_PACK_PRODUCT_SLUG in digital-download.ts, the single
+            // source of truth both this checkout add-on and the standalone
+            // Digital Store listing resolve to.
+            promptsPackCopy={{
+              label: "Add the 100 Practical AI Prompts eBook",
+              description: "PDF download, delivered by email",
+            }}
           />
         ) : (
           cta && (
@@ -211,6 +219,15 @@ function CourseDetailView({
               <Link href={cta.href}>{cta.label}</Link>
             </Button>
           )
+        )}
+
+        {offering.allowsGuestCheckout && offering.promptsPackPrice != null && (
+          <Link
+            href="/digital-store/100-practical-ai-prompts"
+            className="text-primary text-center text-xs font-medium hover:underline"
+          >
+            Just want the eBook? Buy it on its own in the Digital Store →
+          </Link>
         )}
 
         <p className="text-muted-foreground flex items-center justify-center gap-1.5 text-xs">
@@ -400,32 +417,51 @@ function CourseDetailView({
                   </h2>
                   <p className="text-muted-foreground text-sm">
                     {curriculum.moduleCount} module{curriculum.moduleCount === 1 ? "" : "s"} ·{" "}
-                    {curriculum.lessonCount} lesson{curriculum.lessonCount === 1 ? "" : "s"}
+                    {curriculum.lessonCount} lesson{curriculum.lessonCount === 1 ? "" : "s"} available now
                   </p>
                 </div>
                 <Accordion type="single" collapsible className="w-full">
-                  {curriculum.modules.map((module, index) => (
-                    <AccordionItem key={module.id} value={module.id}>
-                      <AccordionTrigger>
-                        <span className="flex flex-1 flex-wrap items-center justify-between gap-x-4 gap-y-1 pr-3 text-left">
-                          <span className="flex items-center gap-2.5">
-                            <span className="bg-primary/10 text-primary flex size-6 shrink-0 items-center justify-center rounded-md text-xs font-semibold tabular-nums">
-                              {index + 1}
+                  {curriculum.modules.map((module, index) => {
+                    // A module with no lessons yet hasn't been built/recorded -
+                    // shown here as a real, correctly-titled part of the course
+                    // (not hidden, not invented content) rather than left out or
+                    // padded with a fake lesson count.
+                    const comingSoon = module.lessonCount === 0;
+                    return (
+                      <AccordionItem key={module.id} value={module.id}>
+                        <AccordionTrigger>
+                          <span className="flex flex-1 flex-wrap items-center justify-between gap-x-4 gap-y-1 pr-3 text-left">
+                            <span className="flex items-center gap-2.5">
+                              <span
+                                className={cn(
+                                  "flex size-6 shrink-0 items-center justify-center rounded-md text-xs font-semibold tabular-nums",
+                                  comingSoon ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"
+                                )}
+                              >
+                                {index + 1}
+                              </span>
+                              <span className={comingSoon ? "text-muted-foreground" : undefined}>{module.title}</span>
                             </span>
-                            <span>{module.title}</span>
+                            {comingSoon ? (
+                              <Badge variant="secondary" className="font-normal">
+                                Coming soon
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-xs font-normal">
+                                {module.lessonCount} lesson{module.lessonCount === 1 ? "" : "s"}
+                                {module.totalMinutes != null && ` · ${formatMinutes(module.totalMinutes)}`}
+                              </span>
+                            )}
                           </span>
-                          <span className="text-muted-foreground text-xs font-normal">
-                            {module.lessonCount} lesson{module.lessonCount === 1 ? "" : "s"}
-                            {module.totalMinutes != null && ` · ${formatMinutes(module.totalMinutes)}`}
-                          </span>
-                        </span>
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        A recorded video lesson, written notes you can revisit any time, and a short
-                        quiz you need to pass before the next module unlocks.
-                      </AccordionContent>
-                    </AccordionItem>
-                  ))}
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          {comingSoon
+                            ? "This module is being recorded and will be added as a free update for everyone already enrolled - lifetime access covers it."
+                            : "A recorded video lesson, written notes you can revisit any time, and a short quiz you need to pass before the next module unlocks."}
+                        </AccordionContent>
+                      </AccordionItem>
+                    );
+                  })}
                 </Accordion>
               </div>
             )}

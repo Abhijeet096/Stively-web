@@ -12,11 +12,13 @@ import { WhatsAppButton } from "@/components/shared/whatsapp-button";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+  display: "optional",
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  display: "optional",
 });
 
 // Display face for h1/section h2 headings only (see docs/design-system.md's
@@ -25,6 +27,7 @@ const geistMono = Geist_Mono({
 const bricolageGrotesque = Bricolage_Grotesque({
   variable: "--font-bricolage",
   subsets: ["latin"],
+  display: "optional",
 });
 
 export const metadata: Metadata = {
