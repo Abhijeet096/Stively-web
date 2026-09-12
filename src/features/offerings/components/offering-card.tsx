@@ -15,9 +15,20 @@ import { CATEGORY_LABEL, MODE_LABEL, formatOfferingPrice } from "../lib/labels";
  */
 /** hrefBase lets a portal-embedded catalog (e.g. /client/offerings) point every card at its own detail route instead of the public /offerings catalog - the card markup itself is identical either way. */
 function OfferingCard({ offering, hrefBase = "/offerings" }: { offering: Offering; hrefBase?: string }) {
+  // On the public catalog specifically, a DIGITAL_PRODUCT's real page lives
+  // at /digital-store/[slug] - /offerings/[slug] just permanently redirects
+  // there (see that route). Linking straight there avoids a pointless
+  // redirect hop for both real visitors and crawlers following this card.
+  // Portal-embedded catalogs (a custom hrefBase) are left exactly as they
+  // were - not this fix's scope.
+  const href =
+    hrefBase === "/offerings" && offering.category === "DIGITAL_PRODUCT"
+      ? `/digital-store/${offering.slug}`
+      : `${hrefBase}/${offering.slug}`;
+
   return (
     <Link
-      href={`${hrefBase}/${offering.slug}`}
+      href={href}
       className="block rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       <Card variant="interactive" className="h-full">

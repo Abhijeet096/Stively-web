@@ -253,7 +253,11 @@ export async function getDigitalStoreOfferings(): Promise<Offering[]> {
 export async function getAllOfferingSlugs(): Promise<string[]> {
   try {
     const offerings = await prisma.offering.findMany({
-      where: { status: "PUBLISHED", visible: true },
+      // DIGITAL_PRODUCT lives at /digital-store/[slug], not /offerings/[slug]
+      // (that route permanently redirects there - see OfferingSlugPage) - so
+      // pre-rendering it here would just be static-generating a page whose
+      // only job is redirecting away from itself.
+      where: { status: "PUBLISHED", visible: true, category: { not: "DIGITAL_PRODUCT" } },
       select: { slug: true },
     });
     return offerings.map((o: { slug: string }) => o.slug);
@@ -283,17 +287,34 @@ export async function getAllUsedCategorySlugs(): Promise<OfferingCategory[]> {
  * "now" on every request. Kept separate rather than changing
  * getAllOfferingSlugs's return shape, since that function's other caller
  * (offerings/[slug]'s generateStaticParams) just needs the slug list.
+ *
+ * Also excludes DIGITAL_PRODUCT for the same reason as getAllOfferingSlugs -
+ * its real canonical URL is /digital-store/[slug]; sitemap.ts submits those
+ * separately via getAllDigitalProductSlugs below.
  */
 export async function getAllOfferingSlugsWithDates(): Promise<
   { slug: string; updatedAt: Date }[]
 > {
   try {
     return await prisma.offering.findMany({
-      where: { status: "PUBLISHED", visible: true },
+      where: { status: "PUBLISHED", visible: true, category: { not: "DIGITAL_PRODUCT" } },
       select: { slug: true, updatedAt: true },
     });
   } catch (error) {
     console.error("getAllOfferingSlugsWithDates failed:", error);
+    return [];
+  }
+}
+
+/** The digital-store counterpart to getAllOfferingSlugsWithDates - real canonical URLs live at /digital-store/[slug], not /offerings/[slug]. */
+export async function getAllDigitalProductSlugs(): Promise<{ slug: string; updatedAt: Date }[]> {
+  try {
+    return await prisma.offering.findMany({
+      where: { status: "PUBLISHED", visible: true, category: "DIGITAL_PRODUCT" },
+      select: { slug: true, updatedAt: true },
+    });
+  } catch (error) {
+    console.error("getAllDigitalProductSlugs failed:", error);
     return [];
   }
 }

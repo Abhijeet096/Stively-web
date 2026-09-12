@@ -58,6 +58,20 @@ export async function getAllPublishedPortfolioSlugs(): Promise<string[]> {
   }
 }
 
+/** Sitemap-only variant of getAllPublishedPortfolioSlugs - carries `updatedAt` so sitemap.ts can report each case study's real last-modified date instead of "now" on every request. */
+export async function getAllPublishedPortfolioSlugsWithDates(): Promise<{ slug: string; updatedAt: Date }[]> {
+  try {
+    const items = await prisma.portfolioItem.findMany({
+      where: { published: true, slug: { not: null } },
+      select: { slug: true, updatedAt: true },
+    });
+    return items.filter((item): item is { slug: string; updatedAt: Date } => !!item.slug);
+  } catch (error) {
+    console.error("getAllPublishedPortfolioSlugsWithDates failed:", error);
+    return [];
+  }
+}
+
 /** /admin/portfolio's list source - published and unpublished, sortOrder-ordered (no featured-first bump, since this is a management view, not a teaser). */
 export async function getAllPortfolioItemsForAdmin(): Promise<PortfolioItem[]> {
   try {

@@ -3,10 +3,12 @@ import { siteConfig } from "@/config/site";
 import { getAllProgramSlugsWithDates } from "@/lib/queries/programs";
 import {
   getAllOfferingSlugsWithDates,
+  getAllDigitalProductSlugs,
   getAllUsedCategorySlugs,
   getCategoryLastModifiedMap,
 } from "@/features/offerings/server/queries";
 import { categoryToSlug } from "@/features/offerings/lib/category-slug";
+import { getAllPublishedPortfolioSlugsWithDates } from "@/lib/queries/portfolio";
 
 // Company-site-only: blog.stively.com is a separate deployment with its own
 // sitemap.ts (see blog-project/src/app/sitemap.ts) - never merge blog URLs
@@ -24,6 +26,7 @@ const STATIC_ROUTES: { path: string; priority: number }[] = [
   { path: "/training", priority: 0.8 },
   { path: "/offerings", priority: 0.8 },
   { path: "/work", priority: 0.7 },
+  { path: "/digital-store", priority: 0.8 },
   { path: "/process", priority: 0.7 },
   { path: "/contact", priority: 0.7 },
   // Legal pages: low priority (not conversion/search targets) but still
@@ -75,5 +78,31 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.9,
   }));
 
-  return [...staticEntries, ...programEntries, ...categoryEntries, ...offeringEntries];
+  // DIGITAL_PRODUCT's real canonical URL is /digital-store/[slug], not
+  // /offerings/[slug] (which permanently redirects there) - submitted
+  // separately so Google is only ever pointed at the one real page.
+  const digitalProducts = await getAllDigitalProductSlugs();
+  const digitalProductEntries: MetadataRoute.Sitemap = digitalProducts.map(({ slug, updatedAt }) => ({
+    url: `${siteConfig.url}/digital-store/${slug}`,
+    lastModified: updatedAt,
+    changeFrequency: "weekly",
+    priority: 0.9,
+  }));
+
+  const portfolioItems = await getAllPublishedPortfolioSlugsWithDates();
+  const portfolioEntries: MetadataRoute.Sitemap = portfolioItems.map(({ slug, updatedAt }) => ({
+    url: `${siteConfig.url}/work/${slug}`,
+    lastModified: updatedAt,
+    changeFrequency: "monthly",
+    priority: 0.6,
+  }));
+
+  return [
+    ...staticEntries,
+    ...programEntries,
+    ...categoryEntries,
+    ...offeringEntries,
+    ...digitalProductEntries,
+    ...portfolioEntries,
+  ];
 }

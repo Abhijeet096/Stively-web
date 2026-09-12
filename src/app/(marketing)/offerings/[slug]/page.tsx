@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { headers } from "next/headers";
 
 import {
@@ -167,6 +167,18 @@ export default async function OfferingSlugPage({ params, searchParams }: Offerin
   const offering = await getOfferingBySlug(slug);
   if (!offering) {
     notFound();
+  }
+
+  // A DIGITAL_PRODUCT's real, purpose-built detail page lives at
+  // /digital-store/[slug] (see that route) - this generic template renders
+  // a thin duplicate of it (whatYoullLearn/benefits/requirements are empty
+  // for every digital product), and both pages self-claimed canonical,
+  // which is exactly the kind of duplicate-content signal that keeps a page
+  // out of Google's index. A permanent redirect consolidates the two into
+  // one real, indexable URL instead of leaving it to a canonical tag Google
+  // is free to override.
+  if (offering.category === "DIGITAL_PRODUCT") {
+    permanentRedirect(`/digital-store/${offering.slug}`);
   }
 
   const nonce = (await headers()).get("x-nonce") ?? undefined;
