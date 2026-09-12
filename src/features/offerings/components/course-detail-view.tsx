@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   Check,
   X,
@@ -29,6 +30,7 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from "@/components/ui/accordion";
+import { getCourseCertificateConfig } from "@/features/certificates/lib/course-config";
 import { DIFFICULTY_LABEL, MODE_LABEL } from "../lib/labels";
 import { getPrimaryOfferingCtaAction } from "../lib/purchase-cta";
 import { parseOfferingFaqs } from "../lib/faq";
@@ -137,6 +139,7 @@ function CourseDetailView({
       : null;
   const heroImage = offering.bannerUrl ?? offering.thumbnailUrl;
   const faqs = parseOfferingFaqs(offering.faqs);
+  const certificateConfig = getCourseCertificateConfig(offering.slug);
   const courseFaqs = faqs.length > 0 ? faqs : DEFAULT_COURSE_FAQS;
 
   const trustPoints = [
@@ -608,6 +611,44 @@ function CourseDetailView({
           </p>
         </Container>
       </Section>
+
+      {/* ── CERTIFICATE PREVIEW - only for courses that actually issue one (src/features/certificates/lib/course-config.ts), so no course shows a preview it can't back up. ── */}
+      {certificateConfig && (
+        <Section background="default" className="py-12 md:py-16">
+          <Container className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
+            <div className="border-border/70 relative aspect-[1920/1358] w-full overflow-hidden rounded-2xl border shadow-lg">
+              <Image
+                src="/certificates/gen-ai-certificate-preview.png"
+                alt="Sample Stively certificate of completion"
+                fill
+                sizes="(max-width: 1024px) 90vw, 45vw"
+                className="object-cover"
+              />
+            </div>
+            <div className="flex flex-col gap-4">
+              <Badge variant="secondary" className="w-fit">
+                Certificate of completion
+              </Badge>
+              <h2 className="text-foreground font-display text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
+                A real, verifiable certificate - not just a PDF
+              </h2>
+              <p className="text-muted-foreground text-pretty">
+                Finish the course and its assessments, and you get a certificate with a unique ID and QR
+                code. Anyone can scan it to confirm it&apos;s genuine on our public verification page - no
+                guessing whether a certificate is real.
+              </p>
+              <ul className="flex flex-col gap-2.5">
+                {["Personalized with your name automatically", "Unique certificate ID", "Publicly verifiable, anytime"].map((item) => (
+                  <li key={item} className="text-foreground flex items-start gap-2.5 text-sm">
+                    <Check className="text-primary mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </Container>
+        </Section>
+      )}
 
       {/* ── FAQ ──────────────────────────────────────────── */}
       <Section background="muted" className="py-12 md:py-16 lg:py-20">

@@ -2075,12 +2075,19 @@ enum CertificateStatus {
   NOT_ELIGIBLE
   ELIGIBLE
   ISSUED
+  REVOKED
 }
 
-/// Eligibility/issuance record only - no PDF generation, no template. The
-/// concrete row src/features/enrollments/server/access-policy.ts's
-/// `canViewCertificates` (Phase 8) will eventually check against, and the
-/// future certificate-generation phase writes into.
+/// One row per issued certificate - created only at the moment
+/// getOrIssueCertificate (src/features/certificates/server/issuance.ts)
+/// successfully issues one, never pre-created in NOT_ELIGIBLE/ELIGIBLE state
+/// (those two enum values are kept for API/display completeness but nothing
+/// currently writes them - eligibility itself is derived live from
+/// access-policy.ts's `canViewCertificates`, not stored redundantly here).
+/// The PDF itself is never persisted anywhere (no object storage, no
+/// Vercel function bundle growth) - every field below is exactly what's
+/// needed to deterministically re-render the identical PDF on demand, so
+/// "the certificate" IS this row, not a file somewhere.
 model Certificate {
   id String @id @default(cuid())
 
@@ -2090,10 +2097,33 @@ model Certificate {
   /// Backs a future human-friendly certificate number, derived not stored - same convention as every other sequence in this schema.
   sequence Int @unique @default(autoincrement())
 
-  status   CertificateStatus @default(NOT_ELIGIBLE)
-  issuedAt DateTime?
+  /// The public-facing ID, e.g. "STV-GAI-2026-000001" - generated once via
+  /// DocumentSequence (src/features/documents/server/numbering.ts), and the
+  /// only identifier ever exposed to a student or verifier. Never the
+  /// internal `id` above.
+  certificateNumber String @unique
+
+  /// Which visual design rendered this certificate - a plain string (not a
+  /// Prisma enum) so a second/third design later is a new template file +
+  /// registry entry, never a migration. Only "template-01" exists today.
+  templateId String @default("template-01")
+
+  /// Snapshotted at issuance, deliberately not read live off User/Offering -
+  /// a certificate is a permanent record of what was true when it was
+  /// earned; a later name change or course rename must never silently alter
+  /// an already-issued certificate.
+  recipientName  String
+  recipientEmail String
+  courseName     String
+  completionDate DateTime
+
+  status     CertificateStatus @default(ISSUED)
+  issuedAt   DateTime?
+  revokedAt  DateTime?
+  revokedReason String?
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ============================================

@@ -58,12 +58,6 @@ Every shortcut, gap, or deferred decision goes here the moment it's identified �
 **Priority:** P2/P3 (investigation first, migration decision after)
 **Estimated effort:** ~2-3 hours to fully trace remaining usage before any migration is scoped.
 
-## `Certificate` model is fully unused
-
-**Reason:** Zero reads or writes anywhere in `src/` — exists per its own doc comment as a prepared extension point for a future certificate-generation phase that hasn't started.
-**Priority:** P4
-**Estimated effort:** Either ~30 minutes to remove, or a real feature-sized effort to implement — decision deferred until the training/LMS side scales enough to need it.
-
 ## `DiscoveryForm.salesProjectId` has no real Prisma relation
 
 **Reason:** Added as a plain optional string FK (not a declared `@relation` to `SalesProject`) to avoid a second migration late in the qualified-client-system build. `resendDiscoveryForm` works around it with a manual `salesProject.findUnique` lookup instead of an `include`. Every other FK in this schema has a matching relation - this is the one exception.

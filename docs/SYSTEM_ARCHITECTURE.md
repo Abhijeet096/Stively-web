@@ -424,7 +424,7 @@ These are places the codebase already prepared for, without building the feature
 - **Program → Offering migration**: unify the legacy Training catalog into the Offerings platform; redirect `/training` → `/offerings/training`.
 - **Lead → OperationItem unification**: fold the contact-form CRM into the Operations queue, or formally decide they stay separate.
 - **Real LMS**: lessons, modules, video — `OfferingEnrollment.currentModule`/`progressPercentage` and `ProgressSnapshot` are the data layer waiting for it.
-- **Certificates**: `AccessPolicy.canViewCertificates` already gates on `status === COMPLETED`; no generation/storage exists.
+- **Certificates**: `src/features/certificates/**` - `AccessPolicy.canViewCertificates` (`status === COMPLETED`) gates issuance; PDF is never stored, rendered on demand from the `Certificate` row on every view/download; public verification at `/verify/[certificateId]`. See AD-019.
 - **Mentor system**: `AssignmentRole.MENTOR` and `OfferingCTA`'s mentor placeholder exist; no `TeamMemberRole.MENTOR`, no mentor portal.
 - **Business Projects** (Phase 10 on roadmap): the Business-side equivalent of `OfferingEnrollment` — nothing built yet.
 - **Payments-for-Requests**: online payment collection on the Consultation path (today: offline, admin-confirmed via `activateEnrollment`).

@@ -12,6 +12,7 @@ import {
   Briefcase,
   Radar,
   GalleryHorizontalEnd,
+  Award,
 } from "lucide-react";
 
 import type { NavigationConfig } from "./types";
@@ -34,6 +35,7 @@ export const adminNavigation: NavigationConfig = [
       { label: "Operations", href: "/admin/operations", icon: Workflow },
       { label: "Interviews", href: "/admin/interviews", icon: Mic },
       { label: "Learning", href: "/admin/learning", icon: BookOpen },
+      { label: "Certificates", href: "/admin/certificates", icon: Award },
       { label: "Mentors", href: "/admin/mentors", icon: UserRound },
       { label: "Portfolio", href: "/admin/portfolio", icon: GalleryHorizontalEnd },
       { label: "Students", href: "/admin/students", icon: GraduationCap },

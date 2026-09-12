@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 /**
  * The Document Number Service - the only place a document number is ever
  * produced. Templates receive a number, they never generate one themselves.
- * Format: "<prefix>-<year>-<5-digit sequence>", e.g. "INV-2026-00001".
+ * Format: "<prefix>-<year>-<N-digit sequence>", e.g. "INV-2026-00001".
  * Scoped to (type, year) so each document type gets its own sequence that
  * resets every calendar year, matching the founder's own examples.
  *
@@ -16,7 +16,12 @@ import { prisma } from "@/lib/prisma";
  * number, since the increment happens at the Postgres row level, not in
  * application code.
  */
-export async function nextDocumentNumber(type: string, numberPrefix: string, at: Date = new Date()): Promise<string> {
+export async function nextDocumentNumber(
+  type: string,
+  numberPrefix: string,
+  at: Date = new Date(),
+  digits = 5
+): Promise<string> {
   const year = at.getFullYear();
 
   const sequence = await prisma.documentSequence.upsert({
@@ -25,6 +30,6 @@ export async function nextDocumentNumber(type: string, numberPrefix: string, at:
     update: { lastNumber: { increment: 1 } },
   });
 
-  const padded = String(sequence.lastNumber).padStart(5, "0");
+  const padded = String(sequence.lastNumber).padStart(digits, "0");
   return `${numberPrefix}-${year}-${padded}`;
 }

@@ -4,12 +4,14 @@ import { notFound } from "next/navigation";
 import { ClipboardList, Award, UserRound, Download, StickyNote, SearchX } from "lucide-react";
 
 import { requireRole } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 import { getEnrollmentWithHistory } from "@/features/enrollments/server/queries";
 import { getAccessPolicyForEnrollment } from "@/features/enrollments/server/access-policy";
 import { getCurriculumForEnrollment, searchLessons } from "@/features/learning/server/queries";
 import { MyLearningView } from "@/features/enrollments/components/my-learning-view";
 import { EnrollmentTimeline } from "@/features/enrollments/components/enrollment-timeline";
 import { ComingSoonSection } from "@/features/enrollments/components/coming-soon-section";
+import { CertificateCard } from "@/features/certificates/components/student/certificate-card";
 import { ProgramProgressHero } from "@/features/learning/components/student/program-progress-hero";
 import { CurriculumNav } from "@/features/learning/components/student/curriculum-nav";
 import { SearchLessons } from "@/features/learning/components/student/search-lessons";
@@ -22,13 +24,18 @@ interface EnrollmentLearningPageProps {
   searchParams: Promise<{ q?: string }>;
 }
 
-const REMAINING_PLACEHOLDERS = [
+const OTHER_PLACEHOLDERS = [
   { title: "Assignments", description: "Coursework and submissions will appear here.", icon: ClipboardList },
-  { title: "Certificates", description: "Earn a certificate once you complete this program.", icon: Award },
   { title: "Mentor", description: "Your assigned mentor will show up here.", icon: UserRound },
   { title: "Downloads", description: "Files and recordings you can save.", icon: Download },
   { title: "Notes", description: "Your own notes, saved as you go.", icon: StickyNote },
 ] as const;
+
+const CERTIFICATES_COMING_SOON = {
+  title: "Certificates",
+  description: "Earn a certificate once you complete this program.",
+  icon: Award,
+} as const;
 
 export async function generateMetadata({ params }: EnrollmentLearningPageProps): Promise<Metadata> {
   const { enrollmentId } = await params;
@@ -86,6 +93,7 @@ export default async function EnrollmentLearningPage({ params, searchParams }: E
   }
 
   const searchResults = q ? await searchLessons(enrollmentId, user.id, q) : null;
+  const certificate = policy.canViewCertificates ? await prisma.certificate.findUnique({ where: { enrollmentId } }) : null;
 
   return (
     <>
@@ -133,7 +141,12 @@ export default async function EnrollmentLearningPage({ params, searchParams }: E
         )}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {REMAINING_PLACEHOLDERS.map((section) => (
+          {policy.canViewCertificates ? (
+            <CertificateCard enrollmentId={enrollmentId} certificate={certificate} />
+          ) : (
+            <ComingSoonSection {...CERTIFICATES_COMING_SOON} />
+          )}
+          {OTHER_PLACEHOLDERS.map((section) => (
             <ComingSoonSection key={section.title} {...section} />
           ))}
         </div>

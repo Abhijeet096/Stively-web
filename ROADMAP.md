@@ -43,6 +43,7 @@ Shipped in prior sessions, listed here for context — not re-litigated unless s
 | Live notification polling + sound (`notification-dropdown.tsx`, 15s poll, synthesized Web Audio chime) | Released |
 | Google OAuth default role fix - `/login`'s Google button had no role context at all, silently created every such sign-up as STUDENT; now defaults to CLIENT/business, matching site positioning | Released |
 | `/start-project` email field restored (optional, not required) so acknowledgement emails can go out - the existing `if (lead.email)` gate on `notifyNewLeadCreated` just needed the data available again | Released |
+| Student LMS certificate generation + public verification (`src/features/certificates/`) - the existing unused `Certificate` model extended, on-demand PDF rendering (no object storage), `DocumentSequence` reused for numbering, `/verify/[certificateId]` public page, `/admin/certificates` management, GenAI course certificate preview - built as AD-007 freeze exception (see AD-019) since "Certificate included" was already sold copy with zero fulfillment | Released |
 | Real `Offering` catalog seeded (`prisma/seed-offerings.ts`) - the table had **zero rows in production**, silently breaking `/website-development`'s pricing section, the entire client-portal self-service catalog, and the admin lead-detail service-selection list. Pricing/features copied verbatim from `src/lib/pricing.ts`, not invented. | Released |
 | Client-portal nav duplication fixed - "Offerings"/"Our Services"/"Request Proposal" were three separate nav entries all pointing at the identical `/client/offerings` URL; collapsed to one | Released |
 | Full quote -> notify -> accept flow verified end-to-end with real data (admin sends quote -> client gets email + in-app notification -> client accepts in portal -> salesperson would be notified back) - confirmed already correctly built, no changes needed | Released |
@@ -118,7 +119,6 @@ Shipped in prior sessions, listed here for context — not re-litigated unless s
 |---|---|---|---|---|
 | Broader AI-driven lead triage across inbound `Lead`/`OfferingRequest` | Planning | Medium | None | Reuse the lead-intelligence scoring pipeline. |
 | Formal compliance-grade audit trail | Planning | Low | None | Only if an enterprise client actually asks for one. |
-| Real `Certificate` generation | Planning | Low | Low | Model already exists, unused. |
 | Revisit CSP `frame-src`/`media-src: https:` looseness | Planning | Low | None | Currently intentional (embed escape-hatch). |
 
 ## Deferred — needs the founder's input, not engineering judgment
