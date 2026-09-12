@@ -4,8 +4,10 @@ import { Wallet, TrendingUp, ListTodo, ClipboardList, ShoppingBag, Users2 } from
 
 import { requireRole } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { formatPrice } from "@/lib/utils";
 import { resolveOperationsViewer } from "@/features/operations/server/rbac";
 import { getOperationsDashboardStats } from "@/features/operations/server/queries";
+import { getCourseSalesStats } from "@/features/course-sales/server/queries";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { KpiCard } from "@/components/dashboard/kpi-card";
@@ -15,22 +17,25 @@ export const metadata: Metadata = { title: "CEO Dashboard" };
 /**
  * CEO widget prep (Phase 7) - Pending Work/Requests/Orders/Team are real
  * queries, no mocked statistics (same discipline as every other dashboard
- * in this codebase). Revenue and Conversion Rate are honest "Coming soon"
- * placeholders, not fabricated numbers - both genuinely need payment/funnel
- * analytics infrastructure that doesn't exist yet (see the brief's "No
- * analytics yet. Architecture only." for this section).
+ * in this codebase). Revenue is now real too, backed by the Course & Product
+ * Sales dashboard's query layer (src/features/course-sales - see
+ * ARCHITECTURE_DECISIONS.md AD-020). Conversion Rate stays an honest
+ * "Coming soon" placeholder - it still genuinely needs funnel/visit-tracking
+ * analytics infrastructure that doesn't exist yet, which Revenue's need
+ * (payment data) never depended on.
  */
 export default async function CeoDashboardPage() {
   const user = await requireRole("SUPER_ADMIN");
   const viewer = await resolveOperationsViewer(user.id, user.role);
 
-  const [stats, openRequests, paidOrders, teamMemberCount] = await Promise.all([
+  const [stats, openRequests, paidOrders, teamMemberCount, salesStats] = await Promise.all([
     getOperationsDashboardStats(viewer),
     prisma.offeringRequest.count({
       where: { status: { in: ["SUBMITTED", "UNDER_REVIEW", "COUNSELLING_SCHEDULED", "WAITING_FOR_PAYMENT", "APPROVED"] } },
     }),
     prisma.order.count({ where: { status: "PAID" } }),
     prisma.teamMember.count(),
+    getCourseSalesStats(),
   ]);
 
   return (
@@ -52,7 +57,7 @@ export default async function CeoDashboardPage() {
         <KpiCard label="Open Requests" value={openRequests} icon={ClipboardList} />
         <KpiCard label="Paid Orders" value={paidOrders} icon={ShoppingBag} tone="success" />
         <KpiCard label="Team Members" value={teamMemberCount} icon={Users2} />
-        <ComingSoonKpi label="Revenue" icon={Wallet} />
+        <KpiCard label="Revenue" value={formatPrice(salesStats.totalRevenue)} icon={Wallet} tone="success" />
         <ComingSoonKpi label="Conversion Rate" icon={TrendingUp} />
       </div>
 
