@@ -40,7 +40,7 @@ export const adminNavigation: NavigationConfig = [
       { label: "Portfolio", href: "/admin/portfolio", icon: GalleryHorizontalEnd },
       { label: "Students", href: "/admin/students", icon: GraduationCap },
       { label: "Businesses", href: "/admin/businesses", icon: Building2 },
-      { label: "Reports", href: "/admin/reports", icon: BarChart3 },
+      { label: "Sales", href: "/admin/reports", icon: BarChart3 },
       { label: "Settings", href: "/admin/settings", icon: Settings },
     ],
   },

@@ -44,6 +44,7 @@ Shipped in prior sessions, listed here for context — not re-litigated unless s
 | Google OAuth default role fix - `/login`'s Google button had no role context at all, silently created every such sign-up as STUDENT; now defaults to CLIENT/business, matching site positioning | Released |
 | `/start-project` email field restored (optional, not required) so acknowledgement emails can go out - the existing `if (lead.email)` gate on `notifyNewLeadCreated` just needed the data available again | Released |
 | Student LMS certificate generation + public verification (`src/features/certificates/`) - the existing unused `Certificate` model extended, on-demand PDF rendering (no object storage), `DocumentSequence` reused for numbering, `/verify/[certificateId]` public page, `/admin/certificates` management, GenAI course certificate preview - built as AD-007 freeze exception (see AD-019) since "Certificate included" was already sold copy with zero fulfillment | Released |
+| Course & Product Sales dashboard (`src/features/course-sales/`) - replaces the dead `admin/reports` placeholder with real revenue/enrollment data read directly off `Order`/`OfferingEnrollment` (KPIs, monthly revenue chart, per-offering breakdown, per-offering buyer list with progress/certificate status); built as an AD-007 freeze exception (see AD-020), confirmed with the founder first since (unlike certificates) it's an internal ops need, not an already-sold promise | Released |
 | Real `Offering` catalog seeded (`prisma/seed-offerings.ts`) - the table had **zero rows in production**, silently breaking `/website-development`'s pricing section, the entire client-portal self-service catalog, and the admin lead-detail service-selection list. Pricing/features copied verbatim from `src/lib/pricing.ts`, not invented. | Released |
 | Client-portal nav duplication fixed - "Offerings"/"Our Services"/"Request Proposal" were three separate nav entries all pointing at the identical `/client/offerings` URL; collapsed to one | Released |
 | Full quote -> notify -> accept flow verified end-to-end with real data (admin sends quote -> client gets email + in-app notification -> client accepts in portal -> salesperson would be notified back) - confirmed already correctly built, no changes needed | Released |
@@ -81,7 +82,6 @@ Shipped in prior sessions, listed here for context — not re-litigated unless s
 | Audit log entries on payment verification actions | Planning | Medium | Low | Compliance/trust infrastructure, not client-visible. |
 | Notify admin on new self-service `OfferingRequest` submission | Planning | High | Medium | Prevents silently losing a lead; faster response for the client. |
 | Notify recruiter when an interview is completed/scored | Planning | Medium | Low | Internal-only. |
-| Delete dead `admin/reports` placeholder page | Planning | Low | None | Trivial internal cleanup. |
 
 ## P2 — After 5 clients
 
