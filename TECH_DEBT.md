@@ -16,12 +16,6 @@ Every shortcut, gap, or deferred decision goes here the moment it's identified â
 **Priority:** P1 (payment actions specifically) / P2 (broader coverage)
 **Estimated effort:** ~1-2 hours per action site to wire in; ~8-10 hours total for full coverage across sales-crm, client-workspace, and auth role changes.
 
-## `admin/reports` is a dead placeholder duplicating a real page
-
-**Reason:** Built as a stub, never replaced â€” the actual working reports page lives at `admin/sales-crm/reports`.
-**Priority:** P1
-**Estimated effort:** 15 minutes (delete the page + nav entry).
-
 ## `admin/businesses` and `admin/leads` are the same component
 
 **Reason:** `admin/businesses/page.tsx` is explicitly commented as "the same shared list page as Leads, forced to leadType BUSINESS" â€” two nav items for one feature.
@@ -93,6 +87,18 @@ Every shortcut, gap, or deferred decision goes here the moment it's identified â
 **Reason:** `RequestPriority` and `OperationPriority` are structurally identical (both LOW/MEDIUM/HIGH/URGENT) and could have been one shared enum.
 **Priority:** P4
 **Estimated effort:** ~1 hour.
+
+## WhatsApp Cloud API integration is code-complete but inert (no Meta credentials)
+
+**Reason:** AD-021's `src/lib/whatsapp-cloud-api.ts` and `src/features/whatsapp/**` are fully built, typechecked, and tested against real Groq calls, but no `WHATSAPP_*` environment variable exists in any environment yet - `isWhatsAppSendConfigured()` correctly returns false, so nothing sends or receives until the founder completes the Meta Business/WABA setup and two message templates are submitted and approved. Not a code gap - a manual, external-party setup step.
+**Priority:** P1 (blocks the actual revenue feature from doing anything)
+**Estimated effort:** Not engineering time - Meta Business Manager setup (~1-2 hours of manual configuration) plus template review turnaround (Meta-controlled, typically under 24h once submitted). See the founder's implementation report for the exact checklist.
+
+## Agency-lead routing is keyword-based, not AI-classified
+
+**Reason:** `classifyAgencyIntent` (`src/features/whatsapp/lib/routing.ts`) is a deliberate, auditable regex match against known agency-intent phrases - chosen over an AI classification call for reliability on a decision this consequential (autonomous AI reply vs. mandatory human handoff). Will miss phrasings that don't match the pattern (e.g. unusual phrasing that never mentions "website"/"app"/"software" by name); the AI reply engine's own `shouldEscalate` field is the second, AI-driven safety net for exactly this gap, but a message that neither matches the keyword pattern nor triggers the AI's own escalation judgment could still get an AI-generated product reply instead of a human handoff.
+**Priority:** P2 - revisit once Phase 2 (inbound) has real conversation volume to see how often this gap actually fires.
+**Estimated effort:** ~2-3 hours to expand the keyword list from real missed cases, or fold in an AI-classification pass if keyword coverage proves insufficient.
 
 ---
 

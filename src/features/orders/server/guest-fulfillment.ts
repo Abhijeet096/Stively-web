@@ -9,9 +9,7 @@ import { hashPassword } from "@/lib/password";
 import { formatPrice } from "@/lib/utils";
 import { resend, EMAIL_FROM } from "@/lib/resend";
 import { siteConfig } from "@/config/site";
-import { createOperationItemForOrder } from "@/features/operations/server/creation";
-import { createEnrollmentFromOrder } from "@/features/enrollments/server/creation";
-import { notifyOrderPaid } from "./notify";
+import { handleOrderPaid } from "./post-purchase";
 import {
   generateAutoLoginToken,
   computeAutoLoginExpiry,
@@ -476,6 +474,15 @@ export async function fulfillGuestOrder(orderId: string): Promise<GuestOrderFulf
     }
     if (!current?.userId) return null;
 
+    // Safe to call unconditionally even on the losing side of the race:
+    // handleOrderPaid has its own independent idempotency claim
+    // (postPurchaseProcessedAt), so this is a no-op if the winner already
+    // completed it, and a genuine retry (not previously possible here) if
+    // the winner's process died mid-flight after claiming PENDING->PAID but
+    // before finishing the operation-item/enrollment/notify/WhatsApp side
+    // effects.
+    await handleOrderPaid(orderId);
+
     const { downloadUrl, downloadTokenExpiresAt, freshlyGenerated } = await ensureDownloadUnlocked(current);
     if (freshlyGenerated && current.guestEmail) {
       // The original attempt's email likely never sent either (it comes
@@ -553,29 +560,18 @@ export async function fulfillGuestOrder(orderId: string): Promise<GuestOrderFulf
     data: { userId, autoLoginToken: token, autoLoginTokenExpiresAt: computeAutoLoginExpiry() },
   });
 
-  try {
-    await createOperationItemForOrder(paidOrder);
-  } catch (error) {
-    console.error("fulfillGuestOrder: createOperationItemForOrder failed:", error);
-  }
+  // Operation item, enrollment (skipped internally for DIGITAL_PRODUCT -
+  // same rule this used to apply inline here), the payment-notification
+  // Notification (email skipped - guestEmail is set, and the richer
+  // welcome/download email below already covers it), and the post-purchase
+  // WhatsApp send all run through the one shared, idempotent gate.
+  await handleOrderPaid(orderId);
 
   // A DIGITAL_PRODUCT order has no curriculum to enroll into - the download
   // link below IS its fulfillment. Every other category keeps the existing
-  // LMS enrollment unchanged.
+  // LMS enrollment unchanged. Still needed here (not just inside
+  // handleOrderPaid) to pick the right email template below.
   const isDigitalProduct = order.offering.category === "DIGITAL_PRODUCT";
-  if (!isDigitalProduct) {
-    try {
-      await createEnrollmentFromOrder(paidOrder);
-    } catch (error) {
-      console.error("fulfillGuestOrder: createEnrollmentFromOrder failed:", error);
-    }
-  }
-
-  try {
-    await notifyOrderPaid(paidOrder);
-  } catch (error) {
-    console.error("fulfillGuestOrder: notifyOrderPaid failed:", error);
-  }
 
   const autoLoginLink = `${siteConfig.url}/orders/auto-login?token=${token}`;
 

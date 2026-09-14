@@ -10,9 +10,7 @@ import { requireRole } from "@/lib/session";
 import { createRazorpayOrder, verifyRazorpaySignature, describeRazorpayError } from "@/lib/razorpay";
 import type { ActionResult } from "@/actions/leads";
 import { emitOrderEvent } from "../lib/events";
-import { notifyOrderPaid } from "../server/notify";
-import { createOperationItemForOrder } from "@/features/operations/server/creation";
-import { createEnrollmentFromOrder } from "@/features/enrollments/server/creation";
+import { handleOrderPaid } from "../server/post-purchase";
 
 export type CreateOrderResult =
   | { success: true; orderId: string; alreadyPaid: true }
@@ -86,23 +84,10 @@ export async function createOrder(offeringId: string, phone?: string, promptsPac
       });
       emitOrderEvent("ORDER_PAID", order);
 
-      // Non-fatal by design (Phase 7/8) - see submitRequest's identical
-      // comment in offering-requests/actions/request-actions.ts.
-      try {
-        await createOperationItemForOrder(order);
-      } catch (error) {
-        console.error("createOperationItemForOrder failed:", error);
-      }
-      try {
-        await createEnrollmentFromOrder(order);
-      } catch (error) {
-        console.error("createEnrollmentFromOrder failed:", error);
-      }
-      try {
-        await notifyOrderPaid(order);
-      } catch (error) {
-        console.error("notifyOrderPaid failed:", error);
-      }
+      // handleOrderPaid is the single idempotent gate every PAID transition
+      // routes through now - see post-purchase.ts for why (operation item,
+      // enrollment, notify email, WhatsApp, all in one non-throwing call).
+      await handleOrderPaid(order.id);
 
       revalidatePath("/student/orders");
       revalidatePath("/client/orders");
@@ -284,6 +269,12 @@ export async function verifyPayment(
   if (!order) {
     return { success: false, error: "Order not found." };
   }
+  // Fast-path only, not the real race guard - the webhook can flip this
+  // order to PAID between this read and the atomic claim below, and that's
+  // fine (see the claim.count === 0 branch). This just gives a legitimate
+  // double-submit (e.g. a re-rendered page re-firing the handler) a clean
+  // "already processed" message without ever reaching Razorpay verification
+  // again for an order genuinely still PENDING.
   if (order.status !== "PENDING") {
     return { success: false, error: "This order has already been processed." };
   }
@@ -304,27 +295,31 @@ export async function verifyPayment(
   }
 
   try {
-    const updated = await prisma.order.update({
-      where: { id: orderId },
+    // The real race guard: an atomic conditional update, not a read-then-
+    // write. If the Razorpay webhook already won this exact race (it often
+    // arrives before this client-side call even fires - see the webhook
+    // route's own comment), claim.count is 0 here and nothing is
+    // double-written - handleOrderPaid below is independently idempotent
+    // either way, so this still safely converges on the same "done" state.
+    const claim = await prisma.order.updateMany({
+      where: { id: orderId, status: "PENDING" },
       data: { status: "PAID", razorpayPaymentId, razorpaySignature, paidAt: new Date() },
     });
-    emitOrderEvent("ORDER_PAID", updated);
 
-    try {
-      await createOperationItemForOrder(updated);
-    } catch (error) {
-      console.error("createOperationItemForOrder failed:", error);
+    if (claim.count === 0) {
+      const current = await prisma.order.findUnique({ where: { id: orderId }, select: { status: true } });
+      if (current?.status !== "PAID") {
+        return { success: false, error: "This order has already been processed." };
+      }
+      // Already PAID by a concurrent caller (the webhook) with this same,
+      // now-verified signature - a genuine success, not an error. Same
+      // "already PAID is success, not a duplicate-processing error"
+      // reasoning as verifyGuestPayment's own status === "PAID" branch.
+    } else {
+      emitOrderEvent("ORDER_PAID", { id: orderId, userId: order.userId, status: "PAID" });
     }
-    try {
-      await createEnrollmentFromOrder(updated);
-    } catch (error) {
-      console.error("createEnrollmentFromOrder failed:", error);
-    }
-    try {
-      await notifyOrderPaid(updated);
-    } catch (error) {
-      console.error("notifyOrderPaid failed:", error);
-    }
+
+    await handleOrderPaid(orderId);
 
     revalidatePath("/student/orders");
     revalidatePath("/client/orders");

@@ -1,6 +1,7 @@
 {
   "crons": [
     { "path": "/api/cron/lead-intelligence/discover", "schedule": "0 3 * * *" },
-    { "path": "/api/cron/lead-intelligence/analyze-stale", "schedule": "0 4 * * *" }
+    { "path": "/api/cron/lead-intelligence/analyze-stale", "schedule": "0 4 * * *" },
+    { "path": "/api/cron/whatsapp-cross-sell", "schedule": "0 10 * * *" }
   ]
 }

@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 
 import { prisma } from "@/lib/prisma";
-import { createOperationItemForOrder } from "@/features/operations/server/creation";
-import { createEnrollmentFromOrder } from "@/features/enrollments/server/creation";
-import { notifyOrderPaid } from "@/features/orders/server/notify";
+import { handleOrderPaid } from "@/features/orders/server/post-purchase";
 import { fulfillGuestOrder } from "@/features/orders/server/guest-fulfillment";
 
 /**
@@ -51,14 +49,12 @@ export async function POST(req: NextRequest) {
     // verifyPayment() call (src/features/orders/actions/order-actions.ts)
     // is what normally marks an Order PAID, but this covers the case where
     // a user closes the tab right after paying, before that call completes.
-    // The `status: "PENDING"` guard (checked before updating, not just in
-    // an updateMany filter) makes this idempotent - a second webhook
-    // delivery, or one arriving after verifyPayment already ran, is a
-    // no-op rather than double-processing or creating a duplicate
-    // OperationItem (OperationItem.orderId is @unique, so a second attempt
-    // would fail loudly instead of silently duplicating).
-    const pendingOrder = await prisma.order.findFirst({ where: { razorpayOrderId: orderId, status: "PENDING" } });
-    if (pendingOrder && !pendingOrder.userId) {
+    // Matched by razorpayOrderId, not scoped to status: "PENDING" here (an
+    // already-PAID match is a legitimate second delivery, not an error) -
+    // the actual PENDING->PAID transition below is what's atomically
+    // guarded, not this lookup.
+    const matchedOrder = await prisma.order.findFirst({ where: { razorpayOrderId: orderId } });
+    if (matchedOrder && !matchedOrder.userId) {
       // Guest-checkout order (Offering.allowsGuestCheckout) - no account
       // exists yet either, so this needs the full fulfillGuestOrder pipeline
       // (account creation, enrollment, auto-login token, welcome email), not
@@ -66,30 +62,30 @@ export async function POST(req: NextRequest) {
       // client-side - fulfillGuestOrder's own atomic claim makes this a
       // no-op in that case.
       try {
-        await prisma.order.update({ where: { id: pendingOrder.id }, data: { razorpayPaymentId: paymentId } });
-        await fulfillGuestOrder(pendingOrder.id);
+        await prisma.order.update({ where: { id: matchedOrder.id }, data: { razorpayPaymentId: paymentId } });
+        await fulfillGuestOrder(matchedOrder.id);
       } catch (error) {
         console.error("fulfillGuestOrder (webhook) failed:", error);
       }
-    } else if (pendingOrder) {
-      const paid = await prisma.order.update({
-        where: { id: pendingOrder.id },
+    } else if (matchedOrder) {
+      // The real race guard: an atomic conditional update (matches
+      // verifyPayment's own identical fix in order-actions.ts), not a
+      // read-then-unconditional-write - the previous version of this branch
+      // read `status: "PENDING"` in the findFirst above and then wrote
+      // unconditionally here, which is exactly the non-atomic pattern that
+      // let this webhook and a concurrent verifyPayment() call both pass
+      // the read and both run the full side-effect triplet.
+      await prisma.order.updateMany({
+        where: { id: matchedOrder.id, status: "PENDING" },
         data: { status: "PAID", razorpayPaymentId: paymentId, paidAt: new Date() },
       });
+      // handleOrderPaid is independently idempotent (its own
+      // postPurchaseProcessedAt claim) - safe to call whether or not this
+      // specific caller won the PENDING->PAID race above.
       try {
-        await createOperationItemForOrder(paid);
+        await handleOrderPaid(matchedOrder.id);
       } catch (error) {
-        console.error("createOperationItemForOrder (webhook) failed:", error);
-      }
-      try {
-        await createEnrollmentFromOrder(paid);
-      } catch (error) {
-        console.error("createEnrollmentFromOrder (webhook) failed:", error);
-      }
-      try {
-        await notifyOrderPaid(paid);
-      } catch (error) {
-        console.error("notifyOrderPaid (webhook) failed:", error);
+        console.error("handleOrderPaid (webhook) failed:", error);
       }
     }
   }

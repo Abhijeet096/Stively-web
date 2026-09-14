@@ -9,15 +9,22 @@ import { siteConfig } from "@/config/site";
 import { createNotification } from "@/features/notifications/server/creation";
 
 /**
- * The real payment-confirmation path createOrder/verifyPayment/the webhook
- * all call once an Order genuinely transitions to PAID (each call site is
- * already guarded so this only ever fires once per order - see the
- * `status: "PENDING"` checks at each of them). Writes a dashboard
- * Notification and sends a confirmation email - both non-fatal from the
- * caller's perspective (wrapped in try/catch at each call site), since a
+ * The real payment-confirmation path - now called exactly once per order,
+ * from handleOrderPaid (src/features/orders/server/post-purchase.ts), which
+ * is itself the single idempotent gate every PAID transition routes
+ * through. Writes a dashboard Notification and (by default) sends a
+ * confirmation email - both non-fatal from the caller's perspective, since a
  * failed notification should never make a successful payment look failed.
+ *
+ * `sendEmail: false` is passed for a guest-checkout order - guest-fulfillment.ts
+ * already sends its own richer welcome/download email (the one that
+ * actually contains the auto-login link or file download link), so this
+ * would otherwise be a second, strictly-worse "payment received" email for
+ * the same purchase. The in-app Notification is still written either way -
+ * only the email is guest-specific redundant, not the dashboard record.
  */
-export async function notifyOrderPaid(order: Order): Promise<void> {
+export async function notifyOrderPaid(order: Order, options?: { sendEmail?: boolean }): Promise<void> {
+  const sendEmail = options?.sendEmail ?? true;
   // Same "should never actually be null by the time an order is PAID" note
   // as createEnrollmentFromOrder - guest-checkout orders get userId
   // backfilled by guest-fulfillment.ts before this is ever called.
@@ -46,7 +53,7 @@ export async function notifyOrderPaid(order: Order): Promise<void> {
     link,
   });
 
-  if (!user.email) return;
+  if (!user.email || !sendEmail) return;
 
   const greeting = user.name ? `Hi ${user.name},` : "Hi there,";
   const subject = isPaidPurchase ? `Payment received - ${offering.title}` : `You're confirmed - ${offering.title}`;

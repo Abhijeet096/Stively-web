@@ -234,13 +234,15 @@ src/features/<name>/
 | `orders` | `Order` | `actions/order-actions.ts` (`createOrder`, `verifyPayment`), `components/checkout-button.tsx` (Razorpay client glue) |
 | `operations` | `OperationItem` + friends | `server/rbac.ts` (`resolveOperationsViewer`), `lib/stage-labels.ts` (per-type status label mapping), `components/operation-detail-view.tsx` |
 | `enrollments` | `OfferingEnrollment` + friends | `server/access-policy.ts` (**the Access Policy**), `server/creation.ts` (`createEnrollmentFromOrder`/`createEnrollmentFromRequest`), `components/my-learning-view.tsx` |
+| `whatsapp` | `WhatsAppContact` + `WhatsAppMessage` | `server/post-purchase-whatsapp.ts` (deterministic cross-sell send), `server/reply-engine.ts` (Groq-grounded inbound AI reply), `server/promotion.ts` (promotes into `Lead`/`SalesLead`), `lib/knowledge-base.ts` (the AI's only source of truth), `lib/routing.ts` (agency-intent/opt-out classification) — see AD-021 |
 
 **Cross-feature integration points** (deliberately thin, one call each, always non-fatal at the call site):
 
 - `offering-requests/actions/request-actions.ts`'s `submitRequest` → `operations/server/creation.ts`'s `createOperationItemForRequest`
 - `offering-requests/actions/admin-request-actions.ts`'s `approveRequest`/`updateRequestStatus` → `enrollments/server/creation.ts`'s `createEnrollmentFromRequest`
-- `orders/actions/order-actions.ts`'s `verifyPayment`/free-path/webhook → `operations`'s `createOperationItemForOrder` **and** `enrollments`'s `createEnrollmentFromOrder`
+- `orders/server/post-purchase.ts`'s `handleOrderPaid` — the single call every PAID transition (`createOrder`'s free path, `verifyPayment`, the Razorpay webhook, `guest-fulfillment.ts`'s `fulfillGuestOrder`) routes through — fans out to `operations`'s `createOperationItemForOrder`, `enrollments`'s `createEnrollmentFromOrder`, `orders/server/notify.ts`'s `notifyOrderPaid`, **and** `whatsapp`'s `sendPostPurchaseWhatsApp`, each independently non-fatal. Idempotent via `Order.postPurchaseProcessedAt` (see AD-021) - safe to call more than once for the same order.
 - `operations/actions/operation-actions.ts`'s `assignOperationItem`/`changeOperationStatus` → re-invokes `offering-requests`'s own `assignCounsellor`/`assignSalesPerson`/`updateRequestStatus` (reused, not duplicated) or `orders`'s `updateOrderStatusAdmin`
+- `whatsapp`'s inbound webhook/reply engine → `whatsapp/server/promotion.ts`'s `promoteWhatsAppContactToLead`/`promoteWhatsAppContactToSalesLead` (same promoted-record bridge shape as `Business`/`OfferingRequest`/`Lead` → `SalesLead` elsewhere in this file)
 
 ---
 

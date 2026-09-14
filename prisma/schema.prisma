@@ -80,6 +80,12 @@ model User {
   /// same parallel-systems reasoning as Offering/Program themselves.
   offeringEnrollments OfferingEnrollment[]
 
+  /// Every WhatsApp contact later matched to this account (e.g. a purchase's
+  /// Order.phone matching an existing conversation) - see WhatsAppContact
+  /// above (AD-021). Not one-to-one: a contact only links here once matched,
+  /// most Users will have none.
+  whatsappContacts WhatsAppContact[]
+
   /// Every AI Tutor message this STUDENT sent or received, across every
   /// lesson - see AiTutorMessage below. Only meaningful for role STUDENT.
   aiTutorMessages AiTutorMessage[]
@@ -320,6 +326,12 @@ model Lead {
   notes       LeadNote[]
   assignments LeadAssignment[]
   meetings    LeadMeeting[]
+
+  /// Set when this Lead was created by promoting a qualified WhatsAppContact
+  /// (student/product intent) - see WhatsAppContact.linkedLeadId above
+  /// (AD-021), same display-side back-reference shape as
+  /// promotedSalesLead/sourceBusiness elsewhere in this file.
+  whatsappContact WhatsAppContact?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1266,6 +1278,27 @@ model Order {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
+  /// The single idempotency gate for handleOrderPaid()
+  /// (src/features/orders/server/post-purchase.ts) - operation item,
+  /// enrollment, payment-notification, and WhatsApp side effects all run at
+  /// most once per order, claimed atomically via
+  /// updateMany({where:{id, postPurchaseProcessedAt: null}}) the same way
+  /// downloadToken below is claimed. Null until the first successful run;
+  /// never cleared afterward.
+  postPurchaseProcessedAt DateTime?
+
+  /// Independent DB-enforced dedup for the immediate post-purchase WhatsApp
+  /// send (sendPostPurchaseWhatsApp) - kept separate from
+  /// postPurchaseProcessedAt so a WhatsApp-specific retry/backfill can never
+  /// accidentally re-run the other side effects, and vice versa.
+  whatsappConfirmationSentAt DateTime?
+
+  /// Independent DB-enforced dedup for the delayed cross-sell send (the
+  /// whatsapp-cross-sell cron route) - a separate trigger path from
+  /// handleOrderPaid entirely, so it needs its own claim rather than reusing
+  /// whatsappConfirmationSentAt.
+  whatsappCrossSellSentAt DateTime?
+
   /// Set once this order is Paid - see OperationItem below and
   /// createOperationItemForOrder() (src/features/operations/server/creation.ts).
   /// Null while still Pending/Failed - an unpaid order shouldn't clutter Operations.
@@ -1291,6 +1324,122 @@ enum OrderStatus {
   FAILED
   CANCELLED
   REFUNDED
+}
+
+// ============================================
+// WHATSAPP + AI SALES SYSTEM (AD-021)
+// ============================================
+// A WhatsApp contact is the rawest possible inbound signal - a phone number
+// and nothing else, with no leadType decided yet and no email (Lead's own
+// dedup key) guaranteed. Neither Lead nor SalesLead fits that shape (see
+// AD-021), so this is a minimal, separate model - promoted into Lead
+// (student/counselling opportunity) or SalesLead (agency/business
+// opportunity) once a real conversation actually qualifies it, the same
+// one-directional "thin raw record -> promoted on qualification" shape
+// already proven three times over (Business/OfferingRequest/Lead all
+// promote into SalesLead the same way). Never create a placeholder
+// Lead/SalesLead just because an unknown number messaged Stively.
+
+model WhatsAppContact {
+  id String @id @default(cuid())
+
+  /// Meta's own conversation-scoped contact identifier (the `wa_id` on an
+  /// inbound message's `contacts[]` entry) - the real stable identity Meta
+  /// hands back, distinct from the phone number's own formatting quirks.
+  whatsappId String @unique
+
+  /// E.164, the real dedup key for this model - same role email plays for
+  /// Lead's own @@unique([email, leadType]).
+  phoneNumber String @unique
+
+  /// WhatsApp profile display name, if Meta provides one - never trusted as
+  /// a real legal name, just a label until a real conversation confirms one.
+  name String?
+
+  source            WhatsAppContactSource     @default(OTHER)
+  conversationState WhatsAppConversationState @default(NEW)
+
+  /// Set once/if this contact is matched to a real Stively account (e.g. a
+  /// later purchase's Order.phone matches). Deliberately not @unique - one
+  /// User could in principle be reached from more than one number over time.
+  linkedUserId String?
+  linkedUser   User?   @relation(fields: [linkedUserId], references: [id], onDelete: SetNull)
+
+  /// Promotion targets - @unique on this side so a given Lead/SalesLead can
+  /// be the promotion target of at most one WhatsAppContact, same guarantee
+  /// Lead.promotedSalesLeadId/Business.promotedSalesLeadId already give.
+  /// Exactly one of these (or neither) is ever set - student/product intent
+  /// promotes into Lead, agency/business intent promotes into SalesLead.
+  linkedLeadId String? @unique
+  linkedLead   Lead?   @relation(fields: [linkedLeadId], references: [id], onDelete: SetNull)
+
+  linkedSalesLeadId String?    @unique
+  linkedSalesLead   SalesLead? @relation(fields: [linkedSalesLeadId], references: [id], onDelete: SetNull)
+
+  /// Required WhatsApp policy/opt-out state - every future business-initiated
+  /// send must check this first.
+  optedOutAt DateTime?
+
+  /// Needed to reason about Meta's 24-hour customer-service window per
+  /// contact (free-form replies are only ever valid within it), not just to
+  /// order messages.
+  lastInboundAt  DateTime?
+  lastOutboundAt DateTime?
+
+  messages WhatsAppMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([conversationState])
+  @@index([linkedUserId])
+}
+
+enum WhatsAppContactSource {
+  INSTAGRAM_CTA
+  DIRECT_WHATSAPP
+  AD_CAMPAIGN
+  /// Created by the post-purchase cross-sell flow finding no existing
+  /// contact for an order's phone number - not an inbound-originated contact.
+  POST_PURCHASE
+  OTHER
+}
+
+enum WhatsAppConversationState {
+  NEW
+  MENU_SENT
+  QUALIFYING
+  AI_HANDLING
+  ESCALATED_TO_HUMAN
+  CONVERTED
+  OPTED_OUT
+}
+
+model WhatsAppMessage {
+  id String @id @default(cuid())
+
+  whatsappContactId String
+  whatsappContact   WhatsAppContact @relation(fields: [whatsappContactId], references: [id], onDelete: Cascade)
+
+  direction WhatsAppMessageDirection
+  content   String                   @db.Text
+
+  /// Meta's own message id - the real webhook-redelivery dedup key. Null for
+  /// an outbound message sent before Meta returns its id, or a logged
+  /// message the Cloud API integration itself generated (never null for a
+  /// real inbound message once processed).
+  metaMessageId String? @unique
+
+  aiGenerated Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([whatsappContactId, createdAt])
+}
+
+enum WhatsAppMessageDirection {
+  INBOUND
+  OUTBOUND
 }
 
 // ============================================
@@ -2117,9 +2266,9 @@ model Certificate {
   courseName     String
   completionDate DateTime
 
-  status     CertificateStatus @default(ISSUED)
-  issuedAt   DateTime?
-  revokedAt  DateTime?
+  status        CertificateStatus @default(ISSUED)
+  issuedAt      DateTime?
+  revokedAt     DateTime?
   revokedReason String?
 
   createdAt DateTime @default(now())
@@ -2906,6 +3055,12 @@ model SalesLead {
   /// distinct from the admin-only SalesLeadDiscovery checklist above. See
   /// DiscoveryForm below.
   discoveryForms DiscoveryForm[]
+
+  /// Set when this SalesLead was created by promoting a qualified
+  /// WhatsAppContact (agency/business intent) - see
+  /// WhatsAppContact.linkedSalesLeadId above (AD-021), same display-side
+  /// back-reference shape as sourceBusiness/sourceOfferingRequest/sourceLead.
+  whatsappContact WhatsAppContact?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
