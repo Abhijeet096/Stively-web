@@ -183,10 +183,8 @@ export interface CurriculumOutlineModule {
 }
 
 export interface CurriculumOutline {
-  /** Modules with at least one built lesson - what the sales page's main curriculum list renders. */
+  /** Every module in plan order - the full syllabus, not just what's recorded. A module with lessonCount 0 hasn't been recorded yet; the UI (course-detail-view.tsx) renders it from Offering.curriculum's real planned topics instead of a lesson breakdown, rather than dropping it or claiming it's built. */
   modules: CurriculumOutlineModule[];
-  /** Modules with zero lessons so far - titles only, for the "full roadmap" disclosure rather than the main list (see course-detail-view.tsx). Never silently dropped, never shown as if already built either. */
-  upcomingModules: { id: string; title: string }[];
   moduleCount: number;
   lessonCount: number;
   /** Rounded mean of every built lesson's estimatedMinutes - null when none have one set. A real computed stat, not a copy-written guess. */
@@ -221,20 +219,14 @@ export async function getOfferingCurriculumOutline(offeringId: string): Promise<
     });
     if (!experience || experience.modules.length === 0) return null;
 
-    const modules: CurriculumOutlineModule[] = [];
-    const upcomingModules: { id: string; title: string }[] = [];
     const allMinutes: number[] = [];
 
-    for (const courseModule of experience.modules) {
-      if (courseModule.lessons.length === 0) {
-        upcomingModules.push({ id: courseModule.id, title: courseModule.title });
-        continue;
-      }
+    const modules: CurriculumOutlineModule[] = experience.modules.map((courseModule) => {
       const minutes = courseModule.lessons.reduce<number>((sum, lesson) => sum + (lesson.estimatedMinutes ?? 0), 0);
       for (const lesson of courseModule.lessons) {
         if (lesson.estimatedMinutes != null) allMinutes.push(lesson.estimatedMinutes);
       }
-      modules.push({
+      return {
         id: courseModule.id,
         title: courseModule.title,
         lessons: courseModule.lessons.map((lesson) => ({
@@ -244,13 +236,12 @@ export async function getOfferingCurriculumOutline(offeringId: string): Promise<
         })),
         lessonCount: courseModule.lessons.length,
         totalMinutes: minutes > 0 ? minutes : null,
-      });
-    }
+      };
+    });
 
     return {
       modules,
-      upcomingModules,
-      moduleCount: experience.modules.length,
+      moduleCount: modules.length,
       lessonCount: modules.reduce((sum, courseModule) => sum + courseModule.lessonCount, 0),
       averageLessonMinutes: allMinutes.length > 0 ? Math.round(allMinutes.reduce((a, b) => a + b, 0) / allMinutes.length) : null,
     };
