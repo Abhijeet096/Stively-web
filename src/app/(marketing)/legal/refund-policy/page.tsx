@@ -6,9 +6,9 @@ import { LegalPage, type LegalSection } from "@/features/legal/components/legal-
 
 const TITLE = "Refund & Cancellation Policy";
 const DESCRIPTION =
-  "How refunds and project cancellations work at Stively - milestone-based, and specific to custom software development.";
+  "How refunds and cancellations work at Stively - milestone-based for custom software, and access-based for digital products and self-paced training.";
 const EFFECTIVE_DATE = "22 July 2026";
-const LAST_UPDATED = "22 July 2026";
+const LAST_UPDATED = "15 September 2026";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -31,19 +31,22 @@ const SECTIONS: LegalSection[] = [
           cancel.
         </p>
         <p>
-          This policy applies to every paid engagement with Stively, whether it&apos;s a fixed-price package
-          purchased at checkout or a custom-quoted, milestone-billed project.
+          This policy applies to every paid engagement with Stively - a fixed-price service package
+          purchased at checkout, a custom-quoted, milestone-billed project, or a digital
+          product/self-paced training course, each governed by the specific rules below that fit how it
+          is actually delivered.
         </p>
       </>
     ),
   },
   {
     id: "fixed-price-packages",
-    heading: "Fixed-price packages",
+    heading: "Fixed-price service packages",
     body: (
       <>
         <p>
-          For fixed-price offerings paid in full at checkout (for example, our Starter Website package):
+          For fixed-price service offerings paid in full at checkout (for example, our Starter Website
+          package - not our digital products or training courses, which follow a different rule below):
         </p>
         <ul>
           <li>
@@ -59,6 +62,33 @@ const SECTIONS: LegalSection[] = [
             non-delivery (see <a href="#non-delivery">Non-delivery by Stively</a> below).
           </li>
         </ul>
+      </>
+    ),
+  },
+  {
+    id: "digital-products-and-training",
+    heading: "Digital products and self-paced training",
+    body: (
+      <>
+        <p>
+          For digital products (downloadable resources like our AI prompt packs) and self-paced
+          training courses (like our Generative AI &amp; Prompt Engineering Certification), payment is{" "}
+          <strong>non-refundable once any part of the purchase has been accessed</strong> - meaning the
+          file has been downloaded, or any lesson, video, or module in the course has been opened.
+        </p>
+        <p>
+          This reflects how these products are actually delivered: access is granted automatically and
+          immediately after payment, so there is no meaningful window between &quot;paid&quot; and
+          &quot;delivered&quot; in practice. If you were charged in error, charged twice for the same
+          purchase, or a genuine technical issue on our end prevented you from ever accessing what you
+          paid for, contact us at <a href={`mailto:${siteConfig.contactEmail}`}>{siteConfig.contactEmail}</a>{" "}
+          within 7 days of payment and we&apos;ll review it in good faith.
+        </p>
+        <p>
+          Optional checkout add-ons purchased alongside a course (for example, a bonus prompt pack)
+          follow this same rule independently - each item&apos;s refund eligibility is judged on whether
+          that specific item has been accessed, not the order as a whole.
+        </p>
       </>
     ),
   },
@@ -115,6 +145,7 @@ const SECTIONS: LegalSection[] = [
       <ul>
         <li>Development, design, or other work already completed at the time of cancellation.</li>
         <li>Consultation time or discovery calls already delivered.</li>
+        <li>Any digital product download or training course content already accessed.</li>
         <li>Third-party costs already incurred on your behalf (domains, hosting, paid APIs, licenses, plugins) once purchased.</li>
         <li>Payment gateway fees deducted by Razorpay on the original transaction, which are outside our control.</li>
       </ul>
@@ -204,7 +235,7 @@ export default function RefundPolicyPage() {
       />
       <LegalPage
         title={TITLE}
-        summary="Refunds at Stively are milestone-based, reflecting how custom software development actually works - not a blanket refund-anytime guarantee."
+        summary="Refunds at Stively follow how each purchase is actually delivered - milestone-based for custom software, access-based for digital products and self-paced training - not a blanket refund-anytime guarantee."
         effectiveDate={EFFECTIVE_DATE}
         lastUpdated={LAST_UPDATED}
         sections={SECTIONS}

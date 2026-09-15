@@ -12,7 +12,7 @@ import { PortfolioShowcase } from "@/components/sections/portfolio-showcase";
 import { PricingTiers } from "@/components/sections/pricing-tiers";
 import { BusinessProcess } from "@/components/sections/business-process";
 import { Testimonials } from "@/components/sections/testimonials";
-import { EcosystemNote } from "@/components/sections/ecosystem-note";
+import { AudiencePaths } from "@/components/sections/audience-paths";
 import { CTASection } from "@/components/sections/cta-section";
 
 const TITLE = "Stively - Software Development for Businesses";
@@ -45,13 +45,16 @@ export const metadata: Metadata = {
 };
 
 /**
- * Business-first homepage rebuild. Previous version led with training
- * (student-first hero, a program-card carousel as the second section,
- * "Who we help" giving training/business/mentors equal billing) - the
- * business is now the primary audience per explicit direction, so the
- * narrative runs: what we build -> why trust us -> what we build (detail)
- * -> how an engagement runs -> proof (if any exists) -> where the talent
- * comes from (training, demoted, not dominant) -> final ask.
+ * Dual-audience homepage (AD-022, superseding the prior "business-first,
+ * training demoted" rebuild this comment used to describe). Stively serves
+ * two real audiences - businesses buying software, and learners buying
+ * training - and the new brand identity ("Build. Learn. Grow.") commits to
+ * both being visible from the first screen, not one buried under the other.
+ * Narrative: both audiences acknowledged in the hero -> why trust us (still
+ * business-detailed, that content stays) -> what we build -> proof (if any
+ * exists) -> AudiencePaths gives training a real, equal-weight entry point
+ * instead of a footnote -> pricing/process/testimonials (business, unchanged)
+ * -> closing ask, now routing both audiences instead of only one.
  *
  * Still no fabricated stats or client logos anywhere below - AGENTS.md's
  * standing rule - but PortfolioShowcase is the first real exception to
@@ -69,19 +72,20 @@ export default async function HomePage() {
   return (
     <>
       <HeroSection
-        eyebrow="Software development for businesses"
+        eyebrow="Build. Learn. Grow."
         eyebrowMono
         heading={
           <>
             Build custom software with developers{" "}
             <span className="from-primary to-brand-teal-text bg-linear-to-r bg-clip-text text-transparent">
               you can trust
-            </span>
+            </span>{" "}
+            - or become one.
           </>
         }
-        subheading="Stively pairs your project with developers trained and evaluated inside our own programs first - not a freelancer roster, a talent pipeline with a real process behind it."
+        subheading="Stively builds custom software for businesses with developers trained on real projects - and runs the same practical programs for students and professionals who want to build real software themselves."
         primaryCta={{ label: "Start a project", href: "/start-project" }}
-        secondaryCta={{ label: "See how we work", href: "#how-we-work" }}
+        secondaryCta={{ label: "Explore training", href: "/training" }}
         visual={<HeroVisual />}
       />
 
@@ -96,13 +100,15 @@ export default async function HomePage() {
 
       {testimonials.length > 0 && <Testimonials testimonials={testimonials} />}
 
-      <EcosystemNote />
+      <AudiencePaths />
 
       <CTASection
-        heading="Ready to talk about your project?"
-        description="No sales pitch, no pressure - just a straight answer about whether we're the right fit."
+        heading="Ready to build, or ready to learn?"
+        description="Start a project if you're building something real - or explore training if you want to build it yourself."
         actionLabel="Start a project"
         actionHref="/start-project"
+        secondaryActionLabel="Explore training"
+        secondaryActionHref="/training"
         inverted
         glow
       />

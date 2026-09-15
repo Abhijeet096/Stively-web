@@ -361,9 +361,35 @@ function CourseDetailView({
       </Section>
 
       {/* ── MAIN: content + sticky purchase card ─────────── */}
-      <Section background="default" id="enroll" className="py-12 md:py-16 lg:py-20">
+      {/*
+        Single purchaseCard render, not two. The previous version rendered
+        the full card - including GuestCheckoutForm, its Razorpay <Script>,
+        and a Radix Dialog - once in a `hidden lg:block` aside and again in
+        an `lg:hidden` div for mobile. Tailwind's `hidden`/`lg:hidden` only
+        sets `display:none` - React still mounts, hydrates, and runs effects
+        for BOTH copies regardless of which one is visible, roughly doubling
+        this page's hydration cost for no visible benefit (confirmed via a
+        PageSpeed Insights audit flagging 429 KiB unused JS and 1,770ms
+        Total Blocking Time on this exact page). One real DOM node now,
+        repositioned per breakpoint via explicit CSS Grid placement instead
+        of a second mount: `lg:col-start-2` puts it in the sidebar column on
+        desktop (unchanged visual result), while its DOM position - first,
+        not last - is also what fixes the second bug this surfaced: `#enroll`
+        used to sit on the *outer* Section wrapping the entire content column
+        too, so every "Enroll now" CTA scrolled to the top of the whole
+        content stack, not the form - a mobile visitor still had to scroll
+        past every section below to reach the actual purchaseCard duplicate
+        that used to live at the bottom. `#enroll` now lives directly on this
+        card, and its DOM-first position means mobile sees it immediately
+        after the value strip, no scrolling required either way.
+      */}
+      <Section background="default" className="py-12 md:py-16 lg:py-20">
         <Container className="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-14">
-          <div className="flex flex-col gap-14">
+          <aside id="enroll" className="lg:sticky lg:top-24 lg:col-start-2 lg:row-start-1">
+            {purchaseCard}
+          </aside>
+
+          <div className="flex flex-col gap-14 lg:col-start-1 lg:row-start-1">
             {/* THE PROBLEM */}
             <div className="flex flex-col gap-5">
               <h2 className="text-foreground font-display text-2xl font-semibold tracking-tight sm:text-3xl">
@@ -569,14 +595,6 @@ function CourseDetailView({
               </ul>
             </div>
           </div>
-
-          {/* Sticky purchase card - desktop only; mobile gets the bottom bar instead. */}
-          <aside className="hidden lg:block">
-            <div className="sticky top-24">{purchaseCard}</div>
-          </aside>
-
-          {/* Inline purchase card for mobile/tablet, where the sidebar is hidden. */}
-          <div className="lg:hidden">{purchaseCard}</div>
         </Container>
       </Section>
 

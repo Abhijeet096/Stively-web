@@ -12,6 +12,15 @@ export interface CTASectionProps {
   description?: string;
   actionLabel: string;
   actionHref: string;
+  /**
+   * A second, lower-emphasis action beside the primary one - for a closing
+   * CTA that needs to route two different audiences (e.g. "Start a project"
+   * / "Explore training") without forcing either one through the other's
+   * button. Optional and additive - every existing single-CTA caller is
+   * unchanged.
+   */
+  secondaryActionLabel?: string;
+  secondaryActionHref?: string;
   /** Inverted background reads as a page anchor point - use on at most one CTA per page (see design-system.md §18) */
   inverted?: boolean;
   /**
@@ -31,12 +40,22 @@ function CTASection({
   description,
   actionLabel,
   actionHref,
+  secondaryActionLabel,
+  secondaryActionHref,
   inverted = false,
   glow = false,
 }: CTASectionProps) {
+  const hasSecondary = secondaryActionLabel && secondaryActionHref;
+
   const button = (
     <Button size="lg" variant={inverted ? "inverse" : "primary"} asChild>
       <Link href={actionHref}>{actionLabel}</Link>
+    </Button>
+  );
+
+  const secondaryButton = hasSecondary && (
+    <Button size="lg" variant={inverted ? "outline-inverse" : "outline"} asChild>
+      <Link href={secondaryActionHref}>{secondaryActionLabel}</Link>
     </Button>
   );
 
@@ -86,7 +105,16 @@ function CTASection({
             {description}
           </p>
         )}
-        {glow ? <Magnetic>{button}</Magnetic> : button}
+        {hasSecondary ? (
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+            {glow ? <Magnetic>{button}</Magnetic> : button}
+            {secondaryButton}
+          </div>
+        ) : glow ? (
+          <Magnetic>{button}</Magnetic>
+        ) : (
+          button
+        )}
       </Container>
     </Section>
   );

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { FolderGit2, ShieldCheck, Building2, Clock, Users2 } from "lucide-react";
 
 import { siteConfig } from "@/config/site";
@@ -39,9 +40,11 @@ export const metadata: Metadata = {
 };
 
 /**
- * B2B-only rewrite (2026-08-10): the student/training journey and its
- * roadmap framing are gone. This is the only "how it works" timeline on
- * the page now - the process a business actually goes through with us.
+ * This is the business engagement timeline specifically (not a generic
+ * "how Stively works" for every audience) - the process a business goes
+ * through with us. Training's own path is a separate section below
+ * (AD-022) rather than folded into this timeline, since the two journeys
+ * are genuinely different processes, not one shared flow with two labels.
  */
 const BUSINESS_JOURNEY = [
   {
@@ -156,11 +159,39 @@ export default function AboutPage() {
         </Container>
       </Section>
 
+      {/* AD-022: About told only the business story after AD-013's B2B-only
+          rewrite dropped the training journey entirely. This restores
+          training's visibility here without re-blending it into
+          BUSINESS_JOURNEY/DIFFERENTIATORS above (which stay genuinely
+          business-specific) - a distinct, modest section, same economy of
+          scope as the homepage's own training entry point. */}
+      <Section background="default">
+        <Container className="mx-auto flex max-w-2xl flex-col gap-3 text-center">
+          <Eyebrow>The other side of Stively</Eyebrow>
+          <h2 className="font-display text-3xl font-semibold tracking-[-0.02em] text-balance md:text-4xl">
+            We also teach the skills behind the work
+          </h2>
+          <p className="text-muted-foreground text-lg text-pretty">
+            The same practical, project-based approach we bring to client work runs through
+            Stively&apos;s training programs too - real courses in software development and AI, for
+            students and professionals who want to build, not just study.{" "}
+            <Link
+              href="/training"
+              className="text-primary font-medium underline-offset-4 hover:underline"
+            >
+              Explore training
+            </Link>
+          </p>
+        </Container>
+      </Section>
+
       <CTASection
         heading="Have a project in mind?"
         description="Tell us what you're building - we'll tell you exactly how we'd approach it."
         actionLabel="Start a project"
         actionHref="/start-project"
+        secondaryActionLabel="Explore training"
+        secondaryActionHref="/training"
         inverted
         glow
       />
