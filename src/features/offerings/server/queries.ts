@@ -95,6 +95,22 @@ export async function getOfferingBySlug(slug: string): Promise<Offering | null> 
 }
 
 /**
+ * The homepage's "featured course" promotional banner (AD-027) - deliberately
+ * NOT getOfferingBySlug, which bumps viewCount as a detail-page view; every
+ * homepage visit hitting that would inflate the course's real view count.
+ * Picks by `featured` + category, not a hardcoded slug, so a future course
+ * that earns the featured slot shows up here automatically. Returns null
+ * (section omits itself) when no course is featured - never a fallback to
+ * an arbitrary one.
+ */
+export async function getFeaturedCourseOffering(): Promise<Offering | null> {
+  return prisma.offering.findFirst({
+    where: { status: "PUBLISHED", visible: true, featured: true, category: "TRAINING" },
+    orderBy: { updatedAt: "desc" },
+  });
+}
+
+/**
  * Same lookup, no viewCount side effect - for surfacing a real offering's
  * price/details on a page that isn't that offering's own detail page (e.g.
  * a service landing page's Pricing section referencing the matching

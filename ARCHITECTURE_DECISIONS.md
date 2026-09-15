@@ -467,6 +467,20 @@ The permanent engineering handbook for Stively. Every major architectural decisi
 
 ---
 
+## AD-027: Homepage's `WhyStivelyComparison` removed (duplicate trust messaging); replaced with a real, data-backed `FeaturedCourseBanner`
+
+**Date:** 2026-09-15
+**Problem:** The founder shared a reference homepage (denser, more sections, a featured-course banner, a stats bar, testimonials) and said the live homepage feels too empty/white-space-heavy, and specifically called out `WhyStivelyComparison`'s heading ("Not a freelancer roster. Not a black box.") as meaningless - buyers just want the work done, not a philosophical pitch. Checking the actual page confirmed the complaint: `TrustStrip`, directly above it, already makes the identical claims ("no black box", "direct access to the people building it"), and for the business audience specifically, `/services`' `WhyChooseStively` repeats the exact same four points again - `WhyStivelyComparison` wasn't adding a new idea, just restating one already said twice. The reference's stats bar (500+ students, 4.9/5 rating, etc.) and testimonial cards, however, are fabricated numbers/people for a business that just adopted a "no fabricated proof" stance on this exact page two commits ago (AD-024) - copying that part would directly contradict work from earlier today.
+**Options considered:** 1. Rewrite `WhyStivelyComparison`'s heading/copy only, keep the section. 2. Remove the section from the homepage, keep the component for reuse elsewhere. 3. Remove it entirely (confirmed zero other callers) and use the freed slot for something the page genuinely didn't have: the actual course, actual price, actual countdown. **Chosen: 3.**
+**Reason:** A copy-only fix would still have three sections making the same claim on one page - the actual fix is removing the duplication, not softening its wording. `FeaturedCourseBanner` fills the resulting gap with real, verifiable content instead: `getFeaturedCourseOffering()` (new, picks by `featured` + category rather than a hardcoded slug) feeds the same `getOfferingPricing`/`SaleCountdown` machinery the course page itself uses (AD-024), so the price and countdown shown here can never say something different from what checkout actually charges - deliberately not `getOfferingBySlug`, which bumps the course's real detail-page `viewCount` on every call; a homepage impression is not a detail-page view. This also directly answers "the page looks empty": it was designed assuming `Testimonials`/`PortfolioShowcase` would have real rows to show (both already conditionally render only when they do, per AD-022's own comment) - `PortfolioShowcase` turned out to already have 3 real published rows and was rendering correctly; `Testimonials` still has zero and correctly omits itself. The banner adds a real content block instead of trying to fill the gap with anything fabricated.
+**Trade-offs:** If no offering is ever marked `featured`, the banner section omits itself the same way Testimonials/PortfolioShowcase do - the homepage would lose this slot's content again until a course is flagged featured. Acceptable: the alternative is a hardcoded fallback that risks pointing at a delisted or non-training offering.
+**Database impact:** None (both `Offering.featured` and the query pattern already existed).
+**API impact:** None.
+**Future considerations:** If a second course launches and both are worth featuring, `getFeaturedCourseOffering`'s `findFirst` would need to become a small carousel instead of silently picking one - not built now since there's only one course.
+**Related components:** `src/app/(marketing)/page.tsx`, `src/components/sections/featured-course-banner.tsx` (new), `src/features/offerings/server/queries.ts` (`getFeaturedCourseOffering`), `src/components/sections/why-stively-comparison.tsx` (deleted), `src/components/sections/why-we-exist.tsx` and `capabilities-strip.tsx` (stale comment references fixed).
+
+---
+
 *Template for new entries — copy this block:*
 
 ```markdown

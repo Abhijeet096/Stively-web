@@ -18,7 +18,7 @@ const [FEATURED, ...REST] = SERVICES;
  * featured card (accent border, fuller copy) plus a supporting grid of the
  * remaining five, all reusing the same SERVICES data (single source of
  * truth) rather than a uniform N-equal-cards grid. Deliberately a
- * different visual template from WhyStivelyComparison above and
+ * different visual template from FeaturedCourseBanner above and
  * BusinessProcess below, so three sections in a row don't share one shape.
  */
 function CapabilitiesStrip() {

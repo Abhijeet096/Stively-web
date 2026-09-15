@@ -11,8 +11,8 @@ import { Container } from "@/components/shared/container";
  * B2B-only rewrite (2026-08-10, see AD-013's B2B_ONLY_MODE): the previous
  * copy led with the training-to-hiring bridge story. Every claim below is
  * grounded in what's already established and verified true elsewhere on
- * this site (homepage's TrustStrip/WhyStivelyComparison, the talent
- * pipeline language used sitewide) - not new claims invented for this page.
+ * this site (homepage's TrustStrip, the talent pipeline language used
+ * sitewide) - not new claims invented for this page.
  */
 function WhyWeExist() {
   return (

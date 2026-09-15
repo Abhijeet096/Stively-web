@@ -3,10 +3,11 @@ import type { Metadata } from "next";
 import { siteConfig } from "@/config/site";
 import { getFeaturedTestimonials } from "@/lib/queries/testimonials";
 import { getFeaturedPortfolioItems } from "@/lib/queries/portfolio";
+import { getFeaturedCourseOffering } from "@/features/offerings/server/queries";
 import { HeroSection } from "@/components/sections/hero-section";
 import { HeroVisual } from "@/components/sections/hero-visual";
 import { TrustStrip } from "@/components/sections/trust-strip";
-import { WhyStivelyComparison } from "@/components/sections/why-stively-comparison";
+import { FeaturedCourseBanner } from "@/components/sections/featured-course-banner";
 import { CapabilitiesStrip } from "@/components/sections/capabilities-strip";
 import { PortfolioShowcase } from "@/components/sections/portfolio-showcase";
 import { PricingTiers } from "@/components/sections/pricing-tiers";
@@ -56,17 +57,28 @@ export const metadata: Metadata = {
  * instead of a footnote -> pricing/process/testimonials (business, unchanged)
  * -> closing ask, now routing both audiences instead of only one.
  *
- * Still no fabricated stats or client logos anywhere below - AGENTS.md's
+ * Still no fabricated stats or client logos anywhere below - BRAND_PRINCIPLES.md's
  * standing rule - but PortfolioShowcase is the first real exception to
  * "no case studies yet": actual shipped demo sites, shown only once real
  * PortfolioItem rows exist (same conditional-render-when-empty discipline
  * Testimonials already used below). Trust is still built through process
  * transparency first; this section adds concrete proof on top, not instead.
+ *
+ * WhyStivelyComparison (AD-027) used to sit here - removed, not just from
+ * this page but the codebase (it had no other caller): its "not a
+ * freelancer roster / no black box" message was already said above it by
+ * TrustStrip and, for the business audience specifically, again by
+ * /services' own WhyChooseStively - a real duplicate, not a design choice
+ * worth keeping. FeaturedCourseBanner takes its slot with something the
+ * page didn't have anywhere: the actual course, its actual founding price,
+ * and how long that price lasts - concrete, not one more restatement of
+ * the same abstract trust claim.
  */
 export default async function HomePage() {
-  const [testimonials, portfolioItems] = await Promise.all([
+  const [testimonials, portfolioItems, featuredCourse] = await Promise.all([
     getFeaturedTestimonials(),
     getFeaturedPortfolioItems(),
+    getFeaturedCourseOffering(),
   ]);
 
   return (
@@ -90,7 +102,7 @@ export default async function HomePage() {
       />
 
       <TrustStrip />
-      <WhyStivelyComparison />
+      {featuredCourse && <FeaturedCourseBanner offering={featuredCourse} />}
       <CapabilitiesStrip />
 
       {portfolioItems.length > 0 && <PortfolioShowcase items={portfolioItems} />}
