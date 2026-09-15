@@ -830,6 +830,15 @@ model Offering {
   price         Int?
   currency      String      @default("INR")
   discountPrice Int?
+  /// Real, enforced deadline for `discountPrice` - null means the discount
+  /// has no expiry (existing behavior, unchanged for every offering that
+  /// doesn't set this). Once this passes, `discountPrice` stops applying
+  /// everywhere price is computed (display AND the actual Razorpay charge -
+  /// see getOfferingPricing in features/offerings/lib/pricing.ts) and
+  /// `price` becomes what's charged. Deliberately a single real timestamp
+  /// rather than a countdown that resets per visit - a fake/resetting
+  /// deadline is a dark pattern; this one is genuinely one-shot.
+  saleEndsAt    DateTime?
   pricingType   PricingType @default(FIXED)
   /// Free-text display duration ("6 Months", "4 Weeks", "Ongoing") - values
   /// vary too widely across categories (a training cohort vs. a dev project

@@ -60,8 +60,14 @@ async function main() {
       // captured on the checkout form itself and the account is created
       // silently after payment succeeds (see fulfillGuestOrder).
       allowsGuestCheckout: true,
-      price: 99900,
+      // Founding-price launch window (AD-024): 1999 is the real post-launch
+      // price, 499 is what's actually charged until saleEndsAt - both
+      // enforced server-side (getOfferingPayablePrice), not just display
+      // copy. Reseeding always grants a fresh 7-day window from run time
+      // rather than a stale hardcoded date.
+      price: 199900,
       discountPrice: 49900,
+      saleEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       promptsPackPrice: 19900,
       pricingType: "FIXED",
       currency: "INR",

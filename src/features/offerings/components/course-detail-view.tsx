@@ -33,9 +33,11 @@ import {
 import { getCourseCertificateConfig } from "@/features/certificates/lib/course-config";
 import { DIFFICULTY_LABEL, MODE_LABEL } from "../lib/labels";
 import { getPrimaryOfferingCtaAction } from "../lib/purchase-cta";
+import { getOfferingPricing } from "../lib/pricing";
 import { parseOfferingFaqs } from "../lib/faq";
 import type { CurriculumOutline } from "../server/queries";
 import { GuestCheckoutForm } from "@/features/orders/components/guest-checkout-form";
+import { SaleCountdown } from "./sale-countdown";
 
 function formatMinutes(minutes: number): string {
   if (minutes < 60) return `${minutes} min`;
@@ -118,8 +120,12 @@ const DEFAULT_COURSE_FAQS = [
  * Every claim on this page is either structurally true of the platform
  * (quizzes gate lessons, certificates exist, lifetime access) or read off
  * the offering's own record. No invented testimonials, ratings, learner
- * counts or outcome statistics - see the "first learners" section, which
- * exists precisely so this page doesn't need fabricated social proof.
+ * counts or outcome statistics - conversion pressure here comes from real
+ * mechanisms instead: a genuine, server-enforced launch-price deadline
+ * (Offering.saleEndsAt via getOfferingPricing/SaleCountdown - the price
+ * actually changes when it expires, both on this page and at checkout, not
+ * just the copy) and an honest framing of being an early cohort, not
+ * fabricated reviews. See the "founding price" section below.
  */
 function CourseDetailView({
   offering,
@@ -131,12 +137,8 @@ function CourseDetailView({
   nonce?: string;
 }) {
   const cta = getPrimaryOfferingCtaAction(offering);
-  const payable = offering.discountPrice ?? offering.price;
-  const hasAnchorPrice = offering.discountPrice != null && offering.price != null;
-  const percentOff =
-    hasAnchorPrice && offering.price! > 0
-      ? Math.round(((offering.price! - offering.discountPrice!) / offering.price!) * 100)
-      : null;
+  const { payable, anchor, percentOff, saleEndsAt } = getOfferingPricing(offering);
+  const hasAnchorPrice = anchor != null;
   const heroImage = offering.bannerUrl ?? offering.thumbnailUrl;
   const faqs = parseOfferingFaqs(offering.faqs);
   const certificateConfig = getCourseCertificateConfig(offering.slug);
@@ -150,19 +152,25 @@ function CourseDetailView({
   ].filter((point): point is string => point !== null);
 
   const priceRow = (
-    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-      <span className="font-display text-4xl font-semibold tabular-nums">
-        {payable != null ? formatPrice(payable, offering.currency) : "-"}
-      </span>
-      {hasAnchorPrice && (
-        <>
-          <span className="text-ink-muted-foreground text-xl line-through tabular-nums">
-            {formatPrice(offering.price!, offering.currency)}
-          </span>
-          {percentOff != null && percentOff > 0 && (
-            <Badge variant="success">{percentOff}% OFF</Badge>
-          )}
-        </>
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span className="font-display text-4xl font-semibold tabular-nums">
+          {payable != null ? formatPrice(payable, offering.currency) : "-"}
+        </span>
+        {hasAnchorPrice && (
+          <>
+            <span className="text-ink-muted-foreground text-xl line-through tabular-nums">
+              {formatPrice(anchor!, offering.currency)}
+            </span>
+            {percentOff != null && <Badge variant="success">{percentOff}% OFF</Badge>}
+          </>
+        )}
+      </div>
+      {saleEndsAt && (
+        <SaleCountdown
+          endsAt={saleEndsAt.toISOString()}
+          className="text-warning bg-warning/10 inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
+        />
       )}
     </div>
   );
@@ -181,28 +189,34 @@ function CourseDetailView({
   const purchaseCard = (
     <Card className="border-border/80 shadow-sm">
       <CardContent className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <span className="text-foreground font-display text-3xl font-semibold tabular-nums">
-            {payable != null ? formatPrice(payable, offering.currency) : "-"}
-          </span>
-          {hasAnchorPrice && (
-            <>
-              <span className="text-muted-foreground text-base line-through tabular-nums">
-                {formatPrice(offering.price!, offering.currency)}
-              </span>
-              {percentOff != null && percentOff > 0 && (
-                <Badge variant="success">{percentOff}% OFF</Badge>
-              )}
-            </>
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className="text-foreground font-display text-3xl font-semibold tabular-nums">
+              {payable != null ? formatPrice(payable, offering.currency) : "-"}
+            </span>
+            {hasAnchorPrice && (
+              <>
+                <span className="text-muted-foreground text-base line-through tabular-nums">
+                  {formatPrice(anchor!, offering.currency)}
+                </span>
+                {percentOff != null && <Badge variant="success">{percentOff}% OFF</Badge>}
+              </>
+            )}
+          </div>
+          {saleEndsAt && (
+            <SaleCountdown
+              endsAt={saleEndsAt.toISOString()}
+              className="text-warning bg-warning/10 inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"
+            />
           )}
         </div>
 
-        {offering.allowsGuestCheckout && offering.price != null ? (
+        {offering.allowsGuestCheckout && payable != null ? (
           <GuestCheckoutForm
             offering={{
               id: offering.id,
               title: offering.title,
-              price: offering.discountPrice ?? offering.price,
+              price: payable,
               currency: offering.currency,
               promptsPackPrice: offering.promptsPackPrice,
             }}
@@ -615,20 +629,62 @@ function CourseDetailView({
         </Container>
       </Section>
 
-      {/* ── FIRST LEARNERS (in place of fabricated testimonials) ── */}
-      <Section background="default" className="py-12 md:py-16">
-        <Container className="flex flex-col items-center gap-4 text-center">
-          <Badge variant="secondary">New course</Badge>
-          <h2 className="text-foreground font-display text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-            Be one of our first learners
-          </h2>
-          <p className="text-muted-foreground max-w-2xl text-pretty">
-            This course has just launched, so we&apos;re not going to show you reviews that
-            don&apos;t exist yet. Take it, tell us what worked and what didn&apos;t, and your
-            feedback will shape what we add next.
-          </p>
-        </Container>
-      </Section>
+      {/* ── FOUNDING PRICE (in place of fabricated testimonials) ──
+        Still no invented reviews/ratings/learner counts - that's a hard
+        line (see BRAND_PRINCIPLES.md: "no fabricated proof"), and the
+        previous framing here ("we're not going to show you reviews that
+        don't exist yet") tested the honesty but read as an apology instead
+        of a reason to act. This reframes the same true fact (new course,
+        no reviews yet) as the upside it actually is - early pricing before
+        it goes up - backed by a real, server-enforced deadline instead of
+        invented social proof. */}
+      {saleEndsAt ? (
+        <Section background="default" className="py-12 md:py-16">
+          <Container className="flex flex-col items-center gap-4 text-center">
+            <Badge variant="gradient">Founding price</Badge>
+            <h2 className="text-foreground font-display text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
+              You&apos;re early - that&apos;s the advantage
+            </h2>
+            <p className="text-muted-foreground max-w-2xl text-pretty">
+              This course just launched, so we&apos;re not padding this page with reviews that
+              don&apos;t exist yet. What&apos;s real instead:{" "}
+              {anchor != null && payable != null && (
+                <>
+                  the price goes from{" "}
+                  <span className="text-foreground font-semibold">
+                    {formatPrice(payable, offering.currency)}
+                  </span>{" "}
+                  to{" "}
+                  <span className="text-foreground font-semibold">
+                    {formatPrice(anchor, offering.currency)}
+                  </span>{" "}
+                  once the founding-price window closes, and it won&apos;t come back down.
+                </>
+              )}{" "}
+              Lifetime access and every future update are covered either way - joining now just
+              means paying less for the same thing.
+            </p>
+            <SaleCountdown
+              endsAt={saleEndsAt.toISOString()}
+              className="text-warning bg-warning/10 inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
+            />
+          </Container>
+        </Section>
+      ) : (
+        <Section background="default" className="py-12 md:py-16">
+          <Container className="flex flex-col items-center gap-4 text-center">
+            <Badge variant="secondary">New course</Badge>
+            <h2 className="text-foreground font-display text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
+              Be one of our first learners
+            </h2>
+            <p className="text-muted-foreground max-w-2xl text-pretty">
+              This course has just launched, so we&apos;re not going to show you reviews that
+              don&apos;t exist yet. Take it, tell us what worked and what didn&apos;t, and your
+              feedback will shape what we add next.
+            </p>
+          </Container>
+        </Section>
+      )}
 
       {/* ── CERTIFICATE PREVIEW - only for courses that actually issue one (src/features/certificates/lib/course-config.ts), so no course shows a preview it can't back up. ── */}
       {certificateConfig && (
@@ -693,6 +749,12 @@ function CourseDetailView({
               ? `Learn AI properly for ${formatPrice(payable, offering.currency)}.`
               : "Ready to start learning?"}
           </h2>
+          {saleEndsAt && (
+            <SaleCountdown
+              endsAt={saleEndsAt.toISOString()}
+              className="text-warning bg-warning/10 inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
+            />
+          )}
           <ul className="text-ink-muted-foreground flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm">
             {["Lifetime access", "Certificate included", "Quizzes and practical exercises"].map((item) => (
               <li key={item} className="flex items-center gap-1.5">
@@ -719,7 +781,7 @@ function CourseDetailView({
               </span>
               {hasAnchorPrice && (
                 <span className="text-muted-foreground text-xs line-through tabular-nums">
-                  {formatPrice(offering.price!, offering.currency)}
+                  {formatPrice(anchor!, offering.currency)}
                 </span>
               )}
             </div>

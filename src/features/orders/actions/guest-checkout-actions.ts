@@ -8,6 +8,7 @@ import type { ActionResult } from "@/actions/leads";
 import type { AuthActionResult } from "@/actions/auth";
 import { createGuestOrderSchema, verifyGuestPaymentSchema, acceptOrderAutoLoginSchema } from "../validation/guest-checkout-schemas";
 import { fulfillGuestOrder } from "../server/guest-fulfillment";
+import { getOfferingPayablePrice } from "@/features/offerings/lib/pricing";
 
 export type CreateGuestOrderResult =
   | {
@@ -82,7 +83,7 @@ export async function createGuestOrder(input: unknown): Promise<CreateGuestOrder
     };
   }
 
-  const basePrice = offering.discountPrice ?? offering.price;
+  const basePrice = getOfferingPayablePrice(offering) ?? offering.price!;
   const wantsPromptsPack = data.promptsPack && offering.promptsPackPrice != null;
   const amount = basePrice + (wantsPromptsPack ? offering.promptsPackPrice! : 0);
 

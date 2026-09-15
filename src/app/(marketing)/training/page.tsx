@@ -16,6 +16,7 @@ import {
 import { getOfferings } from "@/features/offerings/server/queries";
 import { OfferingCard } from "@/features/offerings/components/offering-card";
 import { MODE_LABEL, DIFFICULTY_LABEL, formatOfferingPrice } from "@/features/offerings/lib/labels";
+import { getOfferingPricing, getOfferingPayablePrice } from "@/features/offerings/lib/pricing";
 import { formatPrice, cn } from "@/lib/utils";
 import { Section } from "@/components/shared/section";
 import { Container } from "@/components/shared/container";
@@ -301,7 +302,7 @@ export default async function TrainingListingPage({
                         </TableCell>
                         <TableCell className="text-foreground text-right font-medium tabular-nums">
                           {formatOfferingPrice(
-                            offering.discountPrice ?? offering.price,
+                            getOfferingPayablePrice(offering),
                             offering.currency,
                             offering.pricingType,
                             formatPrice
@@ -371,12 +372,8 @@ function FeaturedProgramCard({
 }: {
   offering: Awaited<ReturnType<typeof getOfferings>>["offerings"][number];
 }) {
-  const payable = offering.discountPrice ?? offering.price;
-  const hasAnchor = offering.discountPrice != null && offering.price != null;
-  const percentOff =
-    hasAnchor && offering.price! > 0
-      ? Math.round(((offering.price! - offering.discountPrice!) / offering.price!) * 100)
-      : null;
+  const { payable, anchor, percentOff } = getOfferingPricing(offering);
+  const hasAnchor = anchor != null;
 
   return (
     <Card variant="interactive" className="border-primary/30 overflow-hidden">
@@ -402,11 +399,9 @@ function FeaturedProgramCard({
             {hasAnchor && (
               <>
                 <span className="text-muted-foreground text-base line-through tabular-nums">
-                  {formatPrice(offering.price!, offering.currency)}
+                  {formatPrice(anchor!, offering.currency)}
                 </span>
-                {percentOff != null && percentOff > 0 && (
-                  <Badge variant="success">{percentOff}% OFF</Badge>
-                )}
+                {percentOff != null && <Badge variant="success">{percentOff}% OFF</Badge>}
               </>
             )}
           </div>

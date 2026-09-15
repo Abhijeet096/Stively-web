@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatPrice } from "@/lib/utils";
+import { getOfferingPayablePrice } from "@/features/offerings/lib/pricing";
 import { CheckoutButton } from "@/features/orders/components/checkout-button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 
@@ -58,7 +59,7 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
   const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   const isFree = offering.pricingType === "FREE";
-  const amount = offering.discountPrice ?? offering.price;
+  const amount = getOfferingPayablePrice(offering);
   const priceLabel = isFree ? "Free" : amount != null ? formatPrice(amount, offering.currency) : "-";
   const detailPathPrefix = role === "CLIENT" ? "/client/orders" : "/student/orders";
 

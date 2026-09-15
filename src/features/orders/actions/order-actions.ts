@@ -11,6 +11,7 @@ import { createRazorpayOrder, verifyRazorpaySignature, describeRazorpayError } f
 import type { ActionResult } from "@/actions/leads";
 import { emitOrderEvent } from "../lib/events";
 import { handleOrderPaid } from "../server/post-purchase";
+import { getOfferingPayablePrice } from "@/features/offerings/lib/pricing";
 
 export type CreateOrderResult =
   | { success: true; orderId: string; alreadyPaid: true }
@@ -98,7 +99,7 @@ export async function createOrder(offeringId: string, phone?: string, promptsPac
     }
   }
 
-  const basePrice = offering.discountPrice ?? offering.price;
+  const basePrice = getOfferingPayablePrice(offering);
   if (basePrice == null) {
     return { success: false, error: "This offering doesn't have a price set yet." };
   }

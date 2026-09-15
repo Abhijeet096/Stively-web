@@ -22,6 +22,7 @@ import { OfferingTestimonialsPlaceholder } from "@/features/offerings/components
 import { RelatedOfferings } from "@/features/offerings/components/related-offerings";
 import { parseOfferingFaqs } from "@/features/offerings/lib/faq";
 import { getPrimaryOfferingCtaAction } from "@/features/offerings/lib/purchase-cta";
+import { getOfferingPayablePrice } from "@/features/offerings/lib/pricing";
 import { siteConfig } from "@/config/site";
 import { JsonLd } from "@/components/shared/json-ld";
 import { Section } from "@/components/shared/section";
@@ -210,7 +211,7 @@ export default async function OfferingSlugPage({ params, searchParams }: Offerin
               ? {
                   offers: {
                     "@type": "Offer",
-                    price: ((offering.discountPrice ?? offering.price) / 100).toString(),
+                    price: ((getOfferingPayablePrice(offering) ?? offering.price) / 100).toString(),
                     priceCurrency: offering.currency,
                   },
                 }

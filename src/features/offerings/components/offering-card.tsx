@@ -5,6 +5,7 @@ import { formatPrice } from "@/lib/utils";
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CATEGORY_LABEL, MODE_LABEL, formatOfferingPrice } from "../lib/labels";
+import { getOfferingPricing } from "../lib/pricing";
 
 /**
  * The one card every browse surface renders - the public catalog, category
@@ -15,6 +16,7 @@ import { CATEGORY_LABEL, MODE_LABEL, formatOfferingPrice } from "../lib/labels";
  */
 /** hrefBase lets a portal-embedded catalog (e.g. /client/offerings) point every card at its own detail route instead of the public /offerings catalog - the card markup itself is identical either way. */
 function OfferingCard({ offering, hrefBase = "/offerings" }: { offering: Offering; hrefBase?: string }) {
+  const { payable, anchor } = getOfferingPricing(offering);
   // On the public catalog specifically, a DIGITAL_PRODUCT's real page lives
   // at /digital-store/[slug] - /offerings/[slug] just permanently redirects
   // there (see that route). Linking straight there avoids a pointless
@@ -45,16 +47,11 @@ function OfferingCard({ offering, hrefBase = "/offerings" }: { offering: Offerin
           {/* Shows what the buyer actually pays, with the list price struck through - a discounted offering that advertised its pre-discount price here would contradict every other surface (checkout charges discountPrice). */}
           <span className="flex flex-wrap items-baseline gap-2">
             <span className="text-foreground font-display text-base font-semibold tabular-nums">
-              {formatOfferingPrice(
-                offering.discountPrice ?? offering.price,
-                offering.currency,
-                offering.pricingType,
-                formatPrice
-              )}
+              {formatOfferingPrice(payable, offering.currency, offering.pricingType, formatPrice)}
             </span>
-            {offering.discountPrice != null && offering.price != null && (
+            {anchor != null && (
               <span className="text-muted-foreground text-xs line-through tabular-nums">
-                {formatPrice(offering.price, offering.currency)}
+                {formatPrice(anchor, offering.currency)}
               </span>
             )}
           </span>
