@@ -60,14 +60,15 @@ async function main() {
       // captured on the checkout form itself and the account is created
       // silently after payment succeeds (see fulfillGuestOrder).
       allowsGuestCheckout: true,
-      // Founding-price launch window (AD-024): 1999 is the real post-launch
-      // price, 499 is what's actually charged until saleEndsAt - both
-      // enforced server-side (getOfferingPayablePrice), not just display
-      // copy. Reseeding always grants a fresh 7-day window from run time
-      // rather than a stale hardcoded date.
+      // Founding-price discount (AD-024, cadence refined in AD-028): 1999 is
+      // the real full price, 499 is what's actually charged while the
+      // recurring 110-minute cycle is active - both enforced server-side
+      // (getOfferingPayablePrice), not just display copy. saleCycleMinutes
+      // (not saleEndsAt) so the discount needs no manual upkeep to keep
+      // recurring.
       price: 199900,
       discountPrice: 49900,
-      saleEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      saleCycleMinutes: 110,
       // Either/or upsell (AD-025): 99 for the 100-pack, 199 for the 500-pack
       // - the same real price each already has standalone in the Digital
       // Store (100-practical-ai-prompts / 500-ai-prompt-templates), not a

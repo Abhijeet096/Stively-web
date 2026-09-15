@@ -846,6 +846,17 @@ model Offering {
   /// rather than a countdown that resets per visit - a fake/resetting
   /// deadline is a dark pattern; this one is genuinely one-shot.
   saleEndsAt    DateTime?
+  /// Alternative to saleEndsAt for a discount that should never need manual
+  /// upkeep: when set, `discountPrice` recurs on a fixed cycle this many
+  /// minutes long instead of expiring once. The cycle boundary is a real,
+  /// shared instant (aligned to the Unix epoch, identical for every visitor
+  /// - not a per-session/per-visit timer, which is the actual dishonest
+  /// version of this pattern) and is enforced at checkout through the same
+  /// getOfferingPricing/getOfferingPayablePrice path as everything else, so
+  /// the displayed countdown and the charged price can never disagree. Takes
+  /// priority over saleEndsAt when both are set. See getOfferingPricing in
+  /// features/offerings/lib/pricing.ts and AD-028.
+  saleCycleMinutes Int?
   pricingType   PricingType @default(FIXED)
   /// Free-text display duration ("6 Months", "4 Weeks", "Ongoing") - values
   /// vary too widely across categories (a training cohort vs. a dev project

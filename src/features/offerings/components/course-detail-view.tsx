@@ -701,7 +701,11 @@ function CourseDetailView({
         of a reason to act. This reframes the same true fact (new course,
         no reviews yet) as the upside it actually is - early pricing before
         it goes up - backed by a real, server-enforced deadline instead of
-        invented social proof. */}
+        invented social proof. Copy deliberately doesn't claim the price
+        "won't come back down" (AD-028: saleEndsAt here may be a one-time
+        deadline OR the next boundary of a recurring cycle - true either
+        way is "lock it in now," not a permanence promise that would be
+        false for the recurring case). */}
       {saleEndsAt ? (
         <Section background="default" className="py-12 md:py-16">
           <Container className="flex flex-col items-center gap-4 text-center">
@@ -722,7 +726,8 @@ function CourseDetailView({
                   <span className="text-foreground font-semibold">
                     {formatPrice(anchor, offering.currency)}
                   </span>{" "}
-                  once the founding-price window closes, and it won&apos;t come back down.
+                  once this countdown ends - lock it in now rather than hope the price is still
+                  low next time you check.
                 </>
               )}{" "}
               Lifetime access and every future update are covered either way - joining now just
