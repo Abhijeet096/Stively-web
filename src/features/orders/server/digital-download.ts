@@ -12,6 +12,8 @@ import type { Order } from "@prisma/client";
  * to the exact same asset, never two copies of the same product.
  */
 export const PROMPTS_PACK_PRODUCT_SLUG = "100-practical-ai-prompts";
+/** Same pattern, the higher-tier either/or upsell alongside PROMPTS_PACK_PRODUCT_SLUG - see Offering.promptsPack500Price. */
+export const PROMPTS_PACK_500_PRODUCT_SLUG = "500-ai-prompt-templates";
 
 export interface DigitalDownloadAccess {
   order: Order;
@@ -58,10 +60,20 @@ export async function resolveDigitalDownloadAccess(token: string): Promise<Digit
   if (order.offering.category === "DIGITAL_PRODUCT" && order.offering.digitalAssetPath) {
     assetPath = order.offering.digitalAssetPath;
   } else {
-    const addons = order.addons as { promptsPack?: { purchased?: boolean } } | null;
-    if (addons?.promptsPack?.purchased) {
+    const addons = order.addons as
+      | { promptsPack?: { purchased?: boolean }; promptsPack500?: { purchased?: boolean } }
+      | null;
+    // Either/or by construction (see Offering.promptsPack500Price's own
+    // comment) - 500 checked first only because if a tampered request ever
+    // got both flags set, that's the higher-value item and the one to honor.
+    const addonSlug = addons?.promptsPack500?.purchased
+      ? PROMPTS_PACK_500_PRODUCT_SLUG
+      : addons?.promptsPack?.purchased
+        ? PROMPTS_PACK_PRODUCT_SLUG
+        : null;
+    if (addonSlug) {
       const ebook = await prisma.offering.findUnique({
-        where: { slug: PROMPTS_PACK_PRODUCT_SLUG },
+        where: { slug: addonSlug },
         select: { title: true, digitalAssetPath: true },
       });
       assetPath = ebook?.digitalAssetPath ?? null;

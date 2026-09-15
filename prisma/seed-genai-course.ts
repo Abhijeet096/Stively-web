@@ -68,7 +68,15 @@ async function main() {
       price: 199900,
       discountPrice: 49900,
       saleEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      promptsPackPrice: 19900,
+      // Either/or upsell (AD-025): 99 for the 100-pack, 199 for the 500-pack
+      // - the same real price each already has standalone in the Digital
+      // Store (100-practical-ai-prompts / 500-ai-prompt-templates), not a
+      // separately invented bundle price. Fixed the pre-existing drift here
+      // too: this was 19900 (199) while production actually had 9900 (99)
+      // set directly - a fresh reseed would have silently doubled the price
+      // customers were actually being charged.
+      promptsPackPrice: 9900,
+      promptsPack500Price: 19900,
       pricingType: "FIXED",
       currency: "INR",
       // The current flagship course - drives the Bestseller badge and the

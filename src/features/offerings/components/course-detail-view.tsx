@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import type { Offering } from "@prisma/client";
 
-import { cn, formatPrice } from "@/lib/utils";
+import { formatPrice } from "@/lib/utils";
 import { siteConfig } from "@/config/site";
 import { Section } from "@/components/shared/section";
 import { Container } from "@/components/shared/container";
@@ -176,7 +176,12 @@ function CourseDetailView({
   );
 
   const valueStrip = [
-    curriculum ? { icon: Layers, label: `${curriculum.moduleCount} modules`, sub: "Structured path" } : null,
+    // curriculum.modules.length (built modules only), not the total
+    // moduleCount that includes not-yet-recorded ones - matches lessonCount
+    // right next to it instead of implying "8 modules" with only "4
+    // lessons" to show for them. The full roadmap is one scroll away,
+    // clearly labeled, not hidden - see the curriculum section below.
+    curriculum ? { icon: Layers, label: `${curriculum.modules.length} modules`, sub: "Structured path" } : null,
     curriculum
       ? { icon: PlayCircle, label: `${curriculum.lessonCount} lessons`, sub: "Short and practical" }
       : null,
@@ -219,14 +224,20 @@ function CourseDetailView({
               price: payable,
               currency: offering.currency,
               promptsPackPrice: offering.promptsPackPrice,
+              promptsPack500Price: offering.promptsPack500Price,
             }}
             nonce={nonce}
-            // The real, purchasable eBook this add-on actually unlocks - see
-            // PROMPTS_PACK_PRODUCT_SLUG in digital-download.ts, the single
-            // source of truth both this checkout add-on and the standalone
-            // Digital Store listing resolve to.
+            // Both resolve to the real, purchasable Digital Store eBooks -
+            // see PROMPTS_PACK_PRODUCT_SLUG / PROMPTS_PACK_500_PRODUCT_SLUG
+            // in digital-download.ts, the single source of truth every
+            // surface (this checkout add-on, the standalone listing) reads
+            // from, so the copy here can never drift from what's delivered.
             promptsPackCopy={{
-              label: "Add the 100 Practical AI Prompts eBook",
+              label: "100 Practical AI Prompts",
+              description: "PDF download, delivered by email",
+            }}
+            promptsPack500Copy={{
+              label: "500 AI Prompt Templates",
               description: "PDF download, delivered by email",
             }}
           />
@@ -238,12 +249,9 @@ function CourseDetailView({
           )
         )}
 
-        {offering.allowsGuestCheckout && offering.promptsPackPrice != null && (
-          <Link
-            href="/digital-store/100-practical-ai-prompts"
-            className="text-primary text-center text-xs font-medium hover:underline"
-          >
-            Just want the eBook? Buy it on its own in the Digital Store →
+        {offering.allowsGuestCheckout && (offering.promptsPackPrice != null || offering.promptsPack500Price != null) && (
+          <Link href="/digital-store" className="text-primary text-center text-xs font-medium hover:underline">
+            Just want a prompt pack? Buy one on its own in the Digital Store →
           </Link>
         )}
 
@@ -451,7 +459,18 @@ function CourseDetailView({
               </div>
             )}
 
-            {/* CURRICULUM - real Module/Lesson rows */}
+            {/* CURRICULUM - real Module/Lesson rows.
+              Redesigned from a plain accordion (module title + lesson count
+              + one generic sentence) to look like an actual course player's
+              syllabus: every built lesson shows its real title and the
+              three real content blocks it's made of (video, reading notes,
+              quiz - see prisma/seed-genai-course.ts, this is the platform's
+              actual LessonBlock structure, not invented for this page).
+              Not-yet-recorded modules are real too (still titled, still
+              honestly not claimed as available) but moved out of the main
+              list into a "full roadmap" disclosure below, framed as what it
+              actually is - free lifetime updates, not a gap - instead of a
+              "Coming soon" tag sitting inline next to finished modules. */}
             {curriculum && (
               <div className="flex flex-col gap-5">
                 <div className="flex flex-col gap-1.5">
@@ -459,53 +478,103 @@ function CourseDetailView({
                     Course curriculum
                   </h2>
                   <p className="text-muted-foreground text-sm">
-                    {curriculum.moduleCount} module{curriculum.moduleCount === 1 ? "" : "s"} ·{" "}
-                    {curriculum.lessonCount} lesson{curriculum.lessonCount === 1 ? "" : "s"} available now
+                    Every lesson: a recorded video, reading notes, and a graded quiz
+                    {curriculum.averageLessonMinutes != null && ` - about ${curriculum.averageLessonMinutes} min average`}.
                   </p>
                 </div>
                 <Accordion type="single" collapsible className="w-full">
-                  {curriculum.modules.map((module, index) => {
-                    // A module with no lessons yet hasn't been built/recorded -
-                    // shown here as a real, correctly-titled part of the course
-                    // (not hidden, not invented content) rather than left out or
-                    // padded with a fake lesson count.
-                    const comingSoon = module.lessonCount === 0;
-                    return (
-                      <AccordionItem key={module.id} value={module.id}>
-                        <AccordionTrigger>
-                          <span className="flex flex-1 flex-wrap items-center justify-between gap-x-4 gap-y-1 pr-3 text-left">
-                            <span className="flex items-center gap-2.5">
-                              <span
-                                className={cn(
-                                  "flex size-6 shrink-0 items-center justify-center rounded-md text-xs font-semibold tabular-nums",
-                                  comingSoon ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"
-                                )}
-                              >
-                                {index + 1}
-                              </span>
-                              <span className={comingSoon ? "text-muted-foreground" : undefined}>{module.title}</span>
+                  {curriculum.modules.map((module, index) => (
+                    <AccordionItem key={module.id} value={module.id}>
+                      <AccordionTrigger>
+                        <span className="flex flex-1 flex-wrap items-center justify-between gap-x-4 gap-y-1 pr-3 text-left">
+                          <span className="flex items-center gap-2.5">
+                            <span className="bg-primary/10 text-primary flex size-6 shrink-0 items-center justify-center rounded-md text-xs font-semibold tabular-nums">
+                              {index + 1}
                             </span>
-                            {comingSoon ? (
-                              <Badge variant="secondary" className="font-normal">
-                                Coming soon
-                              </Badge>
-                            ) : (
-                              <span className="text-muted-foreground text-xs font-normal">
-                                {module.lessonCount} lesson{module.lessonCount === 1 ? "" : "s"}
-                                {module.totalMinutes != null && ` · ${formatMinutes(module.totalMinutes)}`}
-                              </span>
-                            )}
+                            {module.title}
                           </span>
-                        </AccordionTrigger>
-                        <AccordionContent>
-                          {comingSoon
-                            ? "This module is being recorded and will be added as a free update for everyone already enrolled - lifetime access covers it."
-                            : "A recorded video lesson, written notes you can revisit any time, and a short quiz you need to pass before the next module unlocks."}
-                        </AccordionContent>
-                      </AccordionItem>
-                    );
-                  })}
+                          <span className="text-muted-foreground text-xs font-normal">
+                            {module.lessonCount} lesson{module.lessonCount === 1 ? "" : "s"}
+                            {module.totalMinutes != null && ` · ${formatMinutes(module.totalMinutes)}`}
+                          </span>
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <ul className="flex flex-col gap-3">
+                          {module.lessons.map((lesson) => {
+                            const showLessonTitle = lesson.title !== module.title;
+                            return (
+                              <li key={lesson.id} className="border-border/70 rounded-lg border">
+                                <div className="flex items-center gap-3 px-3.5 py-3">
+                                  <span className="bg-primary/10 text-primary flex size-8 shrink-0 items-center justify-center rounded-full">
+                                    <PlayCircle className="size-4" aria-hidden="true" />
+                                  </span>
+                                  <span className="flex flex-1 flex-col">
+                                    <span className="text-foreground text-sm font-semibold">
+                                      {showLessonTitle ? lesson.title : "Video lesson"}
+                                    </span>
+                                    <span className="text-muted-foreground text-xs">Recorded lecture</span>
+                                  </span>
+                                  {lesson.estimatedMinutes != null && (
+                                    <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+                                      {formatMinutes(lesson.estimatedMinutes)}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="border-border/70 flex items-center gap-3 border-t px-3.5 py-2.5">
+                                  <span className="bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-full">
+                                    <BookOpen className="size-4" aria-hidden="true" />
+                                  </span>
+                                  <span className="text-foreground text-sm font-medium">Reading notes</span>
+                                </div>
+                                <div className="border-border/70 flex items-center gap-3 border-t px-3.5 py-2.5">
+                                  <span className="bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-full">
+                                    <ClipboardCheck className="size-4" aria-hidden="true" />
+                                  </span>
+                                  <span className="text-foreground text-sm font-medium">
+                                    Quiz <span className="text-muted-foreground font-normal">- 3 of 6 to unlock the next lesson</span>
+                                  </span>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
                 </Accordion>
+
+                {curriculum.upcomingModules.length > 0 && (
+                  <Accordion type="single" collapsible className="border-border/70 w-full rounded-lg border px-1">
+                    <AccordionItem value="roadmap" className="border-none">
+                      <AccordionTrigger className="px-3 text-sm">
+                        <span className="flex items-center gap-2">
+                          <Sparkles className="text-primary size-4" aria-hidden="true" />
+                          <span className="text-foreground font-medium">
+                            See the full course roadmap ({curriculum.upcomingModules.length} more module
+                            {curriculum.upcomingModules.length === 1 ? "" : "s"})
+                          </span>
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent className="px-3">
+                        <p className="text-muted-foreground mb-3 text-sm">
+                          These are being recorded next and roll out as free updates - lifetime access
+                          means every one is already included in what you paid today.
+                        </p>
+                        <ul className="flex flex-col gap-2">
+                          {curriculum.upcomingModules.map((module, index) => (
+                            <li key={module.id} className="text-muted-foreground flex items-center gap-2.5 text-sm">
+                              <span className="bg-muted flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold tabular-nums">
+                                {curriculum.modules.length + index + 1}
+                              </span>
+                              {module.title}
+                            </li>
+                          ))}
+                        </ul>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                )}
               </div>
             )}
 

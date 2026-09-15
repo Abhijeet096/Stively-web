@@ -814,6 +814,13 @@ model Offering {
   /// add-on, not a general multi-item cart - see Order.addons for what
   /// actually got purchased on a given order.
   promptsPackPrice      Int?
+  /// Second, higher-tier pre-payment bump alongside promptsPackPrice -
+  /// resolves to the real "500 AI Prompt Templates" Digital Store product
+  /// (PROMPTS_PACK_500_PRODUCT_SLUG in digital-download.ts), same pattern as
+  /// promptsPackPrice. The checkout UI renders these two as a single
+  /// either/or upsell (not independent add-ons), so an order only ever
+  /// carries one of them.
+  promptsPack500Price   Int?
   /// True for a "membership" product itself (e.g. the ₹399 prime-membership
   /// upsell) - buying THIS offering, through the normal authenticated
   /// checkout, is what actually flips User.isPrimeMember on. Deliberately

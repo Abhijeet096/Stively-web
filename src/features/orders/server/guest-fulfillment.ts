@@ -381,8 +381,11 @@ async function ensureDownloadUnlocked(
   order: Order & { offering: { category: OfferingCategory } }
 ): Promise<{ downloadUrl: string | null; downloadTokenExpiresAt: Date | null; freshlyGenerated: boolean }> {
   const isDigitalProduct = order.offering.category === "DIGITAL_PRODUCT";
-  const addons = order.addons as { promptsPack?: { purchased?: boolean } } | null;
-  const needsDownload = isDigitalProduct || addons?.promptsPack?.purchased === true;
+  const addons = order.addons as
+    | { promptsPack?: { purchased?: boolean }; promptsPack500?: { purchased?: boolean } }
+    | null;
+  const needsDownload =
+    isDigitalProduct || addons?.promptsPack?.purchased === true || addons?.promptsPack500?.purchased === true;
   if (!needsDownload) return { downloadUrl: null, downloadTokenExpiresAt: null, freshlyGenerated: false };
 
   if (order.downloadToken && order.downloadTokenExpiresAt) {

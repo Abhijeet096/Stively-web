@@ -10,8 +10,16 @@ export const createGuestOrderSchema = z.object({
   name: z.string().trim().min(1, "Enter your name").max(200),
   email: z.string().trim().email("Enter a valid email"),
   phone: z.string().trim().min(7, "Enter a valid phone number").max(20),
-  /** Only the one fixed pre-payment bump this flow supports today - see Offering.promptsPackPrice. */
+  /**
+   * Two fixed pre-payment bumps this flow supports today - see
+   * Offering.promptsPackPrice/promptsPack500Price - deliberately a single
+   * choice between them (the UI renders them as one either/or upsell, not
+   * two independent checkboxes), enforced server-side too: if a tampered
+   * request somehow sends both true, createGuestOrder treats promptsPack500
+   * as authoritative and ignores promptsPack rather than charging for both.
+   */
   promptsPack: z.boolean().default(false),
+  promptsPack500: z.boolean().default(false),
 });
 export type CreateGuestOrderInput = z.infer<typeof createGuestOrderSchema>;
 

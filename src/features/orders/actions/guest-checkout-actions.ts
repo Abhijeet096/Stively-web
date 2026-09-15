@@ -84,8 +84,22 @@ export async function createGuestOrder(input: unknown): Promise<CreateGuestOrder
   }
 
   const basePrice = getOfferingPayablePrice(offering) ?? offering.price!;
-  const wantsPromptsPack = data.promptsPack && offering.promptsPackPrice != null;
-  const amount = basePrice + (wantsPromptsPack ? offering.promptsPackPrice! : 0);
+  // Either/or, 500 wins if a tampered request somehow sent both - see
+  // Offering.promptsPack500Price's own comment on why this is a single
+  // choice, not two stackable add-ons.
+  const addonChoice: "promptsPack500" | "promptsPack" | null =
+    data.promptsPack500 && offering.promptsPack500Price != null
+      ? "promptsPack500"
+      : data.promptsPack && offering.promptsPackPrice != null
+        ? "promptsPack"
+        : null;
+  const addonPrice =
+    addonChoice === "promptsPack500"
+      ? offering.promptsPack500Price!
+      : addonChoice === "promptsPack"
+        ? offering.promptsPackPrice!
+        : 0;
+  const amount = basePrice + addonPrice;
 
   try {
     const razorpayOrder = await createRazorpayOrder({
@@ -104,7 +118,12 @@ export async function createGuestOrder(input: unknown): Promise<CreateGuestOrder
         currency: offering.currency,
         status: "PENDING",
         razorpayOrderId: razorpayOrder.id,
-        addons: wantsPromptsPack ? { promptsPack: { purchased: true, price: offering.promptsPackPrice } } : undefined,
+        addons:
+          addonChoice === "promptsPack500"
+            ? { promptsPack500: { purchased: true, price: offering.promptsPack500Price } }
+            : addonChoice === "promptsPack"
+              ? { promptsPack: { purchased: true, price: offering.promptsPackPrice } }
+              : undefined,
       },
     });
 

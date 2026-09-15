@@ -167,18 +167,30 @@ export async function getRelatedOfferings(offering: Offering, limit = 3): Promis
   }
 }
 
+export interface CurriculumOutlineLesson {
+  id: string;
+  title: string;
+  estimatedMinutes: number | null;
+}
+
 export interface CurriculumOutlineModule {
   id: string;
   title: string;
+  lessons: CurriculumOutlineLesson[];
   lessonCount: number;
   /** Summed from each lesson's estimatedMinutes - null when no lesson in the module has one set, so the UI can omit the duration rather than print a misleading "0 mins". */
   totalMinutes: number | null;
 }
 
 export interface CurriculumOutline {
+  /** Modules with at least one built lesson - what the sales page's main curriculum list renders. */
   modules: CurriculumOutlineModule[];
+  /** Modules with zero lessons so far - titles only, for the "full roadmap" disclosure rather than the main list (see course-detail-view.tsx). Never silently dropped, never shown as if already built either. */
+  upcomingModules: { id: string; title: string }[];
   moduleCount: number;
   lessonCount: number;
+  /** Rounded mean of every built lesson's estimatedMinutes - null when none have one set. A real computed stat, not a copy-written guess. */
+  averageLessonMinutes: number | null;
 }
 
 /**
@@ -202,27 +214,45 @@ export async function getOfferingCurriculumOutline(offeringId: string): Promise<
           select: {
             id: true,
             title: true,
-            lessons: { select: { estimatedMinutes: true } },
+            lessons: { orderBy: { order: "asc" }, select: { id: true, title: true, estimatedMinutes: true } },
           },
         },
       },
     });
     if (!experience || experience.modules.length === 0) return null;
 
-    const modules = experience.modules.map((module) => {
-      const minutes = module.lessons.reduce<number>((sum, lesson) => sum + (lesson.estimatedMinutes ?? 0), 0);
-      return {
-        id: module.id,
-        title: module.title,
-        lessonCount: module.lessons.length,
+    const modules: CurriculumOutlineModule[] = [];
+    const upcomingModules: { id: string; title: string }[] = [];
+    const allMinutes: number[] = [];
+
+    for (const courseModule of experience.modules) {
+      if (courseModule.lessons.length === 0) {
+        upcomingModules.push({ id: courseModule.id, title: courseModule.title });
+        continue;
+      }
+      const minutes = courseModule.lessons.reduce<number>((sum, lesson) => sum + (lesson.estimatedMinutes ?? 0), 0);
+      for (const lesson of courseModule.lessons) {
+        if (lesson.estimatedMinutes != null) allMinutes.push(lesson.estimatedMinutes);
+      }
+      modules.push({
+        id: courseModule.id,
+        title: courseModule.title,
+        lessons: courseModule.lessons.map((lesson) => ({
+          id: lesson.id,
+          title: lesson.title,
+          estimatedMinutes: lesson.estimatedMinutes,
+        })),
+        lessonCount: courseModule.lessons.length,
         totalMinutes: minutes > 0 ? minutes : null,
-      };
-    });
+      });
+    }
 
     return {
       modules,
-      moduleCount: modules.length,
-      lessonCount: modules.reduce((sum, module) => sum + module.lessonCount, 0),
+      upcomingModules,
+      moduleCount: experience.modules.length,
+      lessonCount: modules.reduce((sum, courseModule) => sum + courseModule.lessonCount, 0),
+      averageLessonMinutes: allMinutes.length > 0 ? Math.round(allMinutes.reduce((a, b) => a + b, 0) / allMinutes.length) : null,
     };
   } catch (error) {
     console.error("getOfferingCurriculumOutline failed:", error);
