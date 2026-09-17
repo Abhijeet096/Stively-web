@@ -495,6 +495,20 @@ The permanent engineering handbook for Stively. Every major architectural decisi
 
 ---
 
+## AD-029: Returning logged-in visitor auto-redirected from the homepage to their dashboard - via the existing route guard, no new session mechanism
+
+**Date:** 2026-09-17
+**Problem:** The founder asked for "auto redirecting" - save a user's session, and send them straight to their dashboard when they revisit the site - built "professionally and without any security threat."
+**Options considered:** 1. Build a new "remember this visitor" mechanism (a long-lived device cookie, fingerprinting, or similar) to recognize a returning user and log them in automatically. 2. Recognize that session persistence already exists (Auth.js JWT session, `strategy: "jwt"`, `maxAge: REMEMBER_ME_SECONDS`, HttpOnly/signed, already covers "remember me" with a tighter `exp` for non-remembered logins - see `src/lib/auth.ts`) and only add the missing piece: redirecting an *already-authenticated* visitor away from the marketing homepage to `ROLE_HOME[role]`, reusing the exact guard `src/proxy.ts` already runs for `/login`/`/register` (`GUEST_ONLY_ROUTES`). **Chosen: 2.**
+**Reason:** Option 1 is the actual security threat the founder was right to worry about naming explicitly - a new "remember this visitor without re-authenticating" mechanism is exactly how session-fixation and shared/public-device account takeover bugs get introduced, and it would duplicate a job Auth.js's existing session cookie already does correctly. Option 2 adds zero new security surface: it's a one-line addition (`"/"` to `GUEST_ONLY_ROUTES` in `src/config/rbac.ts`) to a route list that's already validated at the edge on every request via Auth.js's own JWT decode (`req.auth`, no new cookie, no new trust boundary), exercising a code path the app already runs constantly for `/login`. Scoped to the exact-match root path only (`pathname === "/"` - the `startsWith(`${route}/`)` half of the existing matcher is a structural no-op for `"/"`), not every marketing page, so a logged-in visitor can still browse `/pricing`, `/services`, etc. normally - only landing on the homepage itself sends them onward. Applies uniformly across every role (student, client, staff), matching how `/login`/`/register` already behave with no role carve-outs.
+**Trade-offs:** A logged-in staff member (admin/sales/team) can no longer casually view the live marketing homepage without first signing out - same trade-off the site already accepted for `/login`/`/register`, now extended to one more route. Easy to exclude specific roles later if that turns out to matter.
+**Database impact:** None.
+**API impact:** None - `src/proxy.ts`'s existing `isGuestOnlyRoute` branch and `ROLE_HOME` map handle it unchanged; only the route list gained an entry.
+**Future considerations:** If a "share this exact homepage view even while logged in" use case ever comes up (e.g. an admin demoing the live site), that's a small explicit escape hatch (a query param or a distinct "view as guest" link), not a reason to revert this.
+**Related components:** `src/config/rbac.ts` (`GUEST_ONLY_ROUTES`), `src/proxy.ts` (unchanged, already enforces the list), `src/lib/auth.ts` (unchanged, existing JWT session this relies on).
+
+---
+
 *Template for new entries — copy this block:*
 
 ```markdown

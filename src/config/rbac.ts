@@ -57,8 +57,17 @@ export const PROTECTED_ROUTES: ProtectedRoute[] = [
   { prefix: "/sales", roles: ["SALES"] },
 ];
 
-/** The auth-flow pages a signed-in user should never see - they get bounced to their own dashboard instead. */
-export const GUEST_ONLY_ROUTES = ["/login", "/register"];
+/**
+ * Pages a signed-in user gets bounced off of, straight to their own
+ * dashboard (ROLE_HOME) - the auth-flow pages, and now the marketing
+ * homepage too: a returning logged-in visitor lands on "/" and is sent
+ * straight to where they actually work instead of the generic pitch page.
+ * Deliberately just "/" itself (exact match, see proxy.ts's isGuestOnlyRoute
+ * - the `startsWith(`${route}/`)` half is a no-op for "/"), not every
+ * marketing page - a logged-in user browsing /pricing or /services to
+ * check something, or sharing a link, should still see it normally.
+ */
+export const GUEST_ONLY_ROUTES = ["/login", "/register", "/"];
 
 export function findProtectedRoute(pathname: string): ProtectedRoute | undefined {
   return PROTECTED_ROUTES.find((route) => pathname.startsWith(route.prefix));
