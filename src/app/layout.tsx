@@ -99,6 +99,16 @@ export default async function RootLayout({
               siteConfig.links.facebook,
               siteConfig.links.twitter,
             ].filter(Boolean),
+            // Sitewide founder/CEO signal (AD-030) - so "Stively CEO" or a
+            // search for his name resolves correctly wherever Google reads
+            // this Organization entity from, not only on /about (which
+            // carries the fuller, dedicated Person entity - see that
+            // page's own JSON-LD).
+            founder: {
+              "@type": "Person",
+              name: "Abhijit Karande",
+              jobTitle: "Founder & CEO",
+            },
           }}
         />
         {/*

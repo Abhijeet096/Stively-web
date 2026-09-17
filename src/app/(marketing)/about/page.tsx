@@ -13,28 +13,33 @@ import { WhyWeExist } from "@/components/sections/why-we-exist";
 import { MissionVision } from "@/components/sections/mission-vision";
 import { HowItWorks } from "@/components/sections/how-it-works";
 import { WhyChooseStively, type Reason } from "@/components/sections/why-choose-stively";
+import { FounderNote } from "@/components/sections/founder-note";
 import { CTASection } from "@/components/sections/cta-section";
+
+// Founder's name included here deliberately (AD-030) - the meta
+// description is what Google most often surfaces as the search snippet, so
+// a query for his name or "Stively CEO/founder" has a direct, accurate
+// answer in the actual result text, not just in structured data.
+const DESCRIPTION =
+  "Stively is a B2B software and web application development company founded by Abhijit Karande. See how we work, who's behind the code, and why businesses trust us to build.";
 
 export const metadata: Metadata = {
   title: "About",
-  description:
-    "Stively is a B2B software and web application development company. See how we work, who's behind the code, and why businesses trust us to build.",
+  description: DESCRIPTION,
   alternates: { canonical: "/about" },
   // "images" explicit here - see the note in src/app/(marketing)/page.tsx's
   // metadata for why (a page-level openGraph/twitter block replaces the
   // parent's instead of merging, dropping the opengraph-image.tsx image).
   openGraph: {
     title: "About Stively",
-    description:
-      "Stively is a B2B software and web application development company. See how we work, who's behind the code, and why businesses trust us to build.",
+    description: DESCRIPTION,
     url: `${siteConfig.url}/about`,
     images: ["/opengraph-image"],
   },
   twitter: {
     card: "summary_large_image",
     title: "About Stively",
-    description:
-      "Stively is a B2B software and web application development company. See how we work, who's behind the code, and why businesses trust us to build.",
+    description: DESCRIPTION,
     images: ["/opengraph-image"],
   },
 };
@@ -121,6 +126,22 @@ export default function AboutPage() {
           ],
         }}
       />
+      {/* Dedicated Person entity, distinct from the sitewide Organization's
+          `founder` field in layout.tsx - richer (jobTitle, worksFor) and
+          scoped to the page that actually has his bio, so a search engine
+          has both a site-level signal and a page-level one pointing at the
+          same real facts. See AD-030. */}
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "Person",
+          name: "Abhijit Karande",
+          jobTitle: "Founder & CEO",
+          description: "Founder and CEO of Stively, a software engineer leading its engineering standards.",
+          url: `${siteConfig.url}/about`,
+          worksFor: { "@type": "Organization", name: siteConfig.name, url: siteConfig.url },
+        }}
+      />
 
       <HeroSection
         eyebrow="About Stively"
@@ -132,6 +153,7 @@ export default function AboutPage() {
 
       <WhyWeExist />
       <MissionVision />
+      <FounderNote />
 
       <HowItWorks
         id="business-journey"

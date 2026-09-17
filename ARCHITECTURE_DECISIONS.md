@@ -509,6 +509,20 @@ The permanent engineering handbook for Stively. Every major architectural decisi
 
 ---
 
+## AD-030: Founder (Abhijit Karande) added to public site content and structured data - professional facts only
+
+**Date:** 2026-09-17
+**Problem:** The founder asked to be discoverable by name - searching "Abhijit Karande" or "Stively CEO" should surface him tied to the company - but explicitly scoped to business-appropriate facts only: no age, no education-year details, just his role and that he's a software engineer.
+**Options considered:** 1. Structured data only (Organization `founder` field) - technically correct but invisible to a human visitor and weaker for search, since Google weighs actual page text/snippets heavily alongside JSON-LD, not instead of it. 2. Visible bio content on the About page plus structured data at both the site level and page level. **Chosen: 2.**
+**Reason:** Three real search-answer surfaces, each reinforcing the others: (a) `src/app/layout.tsx`'s existing sitewide Organization JSON-LD gained a `founder` Person entity (name + jobTitle only), so every page on the site carries the same base signal; (b) `/about` gained a dedicated `Person` JSON-LD entity with `worksFor` pointing back at the Organization - richer than the sitewide one, scoped to the one page that actually has his bio; (c) `/about`'s meta description now names him directly ("founded by Abhijit Karande"), since that's what Google most often surfaces as the literal search snippet, not just structured data a crawler may or may not render into a rich result; (d) a real, visible "Founder" section (`FounderNote`) with his name, title, and a short bio. Every claim in that bio traces to something already true and already stated elsewhere on this exact About page (trained/evaluated developers, senior sign-off before delivery, a transparent process) - attributed to the person who set those principles, not new facts invented for a bio. No age, no education/year details, no fabricated employment history or credentials, per the explicit scope given - "a software engineer" and "Founder & CEO" are the only professional facts asserted. No photo - an initials avatar instead of a placeholder image or an invented likeness of a real person.
+**Trade-offs:** None of real substance - additive content, no removed functionality.
+**Database impact:** None - static content, same "no Prisma queries" pattern the rest of the About page already follows.
+**API impact:** None.
+**Future considerations:** `TeamMember` (the internal CRM ownership model) currently has zero `FOUNDER`-role rows, which independently degrades `getDefaultOwner()`'s lead-routing fallback (see that function's own comment) - a real, separate internal-ops gap noticed while investigating this, not addressed here since it's an internal data-hygiene fix, not the public-facing SEO ask that was actually requested.
+**Related components:** `src/app/layout.tsx` (Organization JSON-LD), `src/app/(marketing)/about/page.tsx` (Person JSON-LD, meta description), `src/components/sections/founder-note.tsx` (new).
+
+---
+
 *Template for new entries — copy this block:*
 
 ```markdown
