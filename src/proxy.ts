@@ -44,15 +44,26 @@ function isSameOriginReferer(req: NextRequest, origin: string): boolean {
  * blocked-by-CSP fetch/image requests to both, with the correct conversion
  * label already attached, proving the JS call itself was firing correctly
  * the whole time and this was the only remaining gap.
+ *
+ * `www.facebook.com`/`connect.facebook.net` are the Meta Pixel's script
+ * source and its own event beacon (`facebook.com/tr`) - added preemptively
+ * (not discovered via the same "console shows blocked requests" process
+ * as the Google Ads pair above) to avoid the exact same silent-zero-data
+ * failure mode on day one instead of after it's already cost real ad spend
+ * data. `connect.facebook.net` would likely also be reachable via
+ * script-src's `strict-dynamic` alone (the nonce'd bootstrap in
+ * analytics.tsx dynamically inserts that script tag), but is listed
+ * explicitly here anyway for img-src/connect-src, which strict-dynamic
+ * doesn't cover.
  */
 function buildCsp(nonce: string, isDev: boolean) {
   const directives = [
     `default-src 'self'`,
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
     `style-src 'self' 'unsafe-inline'`,
-    `img-src 'self' blob: data: https://res.cloudinary.com https://www.googletagmanager.com https://www.google.com https://www.google.co.in https://www.googleadservices.com https://googleads.g.doubleclick.net`,
+    `img-src 'self' blob: data: https://res.cloudinary.com https://www.googletagmanager.com https://www.google.com https://www.google.co.in https://www.googleadservices.com https://googleads.g.doubleclick.net https://www.facebook.com https://connect.facebook.net`,
     `font-src 'self' data:`,
-    `connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://www.googletagmanager.com https://www.google.com https://www.google.co.in https://ad.doubleclick.net https://www.googleadservices.com https://googleads.g.doubleclick.net https://api.razorpay.com https://lumberjack.razorpay.com${isDev ? " ws://localhost:* http://localhost:*" : ""}`,
+    `connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://www.googletagmanager.com https://www.google.com https://www.google.co.in https://ad.doubleclick.net https://www.googleadservices.com https://googleads.g.doubleclick.net https://api.razorpay.com https://lumberjack.razorpay.com https://www.facebook.com https://connect.facebook.net${isDev ? " ws://localhost:* http://localhost:*" : ""}`,
     `frame-src 'self' https:`,
     `media-src 'self' https:`,
     `object-src 'none'`,

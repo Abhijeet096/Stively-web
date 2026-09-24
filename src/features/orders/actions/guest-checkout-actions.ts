@@ -134,7 +134,20 @@ export async function createGuestOrder(input: unknown): Promise<CreateGuestOrder
   }
 }
 
-export type VerifyGuestPaymentResult = ActionResult & { autoLoginLink?: string; downloadUrl?: string };
+export type VerifyGuestPaymentResult = ActionResult & {
+  autoLoginLink?: string;
+  downloadUrl?: string;
+  /**
+   * The real, server-verified amount actually charged for this order
+   * (paise, same convention as Order.amount) and its currency - present on
+   * every success response, from both the fresh-verification branch and
+   * the already-PAID re-confirmation branch below, so the caller always
+   * has the genuine transaction value for ad-pixel Purchase tracking
+   * (see guest-checkout-form.tsx) rather than a hardcoded offering price.
+   */
+  amount?: number;
+  currency?: string;
+};
 
 /**
  * The guest-checkout twin of verifyPayment - no session to scope the order
@@ -163,7 +176,13 @@ export async function verifyGuestPayment(input: unknown): Promise<VerifyGuestPay
   if (order.status === "PAID") {
     const result = await waitForGuestOrderFulfillment(orderId);
     if (!result) return { success: false, error: "Something went wrong finishing your order. We'll follow up by email." };
-    return { success: true, autoLoginLink: result.autoLoginLink ?? undefined, downloadUrl: result.downloadUrl ?? undefined };
+    return {
+      success: true,
+      autoLoginLink: result.autoLoginLink ?? undefined,
+      downloadUrl: result.downloadUrl ?? undefined,
+      amount: order.amount,
+      currency: order.currency,
+    };
   }
   if (order.status !== "PENDING") {
     return { success: false, error: "This order has already been processed." };
@@ -180,7 +199,13 @@ export async function verifyGuestPayment(input: unknown): Promise<VerifyGuestPay
     await prisma.order.update({ where: { id: orderId }, data: { razorpayPaymentId, razorpaySignature } });
     const result = await fulfillGuestOrder(orderId);
     if (!result) return { success: false, error: "Something went wrong finishing your order. We'll follow up by email." };
-    return { success: true, autoLoginLink: result.autoLoginLink ?? undefined, downloadUrl: result.downloadUrl ?? undefined };
+    return {
+      success: true,
+      autoLoginLink: result.autoLoginLink ?? undefined,
+      downloadUrl: result.downloadUrl ?? undefined,
+      amount: order.amount,
+      currency: order.currency,
+    };
   } catch (error) {
     console.error("verifyGuestPayment failed:", error);
     return { success: false, error: "Something went wrong. Please try again." };

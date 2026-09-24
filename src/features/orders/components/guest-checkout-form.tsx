@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { cn, formatPrice } from "@/lib/utils";
 import "@/lib/razorpay-client-types";
+import { trackMetaPurchase } from "@/lib/meta-pixel";
 import { createGuestOrder, verifyGuestPayment } from "../actions/guest-checkout-actions";
 
 export interface GuestCheckoutFormProps {
@@ -60,6 +61,14 @@ function GuestCheckoutForm({
   const [isPending, setIsPending] = React.useState(false);
   const [error, setError] = React.useState<string | undefined>();
   const [alreadyOwned, setAlreadyOwned] = React.useState<{ message: string; redirectUrl?: string } | undefined>();
+  // Guards against Razorpay's documented "handler can fire more than once"
+  // edge case double-reporting the same purchase to the Meta Pixel - see
+  // the handler below. A ref, not state: it must survive without
+  // triggering a re-render, and only needs to live for this one component
+  // instance's lifetime (there's no success page to revisit that could
+  // reset it - see trackMetaPurchase's own comment on why that's the real
+  // duplicate-prevention boundary here).
+  const purchaseTrackedRef = React.useRef(false);
 
   const addonPrice =
     addon === "promptsPack500"
@@ -118,6 +127,23 @@ function GuestCheckoutForm({
           setError(verifyResult.error);
           return;
         }
+
+        // Meta Pixel Purchase - fired here and only here: after the
+        // backend has actually verified the Razorpay signature (or
+        // confirmed the webhook already did), never on the Razorpay
+        // `handler` callback alone. `amount`/`currency` are the real,
+        // verified transaction value from the server response (paise ->
+        // rupees), so an order that included a paid prompt-pack add-on
+        // reports what was genuinely charged, not a hardcoded course
+        // price. The ref guard covers Razorpay's own documented "handler
+        // can fire more than once" case within this one checkout session;
+        // there's no separate reloadable success page for this flow (see
+        // the redirect below) for a stale duplicate to replay from.
+        if (!purchaseTrackedRef.current && verifyResult.amount != null && verifyResult.currency) {
+          purchaseTrackedRef.current = true;
+          trackMetaPurchase(verifyResult.amount / 100, verifyResult.currency);
+        }
+
         // Straight into the account, signed in - no separate "click here to
         // continue" step. autoLoginLink now resolves to the right place for
         // what was actually bought (My Purchases with a real download
