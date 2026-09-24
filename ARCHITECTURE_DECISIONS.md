@@ -565,6 +565,20 @@ The permanent engineering handbook for Stively. Every major architectural decisi
 
 ---
 
+## AD-034: CSP `form-action` gap was silently blocking some Meta Pixel events (AD-032 follow-up)
+
+**Date:** 2026-09-24
+**Problem:** After AD-032 shipped, live testing on the real production Pixel showed inconsistent results - some manual Purchase events showed up in Meta's Test Events tool, others (specifically Meta Ads Manager's "Test your purchase event" / Aggregated Event Measurement detector) never showed activity, with no obvious pattern. Found via a live CSP violation caught directly in DevTools, not guessed: `"Sending form data ... to 'https://www.facebook.com/tr/' violates ... 'form-action 'self''. The request has been blocked."`
+**Reason:** AD-032's CSP work added `www.facebook.com`/`connect.facebook.net` to `img-src` and `connect-src` - the two directives that cover a beacon/image request and a fetch/XHR/sendBeacon request respectively. It missed `form-action`, a third, independent CSP directive that governs a fourth transport method: `fbevents.js` sometimes sends an event via a dynamically-created hidden `<form>` element's `.submit()` call (a real browser form POST) rather than a beacon - which browser, event type, or payload size triggers this specific fallback isn't something we control or need to predict, but whichever events happened to use it were being silently blocked while others succeeded, which is exactly the "PageView works, Purchase inconsistently doesn't" pattern observed.
+**Chosen solution:** Added `https://www.facebook.com` to the `form-action` directive (`'self' https://www.facebook.com`), verified live: the CSP header now correctly includes it.
+**Trade-offs:** None - this only widens where a form can legitimately POST to, matching the site's own already-established pattern of allowlisting exactly the hosts a real, already-installed script needs (same reasoning as the original Google Ads CSP gap this file already documents).
+**Database impact:** None.
+**API impact:** None.
+**Future considerations:** If a future analytics/ads script also silently underperforms despite `img-src`/`connect-src` looking correct, check `form-action` too - three separate CSP directives now cover the three known Meta Pixel transport paths.
+**Related components:** `src/proxy.ts` (`buildCsp`'s `form-action` directive).
+
+---
+
 *Template for new entries — copy this block:*
 
 ```markdown

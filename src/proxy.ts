@@ -68,7 +68,15 @@ function buildCsp(nonce: string, isDev: boolean) {
     `media-src 'self' https:`,
     `object-src 'none'`,
     `base-uri 'self'`,
-    `form-action 'self'`,
+    // 'self' plus facebook.com - fbevents.js sometimes transports an event
+    // via a hidden <form>.submit() POST to facebook.com/tr instead of a
+    // plain beacon/image request, which form-action governs independently
+    // of img-src/connect-src above. Missing this let some Purchase events
+    // (the form-POST-transported ones specifically) get silently blocked
+    // while others succeeded, which is exactly the inconsistent detection
+    // behavior that surfaced this gap - found via a live CSP violation in
+    // DevTools, not guessed.
+    `form-action 'self' https://www.facebook.com`,
     `frame-ancestors 'self'`,
     ...(isDev ? [] : ["upgrade-insecure-requests"]),
   ];
