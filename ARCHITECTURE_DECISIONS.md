@@ -523,6 +523,20 @@ The permanent engineering handbook for Stively. Every major architectural decisi
 
 ---
 
+## AD-031: Homepage auto-redirect (AD-029) exempts intentional in-app navigation via same-origin Referer
+
+**Date:** 2026-09-24
+**Problem:** AD-029's homepage redirect fired unconditionally: any request for "/" while logged in bounced to `ROLE_HOME[role]`, including a deliberate click on the "Stively" logo or a Home link from inside the dashboard. The founder reported this directly - clicking the logo to intentionally visit the homepage kept forcing them back to their dashboard instead.
+**Options considered:** 1. Drop the auto-redirect entirely - solves the complaint but throws away AD-029's actual goal (a returning visitor should land on their dashboard, not the generic pitch page). 2. A cookie-based "already redirected this session" flag, cleared on logout - stops repeat redirects but adds session-state bookkeeping and multi-tab edge cases for a problem that doesn't need them. 3. Check the request's `Referer` header: same-origin means the user clicked a link inside the app (intentional visit, let it through); missing or cross-origin means a fresh/external landing (typed URL, bookmark, search result, brand-new tab - keep redirecting). **Chosen: 3.**
+**Reason:** The Referer header is exactly the signal that distinguishes "clicked from inside our own app" from "just arrived," is available on every request that isn't privacy-stripped, requires no new state (no cookie, no session bookkeeping, no changes to any link in the dashboard shell), and directly matches AD-029's original intent: catch a *returning visitor landing on the site*, not every subsequent click for the rest of the session. Scoped to `pathname === "/"` only (not `/login`/`/register`, which keep the unconditional redirect) - nothing in the app legitimately links a signed-in user to either auth page, so there's no "intentional visit" case to protect there.
+**Trade-offs:** A browser or privacy extension that strips the Referer header even for same-origin navigation would still see the old (redirect-every-time) behavior on that one edge case - accepted as a minor residual gap rather than adding session-cookie bookkeeping to close it completely; revisit if it turns out to matter in practice.
+**Database impact:** None.
+**API impact:** None - `src/proxy.ts`'s existing guard logic, one added condition.
+**Future considerations:** If the Referer gap above turns out to matter, the fix is a small sessionStorage/cookie marker set by the dashboard shell's own logo/Home links specifically (a guaranteed signal, independent of browser referrer policy) - not built now since it wasn't needed to solve the reported case.
+**Related components:** `src/proxy.ts` (`isSameOriginReferer`, the redirect condition), `src/config/rbac.ts` (`GUEST_ONLY_ROUTES`'s doc comment updated).
+
+---
+
 *Template for new entries — copy this block:*
 
 ```markdown

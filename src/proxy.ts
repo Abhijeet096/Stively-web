@@ -1,7 +1,18 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { findProtectedRoute, ROLE_HOME, GUEST_ONLY_ROUTES } from "@/config/rbac";
+
+/** True when this request's Referer header is present and same-origin - see isIntentionalHomeVisit below for why that's the signal used. */
+function isSameOriginReferer(req: NextRequest, origin: string): boolean {
+  const referer = req.headers.get("referer");
+  if (!referer) return false;
+  try {
+    return new URL(referer).origin === origin;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Builds this request's Content-Security-Policy. script-src is nonce +
@@ -89,7 +100,21 @@ export const proxy = auth((req) => {
   const isGuestOnlyRoute = GUEST_ONLY_ROUTES.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`)
   );
-  if (isGuestOnlyRoute && role) {
+  // "/" gets one exception the auth-flow pages below it don't: a logged-in
+  // visitor who intentionally navigates there from inside the app (clicks
+  // the "Stively" logo, a Home link, anything same-origin) should actually
+  // land on the homepage, not get bounced back to their dashboard every
+  // time - AD-029's redirect was only ever meant to catch a fresh/external
+  // landing (typed URL, bookmark, search result, brand-new tab), not every
+  // visit for the rest of the session. A same-origin Referer header is
+  // exactly that signal: no referer, or a referer from another site, reads
+  // as "just arrived" and still redirects; a referer from this same origin
+  // means they clicked their way here on purpose. /login and /register
+  // keep the unconditional redirect - nothing in the app legitimately
+  // links a signed-in user to either, so there's no "intentional visit"
+  // case to protect there.
+  const isIntentionalHomeVisit = pathname === "/" && isSameOriginReferer(req, req.nextUrl.origin);
+  if (isGuestOnlyRoute && role && !isIntentionalHomeVisit) {
     return withCsp(NextResponse.redirect(new URL(ROLE_HOME[role], req.nextUrl.origin)));
   }
 

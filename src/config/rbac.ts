@@ -66,6 +66,13 @@ export const PROTECTED_ROUTES: ProtectedRoute[] = [
  * - the `startsWith(`${route}/`)` half is a no-op for "/"), not every
  * marketing page - a logged-in user browsing /pricing or /services to
  * check something, or sharing a link, should still see it normally.
+ *
+ * "/" specifically (not /login, /register) also has a same-origin-Referer
+ * exception in proxy.ts (AD-031): a fresh/external landing on "/" still
+ * redirects, but a logged-in user who intentionally clicks their way back
+ * to the homepage from inside the app - the logo, a Home link - actually
+ * gets to see it, instead of being bounced to their dashboard on every
+ * single click for the rest of the session.
  */
 export const GUEST_ONLY_ROUTES = ["/login", "/register", "/"];
 
