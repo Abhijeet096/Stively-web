@@ -551,6 +551,20 @@ The permanent engineering handbook for Stively. Every major architectural decisi
 
 ---
 
+## AD-033: "You're all caught up" reassurance replaces the dead-end "reached the end of the course" message in the lesson player
+
+**Date:** 2026-09-24
+**Problem:** A student who finishes the last recorded lesson (module 4 of the real 8-module plan - AD-026) hit a bare "You've reached the end of the course" line in the pager, with nothing else to do. The founder flagged this as a real panic risk - it reads like the course stopped, not like more is coming, for a paying student who bought all 8 modules.
+**Options considered:** 1. Leave the existing line - technically accurate (the pager genuinely has nowhere left to send them) but doesn't say anything reassuring, and actively implies finality that isn't true. 2. A reassurance panel, shown only when real unbuilt modules remain, using the genuine count rather than a copy-written guess. **Chosen: 2.**
+**Reason:** `lesson-viewer.tsx` already computes everything needed to gate this honestly: `upcomingModuleCount` (real, from `curriculum.modules.filter(m => m.lessons.length === 0).length`, not invented) and `nextEntry`/`lessonCompleted` (already-existing pager state). The panel only renders when there's a real remaining module count *and* the learner has actually completed the last available lesson - a course that's genuinely fully built (`upcomingModuleCount === 0`) never shows it, and falls back to a real "You've completed the course!" line instead. The pager's own fallback text was also fixed for the same reason (was unconditionally "reached the end", now says "More modules coming soon" when that's still true). The "24 hours" commitment in the copy is the founder's own explicit operating promise, not something invented for this - but it's written as a standing commitment ("within 24 hours of you reaching this point"), not a one-time countdown from today, since this same panel will render for every student who reaches this point going forward - it has to stay true on an ongoing basis, not just today.
+**Trade-offs:** This is a real, ongoing commitment now visible to paying students - if new modules stop shipping within roughly a day of a learner reaching this point, the copy becomes false. Worth the founder keeping in mind as a standing operational commitment, not a one-off line of copy.
+**Database impact:** None - reads existing `Module`/`Lesson`/`LessonProgress` data already loaded for the page.
+**API impact:** None.
+**Future considerations:** As each of the remaining 4 modules gets built (per the founder's script → reading material/quiz → video pipeline discussed earlier), `upcomingModuleCount` drops automatically - no further code change needed, and the panel disappears entirely once all 8 modules are real.
+**Related components:** `src/features/learning/components/student/lesson-viewer.tsx` (the only file changed).
+
+---
+
 *Template for new entries — copy this block:*
 
 ```markdown

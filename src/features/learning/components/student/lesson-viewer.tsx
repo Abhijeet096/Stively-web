@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Check, Lock } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Lock, PartyPopper } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -92,6 +92,13 @@ function LessonViewer({
   const nextEntry = position >= 0 && position < order.length - 1 ? order[position + 1] : null;
   const nextAvailable = !!nextEntry && (nextEntry.lessonId === lesson.id || nextEntry.lessonUnlocked);
   const nextIsNewLesson = !!nextEntry && nextEntry.lessonId !== lesson.id;
+
+  // Real count, not a copy-written guess - modules with no lessons recorded
+  // yet (see AD-026's public-page treatment of the same fact). Reused below
+  // to decide whether "you've reached the end" needs the reassurance panel
+  // at all - a course that's genuinely fully built shouldn't show it.
+  const upcomingModuleCount = curriculum.modules.filter((m) => m.lessons.length === 0).length;
+  const caughtUpWithMoreComing = !nextEntry && lessonCompleted && upcomingModuleCount > 0;
 
   if (!isUnlocked) {
     return (
@@ -198,6 +205,36 @@ function LessonViewer({
         </div>
       )}
 
+      {/* ── Caught up, more on the way ───────────────────
+        The actual moment this exists for: a learner finishes the last
+        recorded lesson while 4 more modules are still real but unbuilt
+        (AD-026). The old fallback here was a bare "You've reached the end
+        of the course" - true in the narrow sense that the pager has
+        nowhere left to send them, but it reads exactly like the course
+        stopped rather than like more is coming, which is the thing that
+        actually worries a paying student. Real count (upcomingModuleCount),
+        not an invented number - and this panel only renders while that
+        count is actually > 0, so a genuinely fully-built course never
+        shows it. The 24h framing is the founder's own standing operating
+        commitment (new lessons ship within a day of a learner reaching
+        this point), not a one-time countdown from today - it has to stay
+        true every time a student hits this, not just once. */}
+      {caughtUpWithMoreComing && (
+        <div className="border-primary/20 bg-primary/5 mt-8 flex flex-col items-center gap-3 rounded-xl border p-8 text-center">
+          <span className="bg-primary/10 flex size-11 items-center justify-center rounded-full">
+            <PartyPopper className="text-primary size-5" aria-hidden="true" />
+          </span>
+          <p className="text-foreground font-medium">You&apos;re all caught up - nice work.</p>
+          <p className="text-muted-foreground max-w-md text-sm text-pretty">
+            You&apos;ve completed every lesson available right now. We&apos;re recording the
+            remaining {upcomingModuleCount} module{upcomingModuleCount === 1 ? "" : "s"} and adding
+            them within 24 hours of you reaching this point - you&apos;ll get an email the moment
+            they&apos;re live. Until then, practice what you&apos;ve learned on real prompts, or
+            revisit a lesson to go deeper.
+          </p>
+        </div>
+      )}
+
       {/* ── Pager ─────────────────────────────────────── */}
       <nav
         aria-label="Lesson navigation"
@@ -242,7 +279,7 @@ function LessonViewer({
           )
         ) : (
           <span className="text-muted-foreground self-center text-sm">
-            You&apos;ve reached the end of the course.
+            {upcomingModuleCount > 0 ? "More modules coming soon." : "You've completed the course!"}
           </span>
         )}
       </nav>
