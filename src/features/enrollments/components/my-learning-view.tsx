@@ -1,30 +1,23 @@
 import Link from "next/link";
-import { ClipboardList, FolderOpen, Award, UserRound, Download, StickyNote } from "lucide-react";
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { EnrollmentStatusBadge } from "./enrollment-status-badge";
 import { ProgressCard } from "./progress-card";
 import { EnrollmentTimeline } from "./enrollment-timeline";
-import { ComingSoonSection } from "./coming-soon-section";
+import { SupportCard } from "./support-card";
 import type { EnrollmentWithOffering } from "../server/queries";
 import type { EnrollmentHistory } from "@prisma/client";
 
-const PLACEHOLDER_SECTIONS = [
-  { title: "Assignments", description: "Coursework and submissions will appear here.", icon: ClipboardList },
-  { title: "Resources", description: "Downloadable materials for your program.", icon: FolderOpen },
-  { title: "Certificates", description: "Earn a certificate once you complete this program.", icon: Award },
-  { title: "Mentor", description: "Your assigned mentor will show up here.", icon: UserRound },
-  { title: "Downloads", description: "Files and recordings you can save.", icon: Download },
-  { title: "Notes", description: "Your own notes, saved as you go.", icon: StickyNote },
-] as const;
-
 /**
  * The premium "My Learning" landing page body - current program, progress,
- * status, duration, timeline, and the six coming-soon sections. No real
- * lessons exist yet (that's the future LMS phase), so "Continue Learning"
- * links to the offering's own detail page for now - the most honest real
- * destination available today, not a dead button.
+ * status, duration, and timeline. No real lessons exist yet for this
+ * offering (that's the future LMS phase), so "Continue Learning" links to
+ * the offering's own detail page for now - the most honest real destination
+ * available today, not a dead button. Only ever shows real, working
+ * sections - assignments/resources/downloads/notes stay off this page
+ * entirely until they're actually built, rather than a row of "coming
+ * soon" cards promising features that don't exist yet.
  */
 function MyLearningView({
   enrollment,
@@ -63,13 +56,7 @@ function MyLearningView({
         <div className="lg:col-span-2">
           <EnrollmentTimeline history={history} />
         </div>
-        <ComingSoonSection {...PLACEHOLDER_SECTIONS[3]} />
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {PLACEHOLDER_SECTIONS.filter((_, index) => index !== 3).map((section) => (
-          <ComingSoonSection key={section.title} {...section} />
-        ))}
+        <SupportCard />
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ClipboardList, Award, UserRound, Download, StickyNote, SearchX } from "lucide-react";
+import { ClipboardList, Award, SearchX } from "lucide-react";
 
 import { requireRole } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
@@ -11,6 +11,7 @@ import { getCurriculumForEnrollment, searchLessons } from "@/features/learning/s
 import { MyLearningView } from "@/features/enrollments/components/my-learning-view";
 import { EnrollmentTimeline } from "@/features/enrollments/components/enrollment-timeline";
 import { ComingSoonSection } from "@/features/enrollments/components/coming-soon-section";
+import { SupportCard } from "@/features/enrollments/components/support-card";
 import { CertificateCard } from "@/features/certificates/components/student/certificate-card";
 import { SaleCountdown } from "@/features/offerings/components/sale-countdown";
 import { ProgramProgressHero } from "@/features/learning/components/student/program-progress-hero";
@@ -24,13 +25,6 @@ interface EnrollmentLearningPageProps {
   params: Promise<{ enrollmentId: string }>;
   searchParams: Promise<{ q?: string }>;
 }
-
-const OTHER_PLACEHOLDERS = [
-  { title: "Assignments", description: "Coursework and submissions will appear here.", icon: ClipboardList },
-  { title: "Mentor", description: "Your assigned mentor will show up here.", icon: UserRound },
-  { title: "Downloads", description: "Files and recordings you can save.", icon: Download },
-  { title: "Notes", description: "Your own notes, saved as you go.", icon: StickyNote },
-] as const;
 
 const CERTIFICATES_COMING_SOON = {
   title: "Certificates",
@@ -177,9 +171,7 @@ export default async function EnrollmentLearningPage({ params, searchParams }: E
           ) : (
             <ComingSoonSection {...CERTIFICATES_COMING_SOON} />
           )}
-          {OTHER_PLACEHOLDERS.map((section) => (
-            <ComingSoonSection key={section.title} {...section} />
-          ))}
+          <SupportCard />
         </div>
       </Container>
     </>
