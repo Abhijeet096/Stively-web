@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { cn, formatPrice } from "@/lib/utils";
 import "@/lib/razorpay-client-types";
-import { trackMetaPurchase } from "@/lib/meta-pixel";
+import { trackMetaPurchase, trackMetaInitiateCheckout } from "@/lib/meta-pixel";
 import { createGuestOrder, verifyGuestPayment } from "../actions/guest-checkout-actions";
 
 export interface GuestCheckoutFormProps {
@@ -106,6 +106,14 @@ function GuestCheckoutForm({
       setError("Payment couldn't load - please refresh and try again.");
       return;
     }
+
+    // Meta Pixel InitiateCheckout - right here, not on form submit: this is
+    // the first point a real order (createGuestOrder succeeded above) is
+    // about to actually reach Razorpay's modal, so a failed/already-owned
+    // submission never fires it. `result.amount` is the real order total
+    // (base price + any add-on chosen), same paise->rupees conversion as
+    // the Purchase event below.
+    trackMetaInitiateCheckout({ contentName: offering.title, value: result.amount / 100, currency: result.currency });
 
     const razorpay = new window.Razorpay({
       key: result.keyId,

@@ -39,6 +39,7 @@ import { parseOfferingCurriculumTopics } from "../lib/curriculum-topics";
 import type { CurriculumOutline } from "../server/queries";
 import { GuestCheckoutForm } from "@/features/orders/components/guest-checkout-form";
 import { SaleCountdown } from "./sale-countdown";
+import { ViewContentTracker } from "./view-content-tracker";
 
 function formatMinutes(minutes: number): string {
   if (minutes < 60) return `${minutes} min`;
@@ -276,6 +277,12 @@ function CourseDetailView({
 
   return (
     <>
+      <ViewContentTracker
+        contentName={offering.title}
+        value={payable != null ? payable / 100 : undefined}
+        currency={offering.currency}
+      />
+
       {/* ── HERO ─────────────────────────────────────────── */}
       <Section background="inverted" className="relative overflow-hidden py-8 md:py-14 lg:py-20">
         <div

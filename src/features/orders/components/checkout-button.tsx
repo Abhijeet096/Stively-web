@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatPrice } from "@/lib/utils";
 import "@/lib/razorpay-client-types";
+import { trackMetaInitiateCheckout } from "@/lib/meta-pixel";
 import { createOrder, verifyPayment, markOrderFailed } from "../actions/order-actions";
 
 export interface CheckoutButtonProps {
@@ -82,6 +83,13 @@ function CheckoutButton({
       setError("Payment couldn't load - please refresh and try again.");
       return;
     }
+
+    // Meta Pixel InitiateCheckout - same placement/reasoning as
+    // guest-checkout-form.tsx's identical call: right before the Razorpay
+    // modal actually opens, using the real order amount (result.amount),
+    // never on the FREE short-circuit above (alreadyPaid returns before
+    // this point - there's no checkout to initiate for a ₹0 offering).
+    trackMetaInitiateCheckout({ contentName: offeringTitle, value: result.amount / 100, currency: result.currency });
 
     const razorpay = new window.Razorpay({
       key: result.keyId,
