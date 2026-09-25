@@ -112,6 +112,13 @@ model User {
   /// SalesLead thread, either side (client or staff).
   salesLeadMessages SalesLeadMessage[]
 
+  /// Every support query this user has raised as an already-enrolled
+  /// student - see StudentQuery below. Deliberately not a Lead: this
+  /// person is already known and already a customer, so there's no
+  /// name/email/phone to collect and nothing to qualify.
+  studentQueries         StudentQuery[]
+  resolvedStudentQueries StudentQuery[] @relation("StudentQueryResolvedBy")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -417,6 +424,44 @@ enum LostReason {
   POSTPONED
   CANCELLED
   NO_RESPONSE
+}
+
+// ============================================
+// STUDENT SUPPORT (deliberately NOT a Lead - see field comments)
+// ============================================
+
+/// A support query from an already-enrolled student, raised from
+/// /student/support - not a Lead: the sender is already known (studentId
+/// from the authenticated session), already a customer, and needs no
+/// qualification or sales pipeline, just a real person reading it. See
+/// notifyNewStudentQuery() (src/features/support/server/notify.ts) for the
+/// admin email + in-app notification this fires on creation.
+model StudentQuery {
+  id String @id @default(cuid())
+
+  studentId String
+  student   User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  message String @db.Text
+  status  StudentQueryStatus @default(OPEN)
+
+  resolvedAt DateTime?
+  /// The admin/staff User who marked this resolved - SetNull (not Cascade)
+  /// so a resolved query keeps its history even if that staff account is
+  /// later removed.
+  resolvedById String?
+  resolvedBy   User?   @relation("StudentQueryResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([studentId])
+  @@index([status])
+}
+
+enum StudentQueryStatus {
+  OPEN
+  RESOLVED
 }
 
 // ============================================
@@ -2618,6 +2663,12 @@ enum NotificationType {
   /// InterviewLink - see logIntegrityViolation()
   /// (src/features/interviews/actions/integrity-actions.ts).
   INTERVIEW_TERMINATED
+
+  // --- Student Support ---
+  /// An already-enrolled student raises a StudentQuery from /student/support -
+  /// fired to every ADMIN/SUPER_ADMIN, never routed through the Lead
+  /// pipeline - see notifyNewStudentQuery() (src/features/support/server/notify.ts).
+  STUDENT_QUERY_SUBMITTED
 }
 
 model Notification {
