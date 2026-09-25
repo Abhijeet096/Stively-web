@@ -2293,6 +2293,17 @@ model Certificate {
   courseName     String
   completionDate DateTime
 
+  /// The certificate's real stats row (duration/modules/quizzes) -
+  /// snapshotted for the same reason recipientName/courseName are: a
+  /// course that later grows to more built modules must never make an
+  /// already-issued certificate's numbers drift from what the recipient
+  /// actually completed. Nullable only because they didn't exist before
+  /// this field was added - issuance.ts always sets them for every new
+  /// certificate.
+  modulesCompleted    Int?
+  courseDurationMinutes Int?
+  quizzesPassed       Int?
+
   status        CertificateStatus @default(ISSUED)
   issuedAt      DateTime?
   revokedAt     DateTime?

@@ -40,6 +40,9 @@ export async function renderCertificatePdf(certificate: Certificate): Promise<Bu
     courseName: certificate.courseName,
     courseDescription: description,
     qrDataUrl,
+    modulesCompleted: certificate.modulesCompleted ?? 0,
+    courseDurationMinutes: certificate.courseDurationMinutes ?? 0,
+    quizzesPassed: certificate.quizzesPassed ?? 0,
   });
 
   return renderDocumentPdf(doc);

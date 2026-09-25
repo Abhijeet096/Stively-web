@@ -13,6 +13,32 @@ export type IssueCertificateResult =
   | { success: false; error: string };
 
 /**
+ * The certificate's real stats row (modules/duration/quizzes) - counted
+ * from the actual built Module/Lesson/LessonBlock rows the recipient
+ * worked through, never the offering's full planned syllabus (curriculum
+ * JSON), so a course that's only 4-of-8 modules built shows 4, not a
+ * number the recipient never actually completed.
+ */
+async function computeCertificateStats(offeringId: string): Promise<{
+  modulesCompleted: number;
+  courseDurationMinutes: number;
+  quizzesPassed: number;
+}> {
+  const experience = await prisma.learningExperience.findUnique({
+    where: { offeringId },
+    include: { modules: { include: { lessons: { include: { blocks: { select: { type: true } } } } } } },
+  });
+  const builtModules = experience?.modules.filter((m) => m.lessons.length > 0) ?? [];
+  const lessons = builtModules.flatMap((m) => m.lessons);
+
+  return {
+    modulesCompleted: builtModules.length,
+    courseDurationMinutes: lessons.reduce((sum, l) => sum + (l.estimatedMinutes ?? 0), 0),
+    quizzesPassed: lessons.flatMap((l) => l.blocks).filter((b) => b.type === "QUIZ").length,
+  };
+}
+
+/**
  * The one place a Certificate row is ever created. Idempotent and race-safe:
  * `enrollmentId` is @unique on Certificate, so two concurrent calls for the
  * same enrollment (a student double-clicking "Generate") can never produce
@@ -50,6 +76,7 @@ export async function getOrIssueCertificate(enrollmentId: string, studentId: str
   const { enrollment, courseName, courseCode } = eligibility;
   const now = new Date();
   const certificateNumber = await nextDocumentNumber(`CERT_${courseCode}`, `STV-${courseCode}`, now, 6);
+  const stats = await computeCertificateStats(enrollment.offeringId);
 
   try {
     const certificate = await prisma.certificate.create({
@@ -61,6 +88,9 @@ export async function getOrIssueCertificate(enrollmentId: string, studentId: str
         recipientEmail: enrollment.student.email!,
         courseName,
         completionDate: enrollment.completionDate!,
+        modulesCompleted: stats.modulesCompleted,
+        courseDurationMinutes: stats.courseDurationMinutes,
+        quizzesPassed: stats.quizzesPassed,
         status: "ISSUED",
         issuedAt: now,
       },
