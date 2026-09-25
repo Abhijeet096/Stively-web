@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
 import { requireRole } from "@/lib/session";
+import { getAccessPolicyForEnrollment } from "@/features/enrollments/server/access-policy";
 import { getCurriculumForEnrollment, getLessonForStudent } from "@/features/learning/server/queries";
 import { markLessonStarted } from "@/features/learning/actions/progress-actions";
 import { LessonViewer } from "@/features/learning/components/student/lesson-viewer";
@@ -52,6 +53,13 @@ export default async function LessonPage({ params, searchParams }: LessonPagePro
   if (lessonView.progress?.status !== "COMPLETED" && lessonView.progress?.status !== "IN_PROGRESS") {
     await markLessonStarted(enrollmentId, lessonId);
   }
+
+  // Only fetched for the "you're all caught up" panel's certificate link
+  // (see LessonViewer) - reuses the same access-policy check the
+  // enrollment overview page already gates CertificateCard on, so this
+  // never claims a certificate is available when canViewCertificates
+  // wouldn't actually render one there.
+  const policy = await getAccessPolicyForEnrollment(enrollmentId, user.id);
 
   // An unknown or missing ?item falls back to the lesson's first item rather
   // than rendering nothing - covers old links and hand-edited URLs.
@@ -116,6 +124,8 @@ export default async function LessonPage({ params, searchParams }: LessonPagePro
               curriculum={curriculum}
               lessonView={lessonView}
               activeItemId={activeItemId}
+              canViewCertificate={policy?.canViewCertificates ?? false}
+              canDownloadResources={policy?.canDownloadResources ?? false}
             />
           </div>
         </div>

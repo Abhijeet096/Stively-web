@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Check, Lock, PartyPopper } from "lucide-react";
+import { ArrowLeft, ArrowRight, Award, Check, Lock, PartyPopper } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -64,11 +64,17 @@ function LessonViewer({
   curriculum,
   lessonView,
   activeItemId,
+  canViewCertificate = false,
+  canDownloadResources = false,
 }: {
   enrollmentId: string;
   curriculum: Curriculum;
   lessonView: LessonView;
   activeItemId?: string;
+  /** Whether this enrollment has cleared access-policy.ts's canViewCertificates gate - same check CertificateCard uses, so the caught-up panel below only ever links to a certificate that's actually there to generate/view. */
+  canViewCertificate?: boolean;
+  /** access-policy.ts's canDownloadResources (Prime Membership) - threaded to BlockRenderer for the video/reading download buttons. */
+  canDownloadResources?: boolean;
 }) {
   const { lesson, blocks, progress, isUnlocked, moduleTitle, blockedByUnpassedQuiz } = lessonView;
 
@@ -187,7 +193,12 @@ function LessonViewer({
       {/* ── The selected learning item ─────────────────── */}
       <div className="min-w-0 py-8">
         {activeBlock ? (
-          <BlockRenderer block={activeBlock} enrollmentId={enrollmentId} />
+          <BlockRenderer
+            block={activeBlock}
+            enrollmentId={enrollmentId}
+            canDownload={canDownloadResources}
+            lessonAlreadyCompleted={lessonCompleted}
+          />
         ) : (
           <p className="text-muted-foreground text-sm">This lesson doesn&apos;t have any content yet.</p>
         )}
@@ -232,6 +243,20 @@ function LessonViewer({
             they&apos;re live. Until then, practice what you&apos;ve learned on real prompts, or
             revisit a lesson to go deeper.
           </p>
+          {/* canViewCertificate mirrors CertificateCard's own gate (access-policy.ts) -
+            completing every currently-built lesson is exactly what flips an
+            enrollment to COMPLETED (progression.ts), so this is almost
+            always true right here. Links to the enrollment overview's
+            #certificate card rather than duplicating its generate/view
+            logic in a second place. */}
+          {canViewCertificate && (
+            <Button asChild className="mt-1">
+              <Link href={`/student/learning/${enrollmentId}#certificate`}>
+                <Award aria-hidden="true" />
+                View your certificate
+              </Link>
+            </Button>
+          )}
         </div>
       )}
 

@@ -11,13 +11,34 @@ import { BlockUnbuiltPlaceholder } from "./block-unbuilt-placeholder";
 import type { LessonBlockWithRelations } from "../../server/queries";
 
 /** The one dispatcher every lesson's content flows through - the "one renderer per polymorphic type" pattern already used for Offering CTAs and status badges elsewhere in this codebase. */
-function BlockRenderer({ block, enrollmentId }: { block: LessonBlockWithRelations; enrollmentId: string }) {
+function BlockRenderer({
+  block,
+  enrollmentId,
+  canDownload,
+  lessonAlreadyCompleted,
+}: {
+  block: LessonBlockWithRelations;
+  enrollmentId: string;
+  /** access-policy.ts's canDownloadResources - gates the video/reading download buttons only, never viewing itself. */
+  canDownload: boolean;
+  /** Lets the video/reading auto-complete watchers skip themselves once already true - markLessonComplete is idempotent either way, this just avoids a pointless upsert+revalidate on every revisit. */
+  lessonAlreadyCompleted: boolean;
+}) {
   switch (block.type) {
     case "RICH_TEXT":
     case "MARKDOWN":
-      return <BlockText block={block} />;
+      return (
+        <BlockText
+          block={block}
+          enrollmentId={enrollmentId}
+          canDownload={canDownload}
+          lessonAlreadyCompleted={lessonAlreadyCompleted}
+        />
+      );
     case "VIDEO":
-      return <BlockVideo block={block} />;
+      return (
+        <BlockVideo block={block} enrollmentId={enrollmentId} canDownload={canDownload} lessonAlreadyCompleted={lessonAlreadyCompleted} />
+      );
     case "PDF":
     case "SLIDES":
     case "DOWNLOAD":

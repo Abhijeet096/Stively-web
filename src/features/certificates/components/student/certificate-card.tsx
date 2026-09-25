@@ -22,7 +22,7 @@ function formatDate(date: Date) {
 function CertificateCard({ enrollmentId, certificate }: { enrollmentId: string; certificate: Certificate | null }) {
   if (!certificate) {
     return (
-      <Card className="sm:col-span-2 lg:col-span-3">
+      <Card id="certificate" className="sm:col-span-2 lg:col-span-3">
         <CardContent className="flex flex-col items-center gap-4 py-8 text-center sm:flex-row sm:text-left">
           <div className="border-border/70 relative aspect-[1920/1358] w-full max-w-xs shrink-0 overflow-hidden rounded-lg border shadow-sm">
             <Image src="/certificates/gen-ai-certificate-preview.png" alt="Certificate of completion preview" fill className="object-cover" />
@@ -44,7 +44,7 @@ function CertificateCard({ enrollmentId, certificate }: { enrollmentId: string; 
 
   if (certificate.status === "REVOKED") {
     return (
-      <Card className="sm:col-span-2 lg:col-span-3">
+      <Card id="certificate" className="sm:col-span-2 lg:col-span-3">
         <CardContent className="flex flex-col items-start gap-3">
           <div className="flex w-full items-center justify-between">
             <span className="bg-destructive/10 text-destructive flex size-9 items-center justify-center rounded-lg">
@@ -64,7 +64,7 @@ function CertificateCard({ enrollmentId, certificate }: { enrollmentId: string; 
   }
 
   return (
-    <Card className="sm:col-span-2 lg:col-span-3">
+    <Card id="certificate" className="sm:col-span-2 lg:col-span-3">
       <CardContent className="flex flex-col items-start gap-4">
         <div className="flex w-full items-center justify-between">
           <span className="bg-success/10 text-success flex size-9 items-center justify-center rounded-lg">

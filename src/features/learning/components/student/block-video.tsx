@@ -1,5 +1,11 @@
-import { PlayCircle } from "lucide-react";
+"use client";
 
+import * as React from "react";
+import Link from "next/link";
+import { Download, Lock, PlayCircle } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { markLessonComplete } from "../../actions/progress-actions";
 import { videoContentSchema } from "../../lib/block-types";
 import type { LessonBlock } from "@prisma/client";
 
@@ -17,7 +23,39 @@ import type { LessonBlock } from "@prisma/client";
  * EmptyState's usual py-16 - this has to fit inside a 16:9 box down to
  * mobile width, where that much vertical padding would clip.
  */
-function BlockVideo({ block }: { block: LessonBlock }) {
+function BlockVideo({
+  block,
+  enrollmentId,
+  canDownload,
+  lessonAlreadyCompleted,
+}: {
+  block: LessonBlock;
+  enrollmentId: string;
+  canDownload: boolean;
+  /** Skips the auto-complete watcher below once already true - markLessonComplete is idempotent either way, this just avoids a pointless upsert+revalidate on every revisit. */
+  lessonAlreadyCompleted: boolean;
+}) {
+  // Fires once the direct-file player crosses 90% of its duration -
+  // scrubbing straight there counts the same as watching linearly
+  // (currentTime/duration is a pure position check, not a "watched every
+  // second" one). markLessonComplete re-checks the quiz gate server-side
+  // regardless, so this can never complete a lesson that still needs a
+  // passed quiz - it only ever removes the manual click for lessons that
+  // had nothing else blocking them. YouTube/Vimeo embeds below don't get
+  // this: their playback happens inside the provider's own iframe, which
+  // doesn't expose timeupdate events to this page without loading their
+  // separate Player JS SDK - a real gap, not silently ignored, just out of
+  // scope for the direct-file case this was asked for.
+  const hasAutoCompletedRef = React.useRef(lessonAlreadyCompleted);
+  function handleTimeUpdate(event: React.SyntheticEvent<HTMLVideoElement>) {
+    if (hasAutoCompletedRef.current) return;
+    const video = event.currentTarget;
+    if (!video.duration || video.currentTime / video.duration < 0.9) return;
+    hasAutoCompletedRef.current = true;
+    void markLessonComplete(enrollmentId, block.lessonId);
+  }
+
+
   const parsed = videoContentSchema.safeParse(block.content);
   if (!parsed.success) {
     return (
@@ -37,18 +75,52 @@ function BlockVideo({ block }: { block: LessonBlock }) {
   const embedSrc = toEmbedUrl(content.url, content.provider);
 
   return (
-    <div className="bg-ink aspect-video w-full overflow-hidden rounded-xl">
-      {embedSrc ? (
-        <iframe
-          src={embedSrc}
-          title={block.title ?? "Lesson video"}
-          className="size-full"
-          allow="accelerate-compute; autoplay; encrypted-media; picture-in-picture"
-          allowFullScreen
-        />
-      ) : (
-        <video src={content.url} controls className="size-full" />
-      )}
+    <div className="flex flex-col gap-3">
+      <div className="bg-ink aspect-video w-full overflow-hidden rounded-xl">
+        {embedSrc ? (
+          <iframe
+            src={embedSrc}
+            title={block.title ?? "Lesson video"}
+            className="size-full"
+            allow="accelerate-compute; autoplay; encrypted-media; picture-in-picture"
+            allowFullScreen
+            // A YouTube/Vimeo embed has no file of ours to offer - the
+            // provider's own player is the only playback surface, so
+            // there's genuinely nothing below to gate or download.
+          />
+        ) : (
+          <video
+            src={content.url}
+            controls
+            className="size-full"
+            controlsList={canDownload ? undefined : "nodownload"}
+            onTimeUpdate={handleTimeUpdate}
+          />
+        )}
+      </div>
+
+      {/* Only for a direct file (the <video> branch above) - an embed has
+        no file of ours to hand over. `controlsList="nodownload"` above
+        only hides the browser's own one-click icon for non-Prime viewers;
+        this is the actual, honest download path, gated the same way. */}
+      {!embedSrc &&
+        (canDownload ? (
+          <Button asChild variant="outline" size="sm" className="w-fit">
+            <a href={content.url} download>
+              <Download aria-hidden="true" />
+              Download video
+            </a>
+          </Button>
+        ) : (
+          <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+            <Lock className="size-3.5" aria-hidden="true" />
+            Downloading lectures is a{" "}
+            <Link href="/checkout/prime-membership" className="text-primary underline underline-offset-4">
+              Prime Membership
+            </Link>{" "}
+            perk.
+          </p>
+        ))}
     </div>
   );
 }

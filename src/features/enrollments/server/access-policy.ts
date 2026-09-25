@@ -23,7 +23,7 @@ export interface EnrollmentAccessPolicy {
  * function, not a hunt across every page that currently checks enrollment
  * state inline.
  */
-function evaluatePolicy(enrollment: OfferingEnrollment): EnrollmentAccessPolicy {
+function evaluatePolicy(enrollment: OfferingEnrollment, isPrimeMember: boolean): EnrollmentAccessPolicy {
   const isExpired = !!enrollment.endDate && enrollment.endDate < new Date();
   // COMPLETED counts as accessible, not just ACTIVE - finishing a program's
   // curriculum shouldn't lock the student out of reviewing it afterward
@@ -36,11 +36,18 @@ function evaluatePolicy(enrollment: OfferingEnrollment): EnrollmentAccessPolicy 
   // a real business rule (no certificate mid-course), and exactly the
   // kind of per-question distinction a flat "hasEnrollment" boolean can't express.
   const canViewCertificates = enrollment.status === "COMPLETED";
+  // Previously just `= canAccessLearning` (every enrolled student, field
+  // was never actually read anywhere). Now the real gate: offline
+  // video/reading-material downloads are a Prime Membership perk
+  // (User.isPrimeMember - the same "50% off every course, forever" flag,
+  // reused rather than inventing a second membership concept for this),
+  // on top of still needing real access to the content in the first place.
+  const canDownloadResources = canAccessLearning && isPrimeMember;
 
   return {
     enrollment,
     canAccessLearning,
-    canDownloadResources: canAccessLearning,
+    canDownloadResources,
     canViewCertificates,
     canViewMentor: canAccessLearning,
     isExpired,
@@ -63,8 +70,11 @@ export async function getAccessPolicyForEnrollment(
   enrollmentId: string,
   studentId: string
 ): Promise<EnrollmentAccessPolicy | null> {
-  const enrollment = await prisma.offeringEnrollment.findFirst({ where: { id: enrollmentId, studentId } });
-  return enrollment ? evaluatePolicy(enrollment) : null;
+  const enrollment = await prisma.offeringEnrollment.findFirst({
+    where: { id: enrollmentId, studentId },
+    include: { student: { select: { isPrimeMember: true } } },
+  });
+  return enrollment ? evaluatePolicy(enrollment, enrollment.student.isPrimeMember) : null;
 }
 
 export interface StudentAccessSummary {
@@ -81,11 +91,13 @@ export interface StudentAccessSummary {
 export async function getStudentAccessSummary(studentId: string): Promise<StudentAccessSummary> {
   const enrollments = await prisma.offeringEnrollment.findMany({
     where: { studentId },
-    include: { offering: true },
+    include: { offering: true, student: { select: { isPrimeMember: true } } },
     orderBy: { createdAt: "desc" },
   });
 
-  const activeEnrollments = enrollments.filter((enrollment) => evaluatePolicy(enrollment).canAccessLearning);
+  const activeEnrollments = enrollments.filter(
+    (enrollment) => evaluatePolicy(enrollment, enrollment.student.isPrimeMember).canAccessLearning
+  );
 
   return {
     hasAnyAccess: activeEnrollments.length > 0,
