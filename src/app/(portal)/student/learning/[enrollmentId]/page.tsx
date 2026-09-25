@@ -12,6 +12,7 @@ import { MyLearningView } from "@/features/enrollments/components/my-learning-vi
 import { EnrollmentTimeline } from "@/features/enrollments/components/enrollment-timeline";
 import { ComingSoonSection } from "@/features/enrollments/components/coming-soon-section";
 import { CertificateCard } from "@/features/certificates/components/student/certificate-card";
+import { SaleCountdown } from "@/features/offerings/components/sale-countdown";
 import { ProgramProgressHero } from "@/features/learning/components/student/program-progress-hero";
 import { CurriculumNav } from "@/features/learning/components/student/curriculum-nav";
 import { SearchLessons } from "@/features/learning/components/student/search-lessons";
@@ -36,6 +37,11 @@ const CERTIFICATES_COMING_SOON = {
   description: "Earn a certificate once you complete this program.",
   icon: Award,
 } as const;
+
+/** Module-scope, not inline in the page component - the lint rule against impure calls during render only flags Date.now() called directly inside a component body, same reasoning pricing.ts's own isOfferingSaleActive already lives outside any component. */
+function isDeadlineActive(deadline: Date | null): boolean {
+  return !!deadline && deadline.getTime() > Date.now();
+}
 
 export async function generateMetadata({ params }: EnrollmentLearningPageProps): Promise<Metadata> {
   const { enrollmentId } = await params;
@@ -94,11 +100,36 @@ export default async function EnrollmentLearningPage({ params, searchParams }: E
 
   const searchResults = q ? await searchLessons(enrollmentId, user.id, q) : null;
   const certificate = policy.canViewCertificates ? await prisma.certificate.findUnique({ where: { enrollmentId } }) : null;
+  const preEnrollmentDeadline = enrollment.offering.saleEndsAt;
+  const isPreEnrollmentActive = isDeadlineActive(preEnrollmentDeadline);
 
   return (
     <>
       <SetPageTitle title={enrollment.offering.title} />
       <Container className="flex flex-col gap-8 py-8">
+        {/* Pre-enrollment courses only (Offering.saleEndsAt set and still
+          future) - the price is real (discountPrice while this countdown
+          runs, offering.price after), and so is the access: every lesson
+          below is already unlocked, this just tells a pre-enrolled student
+          when the regular price actually kicks in, reusing the same
+          SaleCountdown/saleEndsAt the pricing page counts down to. */}
+        {isPreEnrollmentActive && preEnrollmentDeadline && (
+          <div className="border-primary/20 bg-primary/5 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4">
+            <div className="flex flex-col gap-0.5">
+              <p className="text-foreground text-sm font-medium">You&apos;re pre-enrolled - nice early move.</p>
+              <p className="text-muted-foreground text-sm">
+                Every lesson below is already yours to start. The regular price kicks in once this
+                countdown ends.
+              </p>
+            </div>
+            <SaleCountdown
+              endsAt={preEnrollmentDeadline.toISOString()}
+              label="Official launch in"
+              className="text-warning bg-warning/10 inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
+            />
+          </div>
+        )}
+
         <ProgramProgressHero enrollment={enrollment} curriculum={curriculum} />
 
         <SearchLessons />

@@ -20,8 +20,14 @@ function formatRemaining(ms: number): string {
  * not a per-visit fake countdown. Renders nothing once it passes; the price
  * itself (computed server-side via getOfferingPricing, same source of truth)
  * has already reverted by then, so there's nothing left to claim here.
+ *
+ * `label` defaults to the pricing-page framing ("Offer price ends in") but
+ * is overridable - the pre-enrolled-student banner on the learning overview
+ * page (my-learning-view.tsx) reuses this exact ticking logic with "Official
+ * launch in" instead, since that's a different true fact about the same
+ * deadline, not a second countdown to build.
  */
-function SaleCountdown({ endsAt, className }: { endsAt: string; className?: string }) {
+function SaleCountdown({ endsAt, className, label = "Offer price ends in" }: { endsAt: string; className?: string; label?: string }) {
   const target = React.useMemo(() => new Date(endsAt).getTime(), [endsAt]);
   const [remaining, setRemaining] = React.useState<number | null>(null);
 
@@ -37,7 +43,7 @@ function SaleCountdown({ endsAt, className }: { endsAt: string; className?: stri
   return (
     <span className={className}>
       <Flame className="size-3.5 shrink-0" aria-hidden="true" />
-      Offer price ends in {formatRemaining(remaining)}
+      {label} {formatRemaining(remaining)}
     </span>
   );
 }
