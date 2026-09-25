@@ -46,15 +46,33 @@ function BlockVideo({
   // doesn't expose timeupdate events to this page without loading their
   // separate Player JS SDK - a real gap, not silently ignored, just out of
   // scope for the direct-file case this was asked for.
+  //
+  // The ref only latches on a CONFIRMED success, not on every attempt - a
+  // lesson with an unpassed quiz will reject this call (correctly), and if
+  // the ref latched anyway, watching to the very end would permanently
+  // stop retrying even after the quiz gets passed later. The actual retry
+  // for that ordering (quiz passed after the video already ended) lives in
+  // assessment-submission-form.tsx, which attempts completion again right
+  // after a quiz submission - this ref just avoids hammering the action on
+  // every timeupdate tick in between.
   const hasAutoCompletedRef = React.useRef(lessonAlreadyCompleted);
+  const isAttemptingRef = React.useRef(false);
+  function attemptAutoComplete() {
+    if (hasAutoCompletedRef.current || isAttemptingRef.current) return;
+    isAttemptingRef.current = true;
+    markLessonComplete(enrollmentId, block.lessonId)
+      .then((result) => {
+        if (result.success) hasAutoCompletedRef.current = true;
+      })
+      .finally(() => {
+        isAttemptingRef.current = false;
+      });
+  }
   function handleTimeUpdate(event: React.SyntheticEvent<HTMLVideoElement>) {
-    if (hasAutoCompletedRef.current) return;
     const video = event.currentTarget;
     if (!video.duration || video.currentTime / video.duration < 0.9) return;
-    hasAutoCompletedRef.current = true;
-    void markLessonComplete(enrollmentId, block.lessonId);
+    attemptAutoComplete();
   }
-
 
   const parsed = videoContentSchema.safeParse(block.content);
   if (!parsed.success) {
@@ -95,6 +113,7 @@ function BlockVideo({
             className="size-full"
             controlsList={canDownload ? undefined : "nodownload"}
             onTimeUpdate={handleTimeUpdate}
+            onEnded={attemptAutoComplete}
           />
         )}
       </div>

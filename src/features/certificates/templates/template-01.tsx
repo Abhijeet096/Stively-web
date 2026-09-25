@@ -6,7 +6,6 @@ import * as React from "react";
 import { Document, Page, View, Text, Image, StyleSheet } from "@react-pdf/renderer";
 
 import { registerDocumentFonts } from "@/features/documents/lib/fonts";
-import { SIGNATURE_IMAGE_PATH } from "@/features/documents/components/signature-block";
 import { COMPANY_SIGNATORY } from "@/features/documents/lib/company-info";
 import { DocQrCode } from "@/features/documents/components/qr-code";
 import { certificateColors, CERT_PAGE } from "../lib/theme";
@@ -32,7 +31,6 @@ function toDataUri(filePath: string): string {
 
 const LOGO_ON_CREAM = toDataUri(path.join(process.cwd(), "public/brand/logo-light-surface.png"));
 const LOGO_ON_INK = toDataUri(path.join(process.cwd(), "public/brand/logo-dark-surface.png"));
-const SIGNATURE_DATA_URI = toDataUri(SIGNATURE_IMAGE_PATH);
 const LOGO_ASPECT = 900 / 263;
 
 const SKILLS = [
@@ -177,9 +175,11 @@ const styles = StyleSheet.create({
   signatureBlock: {
     alignItems: "flex-start",
   },
-  signatureImg: {
-    height: 32,
-    marginBottom: 2,
+  signatureScript: {
+    fontFamily: "Alex Brush",
+    fontSize: 30,
+    color: certificateColors.ink,
+    marginBottom: -2,
   },
   signatureName: {
     fontSize: 10,
@@ -348,8 +348,8 @@ export function Template01({
 
             <View style={styles.bottomRow}>
               <View style={styles.signatureBlock}>
-                {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf's Image, no alt prop in its API */}
-                <Image src={SIGNATURE_DATA_URI} style={styles.signatureImg} />
+                {/* A signature reads as first-name-only; the full printed name stays on the line below. */}
+                <Text style={styles.signatureScript}>Abhijit</Text>
                 <Text style={styles.signatureName}>{COMPANY_SIGNATORY.name}</Text>
                 <Text style={styles.signatureTitle}>{COMPANY_SIGNATORY.title}, Stively Technologies</Text>
               </View>

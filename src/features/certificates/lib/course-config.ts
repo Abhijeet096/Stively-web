@@ -18,7 +18,7 @@ export const COURSE_CERTIFICATE_CONFIG: Record<string, CourseCertificateConfig> 
     prefix: "GAI",
     courseName: "Generative AI & Prompt Engineering Certification Course",
     description:
-      "This certifies the successful completion of a comprehensive program covering Generative AI tools, prompt engineering, AI workflows, real-world applications and hands-on projects, demonstrating practical skills for the modern AI era.",
+      "Awarded in recognition of demonstrated proficiency in Generative AI and prompt engineering - earned through a structured, assessment-based curriculum spanning core AI concepts, practical prompt design, and real-world application, with every module verified by a graded assessment.",
   },
 };
 

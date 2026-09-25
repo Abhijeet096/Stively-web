@@ -32,6 +32,18 @@ export function registerDocumentFonts() {
     ],
   });
 
+  // A genuine flowing script face for signature lines (certificates for
+  // now - see template-01.tsx) - a real font rendering the signatory's
+  // name, not a static "Abhijit" italics-only image that read as typed
+  // text rather than a signature. Single static weight (not a variable
+  // font) - same reasoning as skipping Bricolage Grotesque above,
+  // @react-pdf/renderer's font engine handles static instances more
+  // predictably. Alex Brush, SIL Open Font License.
+  Font.register({
+    family: "Alex Brush",
+    fonts: [{ src: path.join(FONT_DIR, "AlexBrush-Regular.ttf"), fontWeight: 400 }],
+  });
+
   // @react-pdf/renderer hyphenates by default, which reads oddly for
   // proper nouns, currency, and IDs in a business document.
   Font.registerHyphenationCallback((word) => [word]);

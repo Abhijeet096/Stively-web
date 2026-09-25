@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { submitAssessment } from "../../actions/submission-actions";
+import { markLessonComplete } from "../../actions/progress-actions";
 import type { Assessment, AssessmentSubmission } from "@prisma/client";
 
 interface QuizQuestion {
@@ -19,10 +20,14 @@ interface QuizQuestion {
 function AssessmentSubmissionForm({
   assessment,
   enrollmentId,
+  lessonId,
+  lessonAlreadyCompleted,
   existingSubmission,
 }: {
   assessment: Assessment;
   enrollmentId: string;
+  lessonId: string;
+  lessonAlreadyCompleted: boolean;
   existingSubmission: AssessmentSubmission | null;
 }) {
   const router = useRouter();
@@ -82,6 +87,18 @@ function AssessmentSubmissionForm({
     if (!result.success) {
       setError(result.error);
       return;
+    }
+    // The one place a passed quiz retries lesson completion - the actual
+    // fix for "watched the video, then passed the quiz, but the lesson
+    // never completed": markLessonComplete's only real gate IS the quiz
+    // (isLessonBlockedByUnpassedQuiz), so whichever of video/reading/quiz
+    // finishes LAST is what should trigger the successful attempt, not
+    // just whichever finished first. Safe to call after every quiz
+    // submission, not just a passing one - a failed attempt is silently
+    // rejected server-side exactly like it always was for the manual
+    // button, no different outcome, no new error surfaced here.
+    if (assessment.type === "QUIZ" && !lessonAlreadyCompleted) {
+      void markLessonComplete(enrollmentId, lessonId);
     }
     router.refresh();
   }

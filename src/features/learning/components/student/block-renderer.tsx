@@ -52,7 +52,14 @@ function BlockRenderer({
     case "QUIZ":
     case "ASSIGNMENT":
     case "PROJECT":
-      return block.assessment ? <BlockAssessment assessment={block.assessment} enrollmentId={enrollmentId} /> : null;
+      return block.assessment ? (
+        <BlockAssessment
+          assessment={block.assessment}
+          enrollmentId={enrollmentId}
+          lessonId={block.lessonId}
+          lessonAlreadyCompleted={lessonAlreadyCompleted}
+        />
+      ) : null;
     case "LIVE_SESSION":
       return block.liveSession ? <BlockLiveSession session={block.liveSession} /> : null;
     case "AI_CONVERSATION":
